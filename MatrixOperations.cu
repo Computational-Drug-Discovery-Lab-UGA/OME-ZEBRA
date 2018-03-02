@@ -7,8 +7,6 @@
 
 using namespace std;
 
-#define TILE_DIM 38
-#define BLOCK_ROWS 8
 
 // Define this to turn on error checking
 #define CUDA_ERROR_CHECK
@@ -50,77 +48,6 @@ inline void __cudaCheckError(const char *file, const int line) {
     return;
 }
 
-int* flattenMatrix(int** matrix, int cols, int rows){
-  int* flat = new int[rows*cols];
-  int currentPixel = 0;
-  for(int r = 0; r < rows; ++r){
-    for(int c = 0; c < cols; ++c){
-      flat[currentPixel] = matrix[r][c];
-      ++currentPixel;
-    }
-  }
-  cout<<"Matrix is flattened."<<endl;
-  return flat;
-}
-
-int** expandMatrix(int* flattened, int cols, int rows){
-  int** expanded = new int*[rows];
-  int currentPixel = 0;
-  for(int r = 0; r < rows; ++r){
-    int* currentRow = new int[cols];
-    for(int c = 0; c < cols; ++c){
-      currentRow[c] = flattened[currentPixel];
-      ++currentPixel;
-    }
-    expanded[r] = currentRow;
-  }
-  cout<<"Array is now a Matrix."<<endl;
-  return expanded;
-}
-
-
-int** incrementMatrix(int transpose, int** matrix, int cols, int rows){
-  for(int r = 0; r < rows; ++r){
-    for(int c = 0; c < cols; ++c){
-      matrix[r][c] += transpose;
-    }
-  }
-  return matrix;
-}
-
-__global__ void transposeCoalesced(int *odata, const int *idata){
-  __shared__ int tile[TILE_DIM][TILE_DIM];
-
-  int x = blockIdx.x * TILE_DIM + threadIdx.x;
-  int y = blockIdx.y * TILE_DIM + threadIdx.y;
-  int width = gridDim.x * TILE_DIM;
-
-  for (int j = 0; j < TILE_DIM; j += BLOCK_ROWS)
-     tile[threadIdx.y+j][threadIdx.x] = idata[(y+j)*width + x];
-
-  __syncthreads();
-
-  x = blockIdx.y * TILE_DIM + threadIdx.x;  // transpose block offset
-  y = blockIdx.x * TILE_DIM + threadIdx.y;
-
-  for (int j = 0; j < TILE_DIM; j += BLOCK_ROWS)
-     odata[(y+j)*width + x] = tile[threadIdx.x][threadIdx.y + j];
-}
-
-// naive transpose
-// Simplest transpose; doesn't use shared memory.
-// Global memory reads are coalesced but writes are not.
-__global__ void transposeNaive(int *odata, const int *idata)
-{
-  int x = blockIdx.x * TILE_DIM + threadIdx.x;
-  int y = blockIdx.y * TILE_DIM + threadIdx.y;
-  int width = gridDim.x * TILE_DIM;
-
-  for (int j = 0; j < TILE_DIM; j+= BLOCK_ROWS)
-    odata[x*width + (y+j)] = idata[(y+j)*width + x];
-
-}
-
 void printDeviceProperties() {
     int nDevices;
 
@@ -145,69 +72,187 @@ void printDeviceProperties() {
 
 
     }
-
 }
-int** hostTranspose(int** matrix, int rows, int cols){
-  int** transposable = new int*[rows];
+
+short* flattenMatrix(short** matrix, int cols, int rows){
+  short* flat = new short[rows*cols];
+  int currentPixel = 0;
+  for(int r = 0; r < rows; ++r){
+    for(int c = 0; c < cols; ++c){
+      flat[currentPixel] = matrix[r][c];
+      ++currentPixel;
+    }
+  }
+  cout<<"Matrix is flattened."<<endl;
+  return flat;
+}
+
+short** expandMatrix(short* flattened, int cols, int rows){
+  short** expanded = new short*[rows];
+  int currentPixel = 0;
+  for(int r = 0; r < rows; ++r){
+    short* currentRow = new short[cols];
+    for(int c = 0; c < cols; ++c){
+      currentRow[c] = flattened[currentPixel];
+      ++currentPixel;
+    }
+    expanded[r] = currentRow;
+  }
+  cout<<"Array is now a Matrix."<<endl;
+  return expanded;
+}
+
+
+short** incrementMatrix(short alter, short** matrix, int cols, int rows){
+  for(int r = 0; r < rows; ++r){
+    for(int c = 0; c < cols; ++c){
+      matrix[r][c] += alter;
+    }
+  }
+  return matrix;
+}
+
+
+short** hostTranspose(short** matrix, int rows, int cols){
+  short** transposable = new short*[rows];
   for(int row = 0; row < rows; ++row){
-    transposable[row] = new int[cols];
+    transposable[row] = new short[cols];
     for(int col = 0; col < cols; ++col){
       transposable[row][col] = matrix[col][row];
     }
-    cout<<"Timepoint "<<row<<" trasposed..."<<endl;
+    //cout<<"Timepoint "<<row<<" trasposed..."<<endl;
 
   }
 
   return transposable;
+}
 
+__global__ void transposeShortMatrix(short* flatOrigin, short* flatTransposed, long Nrows, long Ncols){
+
+  long globalID = blockIdx.x * blockDim.x + threadIdx.x;
+  long pixel = globalID;
+  long stride = gridDim.x * blockDim.x;
+  long flatLength = Nrows * Ncols;
+  long row = 0;
+  long col = 0;
+  short currentPixelIntensity = 0;
+  while(pixel < flatLength){
+    row = pixel/Ncols;
+    col = pixel - Ncols*row;
+    flatTransposed[pixel] = flatOrigin[row + Nrows*col];
+    pixel += stride;
+  }
 
 }
 
 int main(){
 
-  time_t timer = time_t(nullptr);
+  time_t timer = time(nullptr);
   printDeviceProperties();
 
-  const int numTimePoints = 25;
-  const int rows  = 2048;
+  int numTimePoints = 512;
+  int rows  = 2048;
   const int columns = 1024;
-  int** testMatrix = new int*[rows];
+  short** testMatrix = new short*[rows];
   for(int i = 0; i < rows; ++i){
-    testMatrix[i] = new int[columns];
+    testMatrix[i] = new short[columns];
     for(int c = 0; c < columns; ++c){
       testMatrix[i][c] = c;
     }
   }
 
-  cout<<"Done filling test array at "<<timer<<endl;
-  int** timePointArray = new int*[numTimePoints];
+  cout<<"Done filling test array at "<<difftime(time(nullptr), timer)<<" second"<<endl;
+  short** timePointArray = new short*[numTimePoints];
   for(int i = 0; i < numTimePoints; ++i){
 
     timePointArray[i] = flattenMatrix(incrementMatrix(1, testMatrix, columns, rows), columns, rows);
   }
-  cout<<"Done filling timepoint vector at "<<timer<<endl;
+  cout<<"Done filling timepoint vector at "<<difftime(time(nullptr), timer)<<" second"<<endl;
 
-  const int Nrows = rows*columns;
-  const int Ncols = numTimePoints;
 
-  //int** transposedMatrix = new int*[Nrows];
-  //for(int i = 0; i < Nrows; ++i){
-  //  testMatrix[i] = new int[columns];
-  //  for(int c = 0; c < Ncols; ++c){
-  //    testMatrix[i][c] = 0;
-  //  }
-  //}
-  cout<<"Transpose initiation complete at "<<timer<<endl;
 
-  int** transposedMatrix = hostTranspose(timePointArray, Nrows, Ncols);
-  if(transposedMatrix[0] != timePointArray[0] && transposedMatrix[1][0] == timePointArray[0][1]){
-    cout<<"SUCCESS IN TRANSPOSITION"<<endl;
+  bool transposed = false;
+  int Nrows = 0;
+  int Ncols = 0;
+  short* flattenedFull = flattenMatrix(timePointArray, rows*columns, numTimePoints);//Nrows and Ncols are switched here
+  cout<<"Original Array has been flattened"<<endl;
+  short* flatTransposed = new short[rows*columns*numTimePoints];//might not be used
+  if(rows*columns >= numTimePoints){
+    transposed = true;
+    Nrows = rows*columns;
+    Ncols = numTimePoints;
+    //int** transposedMatrix = new int*[Nrows];
+    //for(int i = 0; i < Nrows; ++i){
+    //  testMatrix[i] = new int[columns];
+    //  for(int c = 0; c < Ncols; ++c){
+    //    testMatrix[i][c] = 0;
+    //  }
+    //}
+    cout<<"Transpose initiation complete at "<<difftime(time(nullptr), timer)<<" second"<<endl;
+
+    time_t transposeTimer = time(nullptr);
+
+    short** transposedMatrix = hostTranspose(timePointArray, Nrows, Ncols);
+    if(transposedMatrix[0] != timePointArray[0] && transposedMatrix[1][0] == timePointArray[0][1]){
+      cout<<"SUCCESS IN TRANSPOSITION IN>>>"<<difftime(time(nullptr), transposeTimer)<<" second"<<endl;
+    }
+    else{
+      cout<<"FAILURE IN TRANSPOSITION"<<endl;
+
+      exit(1);
+    }
+
+
+    //transposition
+    short* fullDevice;
+    short* transDevice;
+
+
+    CudaSafeCall(cudaMalloc((void**)&fullDevice, Nrows*Ncols*sizeof(short)));
+    CudaSafeCall(cudaMalloc((void**)&transDevice, Nrows*Ncols*sizeof(short)));
+    CudaSafeCall(cudaMemcpy(fullDevice, flattenedFull, Nrows*Ncols*sizeof(short), cudaMemcpyHostToDevice));
+    CudaSafeCall(cudaMemcpy(transDevice, flatTransposed, Nrows*Ncols*sizeof(short), cudaMemcpyHostToDevice));
+
+
+    unsigned int numBlocks = 2147483647;
+    while(Nrows * Ncols < numBlocks){
+      numBlocks--;
+    }
+    long startIndex = 0;
+    long endIndex = numBlocks;
+    transposeTimer = time(nullptr);
+    cout<<"LENGTH OF FLAT MATRIX = "<<Nrows * Ncols<<endl;
+    cout<<"MATRIX DIM = "<<Nrows <<"x"<<Ncols<<endl;
+    transposeShortMatrix<<<numBlocks,1>>>(fullDevice, transDevice, Nrows, Ncols);
+    CudaCheckError();
+
+    CudaSafeCall(cudaMemcpy(flatTransposed, transDevice, Nrows*Ncols*sizeof(short), cudaMemcpyDeviceToHost));
+    short** pixelsByTimePoints = expandMatrix(flatTransposed, Ncols, Nrows);
+
+
+    if(pixelsByTimePoints[0] != timePointArray[0] && pixelsByTimePoints[1][0] == timePointArray[0][1]){
+        cout<<"SUCCESS IN TRANSPOSITION KERNEL IN>>>"<<difftime(time(nullptr), transposeTimer)<<" second"<<endl;
+    }
+    else{
+        cout<<"FAILURE IN TRANSPOSITION KERNEL"<<endl;
+        exit(1);
+
+    }
   }
   else{
-    cout<<"FAILURE IN TRANSPOSITION"<<endl;
-
-    exit(1);
+    Nrows = numTimePoints;
+    Ncols = rows*columns;
   }
+
+  short* flatSVDMatrix;
+
+  if(transposed){//use flatTransposed
+    flatSVDMatrix = flatTransposed;
+  }
+  else{//use flattenedFull
+    flatSVDMatrix = flattenedFull;
+  }
+
   /*
   cout<<"Printing last timepoint:"<<endl;
   for(int i = 0; i < rows*columns; ++i){
@@ -233,6 +278,7 @@ int main(){
   //needs to be (rows*columns)*numTimePoints
   //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 
+/*
   // --- cuSOLVE input/output parameters/arrays
   int work_size = 0;
   int *devInfo;
@@ -306,41 +352,9 @@ int main(){
   }
 
   cusolverDnDestroy(solver_handle);
-
-  /*
-  //transposition
-  int* flattenedFull = flattenMatrix(timePointArray, Nrows, Ncols);//Nrows and Ncols are switched here
-  int* flatTransposed = new int[Nrows*Ncols];
-  int* fullDevice;
-  int* transDevice;
-
-  if(Nrows % 32 != 0 || Ncols % 32 != 0){
-    cout<<"error Nrows or Ncols is not a multiple of 32..."<<endl;
-    exit(1);
-  }
+*/
 
 
-  dim3 dimGrid(Ncols/TILE_DIM, Nro/TILE_DIM, 1);
-  dim3 dimBlock(TILE_DIM, BLOCK_ROWS, 1);
-  CudaSafeCall(cudaMalloc((void**)&fullDevice, Nrows*Ncols*sizeof(int)));
-  CudaSafeCall(cudaMalloc((void**)&transDevice, Nrows*Ncols*sizeof(int)));
-  CudaSafeCall(cudaMemcpy(fullDevice, flattenedFull, Nrows*Ncols*sizeof(int), cudaMemcpyHostToDevice));
-  CudaSafeCall(cudaMemcpy(transDevice, flatTransposed, Nrows*Ncols*sizeof(int), cudaMemcpyHostToDevice));
-
-
-
-  CudaSafeCall(cudaMemcpy(flatTransposed, transDevice, Nrows*Ncols*sizeof(int), cudaMemcpyDeviceToHost));
-  int** pixelsByTimePoints = expandMatrix(flatTransposed, Ncols, Nrows);
-
-
-  if(pixelsByTimePoints[0] != timePointArray[0] && pixelsByTimePoints[0][0] == timePointArray[0][1]){
-      cout<<"SUCCESS IN TRANSPOSITION"<<endl;
-  }
-  else{
-      cout<<"FAILURE IN TRANSPOSITION"<<endl;
-  }
-  */
-  //
   return 0;
 
 }

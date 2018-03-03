@@ -79,8 +79,8 @@ void printDeviceProperties() {
     }
 }
 
-float* flattenMatrix(float** matrix, int cols, int rows){
-  float* flat = new float[rows*cols];
+short* flattenMatrix(short** matrix, int cols, int rows){
+  short* flat = new short[rows*cols];
   int currentPixel = 0;
   for(int r = 0; r < rows; ++r){
     for(int c = 0; c < cols; ++c){
@@ -92,11 +92,11 @@ float* flattenMatrix(float** matrix, int cols, int rows){
   return flat;
 }
 
-float** expandMatrix(float* flattened, int cols, int rows){
-  float** expanded = new float*[rows];
+short** expandMatrix(short* flattened, int cols, int rows){
+  short** expanded = new short*[rows];
   int currentPixel = 0;
   for(int r = 0; r < rows; ++r){
-    float* currentRow = new float[cols];
+    short* currentRow = new short[cols];
     for(int c = 0; c < cols; ++c){
       currentRow[c] = flattened[currentPixel];
       ++currentPixel;
@@ -108,7 +108,7 @@ float** expandMatrix(float* flattened, int cols, int rows){
 }
 
 
-float** incrementMatrix(float alter, float** matrix, int cols, int rows){
+short** incrementMatrix(short alter, short** matrix, int cols, int rows){
   for(int r = 0; r < rows; ++r){
     for(int c = 0; c < cols; ++c){
       matrix[r][c] += alter;
@@ -118,10 +118,10 @@ float** incrementMatrix(float alter, float** matrix, int cols, int rows){
 }
 
 
-float** hostTranspose(float** matrix, int rows, int cols){
-  float** transposable = new float*[rows];
+short** hostTranspose(short** matrix, int rows, int cols){
+  short** transposable = new short*[rows];
   for(int row = 0; row < rows; ++row){
-    transposable[row] = new float[cols];
+    transposable[row] = new short[cols];
     for(int col = 0; col < cols; ++col){
       transposable[row][col] = matrix[col][row];
     }
@@ -132,7 +132,7 @@ float** hostTranspose(float** matrix, int rows, int cols){
   return transposable;
 }
 
-__global__ void transposefloatMatrix(float* flatOrigin, float* flatTransposed, long Nrows, long Ncols){
+__global__ void transposeshortMatrix(short* flatOrigin, short* flatTransposed, long Nrows, long Ncols){
 
   long globalID = blockIdx.x * blockDim.x + threadIdx.x;
   long pixel = globalID;
@@ -140,7 +140,7 @@ __global__ void transposefloatMatrix(float* flatOrigin, float* flatTransposed, l
   long flatLength = Nrows * Ncols;
   long row = 0;
   long col = 0;
-  float currentPixelIntensity = 0;
+  short currentPixelIntensity = 0;
   while(pixel < flatLength){
     row = pixel/Ncols;
     col = pixel - Ncols*row;
@@ -148,6 +148,22 @@ __global__ void transposefloatMatrix(float* flatOrigin, float* flatTransposed, l
     pixel += stride;
   }
 
+}
+
+
+short findMin(short* flatMatrix, int size){
+  short currentMin = 0;
+  for(int i = 0; i < size; ++i){
+    if(currentMin > flatMatrix[i]){
+      currentMin = flatMatrix[i];
+    }
+  }
+  return currentMin;
+}
+
+__global__ void calcCa(short* flatMatrix, short min){
+  int globalID = blockIdx.x * blockDim.x + threadIdx.x;
+  flatMatrix[globalID] = flatMatrix[globalID] - min;
 }
 
 int main(){
@@ -158,16 +174,16 @@ int main(){
   int numTimePoints = 512;
   int rows  = 2048;
   const int columns = 1024;
-  float** testMatrix = new float*[rows];
+  short** testMatrix = new short*[rows];
   for(int i = 0; i < rows; ++i){
-    testMatrix[i] = new float[columns];
+    testMatrix[i] = new short[columns];
     for(int c = 0; c < columns; ++c){
       testMatrix[i][c] = c;
     }
   }
 
   cout<<"Done filling test array at "<<difftime(time(nullptr), timer)<<" second"<<endl;
-  float** timePointArray = new float*[numTimePoints];
+  short** timePointArray = new short*[numTimePoints];
   for(int i = 0; i < numTimePoints; ++i){
 
     timePointArray[i] = flattenMatrix(incrementMatrix(1, testMatrix, columns, rows), columns, rows);
@@ -179,12 +195,13 @@ int main(){
   bool transposed = false;
   int Nrows = 0;
   int Ncols = 0;
-  float* flattenedFull = flattenMatrix(timePointArray, rows*columns, numTimePoints);//Nrows and Ncols are switched here
+  short* flattenedFull = flattenMatrix(timePointArray, rows*columns, numTimePoints);//Nrows and Ncols are switched here
   cout<<"Original Array has been flattened"<<endl;
-  float* flatTransposed = new float[rows*columns*numTimePoints];//might not be used
-  float* fullDevice;
-  float* transDevice;
-  float* deviceSVDMatrix;
+  short* flatTransposed = new short[rows*columns*numTimePoints];//might not be used
+  short* flatCa = new short[rows*columns*numTimePoints];
+  short* fullDevice;
+  short* transDevice;
+  short* deviceSVDMatrix;
   if(rows*columns >= numTimePoints){
     transposed = true;
     Nrows = rows*columns;
@@ -199,8 +216,7 @@ int main(){
     cout<<"Transpose initiation complete at "<<difftime(time(nullptr), timer)<<" second"<<endl;
 
     time_t transposeTimer = time(nullptr);
-
-    float** transposedMatrix = hostTranspose(timePointArray, Nrows, Ncols);
+    short** transposedMatrix = hostTranspose(timePointArray, Nrows, Ncols);
     if(transposedMatrix[0] != timePointArray[0] && transposedMatrix[1][0] == timePointArray[0][1]){
       cout<<"SUCCESS IN TRANSPOSITION IN>>>"<<difftime(time(nullptr), transposeTimer)<<" second"<<endl;
     }
@@ -213,33 +229,43 @@ int main(){
 
     //transposition
 
+    short min = findMin(flatTransposed, Nrows*Ncols);
+    cout<<"min = "<<min<<endl;
 
 
-    CudaSafeCall(cudaMalloc((void**)&fullDevice, Nrows*Ncols*sizeof(float)));
-    CudaSafeCall(cudaMalloc((void**)&transDevice, Nrows*Ncols*sizeof(float)));
-    CudaSafeCall(cudaMemcpy(fullDevice, flattenedFull, Nrows*Ncols*sizeof(float), cudaMemcpyHostToDevice));
-    CudaSafeCall(cudaMemcpy(transDevice, flatTransposed, Nrows*Ncols*sizeof(float), cudaMemcpyHostToDevice));
-
-
+    CudaSafeCall(cudaMalloc((void**)&fullDevice, Nrows*Ncols*sizeof(short)));
+    CudaSafeCall(cudaMalloc((void**)&transDevice, Nrows*Ncols*sizeof(short)));
+    CudaSafeCall(cudaMemcpy(fullDevice, flattenedFull, Nrows*Ncols*sizeof(short), cudaMemcpyHostToDevice));
+    CudaSafeCall(cudaMemcpy(transDevice, flatTransposed, Nrows*Ncols*sizeof(short), cudaMemcpyHostToDevice));
     unsigned int numBlocks = 2147483647;
     while(Nrows * Ncols < numBlocks){
       numBlocks--;
     }
+    calcCa<<<numBlocks,1>>>(fullDevice, 1);
+    CudaCheckError();
+    cudaDeviceSynchronize();
+
+
     long startIndex = 0;
     long endIndex = numBlocks;
     transposeTimer = time(nullptr);
     cout<<"LENGTH OF FLAT MATRIX = "<<Nrows * Ncols<<endl;
     cout<<"MATRIX DIM = "<<Nrows <<"x"<<Ncols<<endl;
-    transposefloatMatrix<<<numBlocks,1>>>(fullDevice, transDevice, Nrows, Ncols);
+    transposeshortMatrix<<<numBlocks,1>>>(fullDevice, transDevice, Nrows, Ncols);
     CudaCheckError();
 
-    CudaSafeCall(cudaMemcpy(flatTransposed, transDevice, Nrows*Ncols*sizeof(float), cudaMemcpyDeviceToHost));
-    float** pixelsByTimePoints = expandMatrix(flatTransposed, Ncols, Nrows);
+    CudaSafeCall(cudaMemcpy(flatTransposed, transDevice, Nrows*Ncols*sizeof(short), cudaMemcpyDeviceToHost));
+    CudaSafeCall(cudaMemcpy(flatCa, fullDevice, Nrows*Ncols*sizeof(short), cudaMemcpyDeviceToHost));
+
+    short** pixelsByTimePoints = expandMatrix(flatTransposed, Ncols, Nrows);
+    cout<<"transposed expanded"<<endl;
+    short** timePointByPixelCa = expandMatrix(flatCa, Nrows, Ncols);
+    cout<<"origin expanded"<<endl;
 
     CudaSafeCall(cudaFree(fullDevice));
     CudaSafeCall(cudaFree(transDevice));
 
-    if(pixelsByTimePoints[0] != timePointArray[0] && pixelsByTimePoints[1][0] == timePointArray[0][1]){
+    if(pixelsByTimePoints[0] != timePointByPixelCa[0] && pixelsByTimePoints[1][0] == timePointByPixelCa[0][1]){
         cout<<"SUCCESS IN TRANSPOSITION KERNEL IN>>>"<<difftime(time(nullptr), transposeTimer)<<" second"<<endl;
     }
     else{
@@ -255,18 +281,16 @@ int main(){
 
   }
 
-  float* flatSVDMatrix;
 
-  if(transposed){//use flatTransposed
-    flatSVDMatrix = flatTransposed;
-    CudaSafeCall(cudaMalloc((void**)&deviceSVDMatrix, Nrows*Ncols*sizeof(float)));
-    CudaSafeCall(cudaMemcpy(deviceSVDMatrix, flatTransposed, Nrows*Ncols*sizeof(float), cudaMemcpyHostToDevice));
-  }
-  else{//use flattenedFull
-    flatSVDMatrix = flattenedFull;
-    CudaSafeCall(cudaMalloc((void**)&deviceSVDMatrix, Nrows*Ncols*sizeof(float)));
-    CudaSafeCall(cudaMemcpy(deviceSVDMatrix, flattenedFull, Nrows*Ncols*sizeof(float), cudaMemcpyHostToDevice));
-  }
+
+
+
+
+
+  short* flatSVDMatrix;
+
+
+
 
   /*
   cout<<"Printing last timepoint:"<<endl;

@@ -1,9 +1,14 @@
 #include "cuda_runtime.h"
+#include "device_launch_parameters.h"
 #include <cuda.h>
 #include <cuda_runtime_api.h>
 #include "MatrixOperations.cuh"
-#include "Utilities.cuh"
 #include <ctime>
+#include<iostream>
+#include<iomanip>
+#include<stdlib.h>
+#include<stdio.h>
+#include<math.h>
 
 using namespace std;
 
@@ -74,8 +79,8 @@ void printDeviceProperties() {
     }
 }
 
-short* flattenMatrix(short** matrix, int cols, int rows){
-  short* flat = new short[rows*cols];
+float* flattenMatrix(float** matrix, int cols, int rows){
+  float* flat = new float[rows*cols];
   int currentPixel = 0;
   for(int r = 0; r < rows; ++r){
     for(int c = 0; c < cols; ++c){
@@ -83,15 +88,15 @@ short* flattenMatrix(short** matrix, int cols, int rows){
       ++currentPixel;
     }
   }
-  cout<<"Matrix is flattened."<<endl;
+  //cout<<"Matrix is flattened."<<endl;
   return flat;
 }
 
-short** expandMatrix(short* flattened, int cols, int rows){
-  short** expanded = new short*[rows];
+float** expandMatrix(float* flattened, int cols, int rows){
+  float** expanded = new float*[rows];
   int currentPixel = 0;
   for(int r = 0; r < rows; ++r){
-    short* currentRow = new short[cols];
+    float* currentRow = new float[cols];
     for(int c = 0; c < cols; ++c){
       currentRow[c] = flattened[currentPixel];
       ++currentPixel;
@@ -103,7 +108,7 @@ short** expandMatrix(short* flattened, int cols, int rows){
 }
 
 
-short** incrementMatrix(short alter, short** matrix, int cols, int rows){
+float** incrementMatrix(float alter, float** matrix, int cols, int rows){
   for(int r = 0; r < rows; ++r){
     for(int c = 0; c < cols; ++c){
       matrix[r][c] += alter;
@@ -113,10 +118,10 @@ short** incrementMatrix(short alter, short** matrix, int cols, int rows){
 }
 
 
-short** hostTranspose(short** matrix, int rows, int cols){
-  short** transposable = new short*[rows];
+float** hostTranspose(float** matrix, int rows, int cols){
+  float** transposable = new float*[rows];
   for(int row = 0; row < rows; ++row){
-    transposable[row] = new short[cols];
+    transposable[row] = new float[cols];
     for(int col = 0; col < cols; ++col){
       transposable[row][col] = matrix[col][row];
     }
@@ -127,7 +132,7 @@ short** hostTranspose(short** matrix, int rows, int cols){
   return transposable;
 }
 
-__global__ void transposeShortMatrix(short* flatOrigin, short* flatTransposed, long Nrows, long Ncols){
+__global__ void transposefloatMatrix(float* flatOrigin, float* flatTransposed, long Nrows, long Ncols){
 
   long globalID = blockIdx.x * blockDim.x + threadIdx.x;
   long pixel = globalID;
@@ -135,7 +140,7 @@ __global__ void transposeShortMatrix(short* flatOrigin, short* flatTransposed, l
   long flatLength = Nrows * Ncols;
   long row = 0;
   long col = 0;
-  short currentPixelIntensity = 0;
+  float currentPixelIntensity = 0;
   while(pixel < flatLength){
     row = pixel/Ncols;
     col = pixel - Ncols*row;
@@ -153,16 +158,16 @@ int main(){
   int numTimePoints = 512;
   int rows  = 2048;
   const int columns = 1024;
-  short** testMatrix = new short*[rows];
+  float** testMatrix = new float*[rows];
   for(int i = 0; i < rows; ++i){
-    testMatrix[i] = new short[columns];
+    testMatrix[i] = new float[columns];
     for(int c = 0; c < columns; ++c){
       testMatrix[i][c] = c;
     }
   }
 
   cout<<"Done filling test array at "<<difftime(time(nullptr), timer)<<" second"<<endl;
-  short** timePointArray = new short*[numTimePoints];
+  float** timePointArray = new float*[numTimePoints];
   for(int i = 0; i < numTimePoints; ++i){
 
     timePointArray[i] = flattenMatrix(incrementMatrix(1, testMatrix, columns, rows), columns, rows);
@@ -174,9 +179,12 @@ int main(){
   bool transposed = false;
   int Nrows = 0;
   int Ncols = 0;
-  short* flattenedFull = flattenMatrix(timePointArray, rows*columns, numTimePoints);//Nrows and Ncols are switched here
+  float* flattenedFull = flattenMatrix(timePointArray, rows*columns, numTimePoints);//Nrows and Ncols are switched here
   cout<<"Original Array has been flattened"<<endl;
-  short* flatTransposed = new short[rows*columns*numTimePoints];//might not be used
+  float* flatTransposed = new float[rows*columns*numTimePoints];//might not be used
+  float* fullDevice;
+  float* transDevice;
+  float* deviceSVDMatrix;
   if(rows*columns >= numTimePoints){
     transposed = true;
     Nrows = rows*columns;
@@ -192,7 +200,7 @@ int main(){
 
     time_t transposeTimer = time(nullptr);
 
-    short** transposedMatrix = hostTranspose(timePointArray, Nrows, Ncols);
+    float** transposedMatrix = hostTranspose(timePointArray, Nrows, Ncols);
     if(transposedMatrix[0] != timePointArray[0] && transposedMatrix[1][0] == timePointArray[0][1]){
       cout<<"SUCCESS IN TRANSPOSITION IN>>>"<<difftime(time(nullptr), transposeTimer)<<" second"<<endl;
     }
@@ -204,14 +212,13 @@ int main(){
 
 
     //transposition
-    short* fullDevice;
-    short* transDevice;
 
 
-    CudaSafeCall(cudaMalloc((void**)&fullDevice, Nrows*Ncols*sizeof(short)));
-    CudaSafeCall(cudaMalloc((void**)&transDevice, Nrows*Ncols*sizeof(short)));
-    CudaSafeCall(cudaMemcpy(fullDevice, flattenedFull, Nrows*Ncols*sizeof(short), cudaMemcpyHostToDevice));
-    CudaSafeCall(cudaMemcpy(transDevice, flatTransposed, Nrows*Ncols*sizeof(short), cudaMemcpyHostToDevice));
+
+    CudaSafeCall(cudaMalloc((void**)&fullDevice, Nrows*Ncols*sizeof(float)));
+    CudaSafeCall(cudaMalloc((void**)&transDevice, Nrows*Ncols*sizeof(float)));
+    CudaSafeCall(cudaMemcpy(fullDevice, flattenedFull, Nrows*Ncols*sizeof(float), cudaMemcpyHostToDevice));
+    CudaSafeCall(cudaMemcpy(transDevice, flatTransposed, Nrows*Ncols*sizeof(float), cudaMemcpyHostToDevice));
 
 
     unsigned int numBlocks = 2147483647;
@@ -223,12 +230,14 @@ int main(){
     transposeTimer = time(nullptr);
     cout<<"LENGTH OF FLAT MATRIX = "<<Nrows * Ncols<<endl;
     cout<<"MATRIX DIM = "<<Nrows <<"x"<<Ncols<<endl;
-    transposeShortMatrix<<<numBlocks,1>>>(fullDevice, transDevice, Nrows, Ncols);
+    transposefloatMatrix<<<numBlocks,1>>>(fullDevice, transDevice, Nrows, Ncols);
     CudaCheckError();
 
-    CudaSafeCall(cudaMemcpy(flatTransposed, transDevice, Nrows*Ncols*sizeof(short), cudaMemcpyDeviceToHost));
-    short** pixelsByTimePoints = expandMatrix(flatTransposed, Ncols, Nrows);
+    CudaSafeCall(cudaMemcpy(flatTransposed, transDevice, Nrows*Ncols*sizeof(float), cudaMemcpyDeviceToHost));
+    float** pixelsByTimePoints = expandMatrix(flatTransposed, Ncols, Nrows);
 
+    CudaSafeCall(cudaFree(fullDevice));
+    CudaSafeCall(cudaFree(transDevice));
 
     if(pixelsByTimePoints[0] != timePointArray[0] && pixelsByTimePoints[1][0] == timePointArray[0][1]){
         cout<<"SUCCESS IN TRANSPOSITION KERNEL IN>>>"<<difftime(time(nullptr), transposeTimer)<<" second"<<endl;
@@ -242,15 +251,21 @@ int main(){
   else{
     Nrows = numTimePoints;
     Ncols = rows*columns;
+
+
   }
 
-  short* flatSVDMatrix;
+  float* flatSVDMatrix;
 
   if(transposed){//use flatTransposed
     flatSVDMatrix = flatTransposed;
+    CudaSafeCall(cudaMalloc((void**)&deviceSVDMatrix, Nrows*Ncols*sizeof(float)));
+    CudaSafeCall(cudaMemcpy(deviceSVDMatrix, flatTransposed, Nrows*Ncols*sizeof(float), cudaMemcpyHostToDevice));
   }
   else{//use flattenedFull
     flatSVDMatrix = flattenedFull;
+    CudaSafeCall(cudaMalloc((void**)&deviceSVDMatrix, Nrows*Ncols*sizeof(float)));
+    CudaSafeCall(cudaMemcpy(deviceSVDMatrix, flattenedFull, Nrows*Ncols*sizeof(float), cudaMemcpyHostToDevice));
   }
 
   /*
@@ -277,82 +292,12 @@ int main(){
   //now: matrix = numTimePointsX(rows*columns)
   //needs to be (rows*columns)*numTimePoints
   //!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
-/*
   // --- cuSOLVE input/output parameters/arrays
-  int work_size = 0;
-  int *devInfo;
-  gpuErrchk(cudaMalloc(&devInfo,sizeof(int)));
+  // --- cuSOLVE input/output parameters/arrays
 
-  // --- CUDA solver initialization
-  cusolverDnHandle_t solver_handle;
-  cusolverDnCreate(&solver_handle);
 
-  // --- Setting the host, Nrows x Ncols matrix
-  double *h_A = (double *)malloc(Nrows * Ncols * sizeof(double));
-  for(int j = 0; j < Nrows; j++){
-    for(int i = 0; i < Ncols; i++){
-      h_A[j + i*Nrows] = (i + j*j) * sqrt((double)(i + j));
-    }
-  }
+  //may have to be done by matlab
 
-  // --- Setting the device matrix and moving the host matrix to the device
-  double *d_A;
-  gpuErrchk(cudaMalloc(&d_A, Nrows * Ncols * sizeof(double)));
-  gpuErrchk(cudaMemcpy(d_A, h_A, Nrows * Ncols * sizeof(double), cudaMemcpyHostToDevice));
-
-  // --- host side SVD results space
-  double *h_U = (double *)malloc(Nrows * Nrows     * sizeof(double));
-  double *h_V = (double *)malloc(Ncols * Ncols     * sizeof(double));
-  double *h_S = (double *)malloc(min(Nrows, Ncols) * sizeof(double));
-
-  // --- device side SVD workspace and matrices
-  double *d_U;
-  gpuErrchk(cudaMalloc(&d_U,	Nrows * Nrows     * sizeof(double)));
-  double *d_V;
-  gpuErrchk(cudaMalloc(&d_V,	Ncols * Ncols	  * sizeof(double)));
-  double *d_S;
-  gpuErrchk(cudaMalloc(&d_S,	min(Nrows, Ncols) * sizeof(double)));
-
-  // --- CUDA SVD initialization
-  cusolveSafeCall(cusolverDnDgesvd_bufferSize(solver_handle, Nrows, Ncols, &work_size));
-  double *work;
-  gpuErrchk(cudaMalloc(&work, work_size * sizeof(double)));
-
-  // --- CUDA SVD execution
-  cusolveSafeCall(cusolverDnDgesvd(solver_handle, 'A', 'A', Nrows, Ncols, d_A, Nrows, d_S, d_U, Nrows, d_V, Ncols, work, work_size, NULL, devInfo));
-  int devInfo_h = 0;
-  gpuErrchk(cudaMemcpy(&devInfo_h, devInfo, sizeof(int), cudaMemcpyDeviceToHost));
-  if (devInfo_h != 0){
-    std::cout	<< "Unsuccessful SVD execution\n\n";
-  }
-
-  // --- Moving the results from device to host
-  gpuErrchk(cudaMemcpy(h_S, d_S, min(Nrows, Ncols) * sizeof(double), cudaMemcpyDeviceToHost));
-  gpuErrchk(cudaMemcpy(h_U, d_U, Nrows * Nrows     * sizeof(double), cudaMemcpyDeviceToHost));
-  gpuErrchk(cudaMemcpy(h_V, d_V, Ncols * Ncols     * sizeof(double), cudaMemcpyDeviceToHost));
-
-  std::cout << "Singular values\n";
-  for(int i = 0; i < min(Nrows, Ncols); i++){
-    std::cout << "d_S["<<i<<"] = " << std::setprecision(15) << h_S[i] << std::endl;
-  }
-  std::cout << "\nLeft singular vectors - For y = A * x, the columns of U span the space of y\n";
-  for(int j = 0; j < Nrows; j++) {
-    printf("\n");
-    for(int i = 0; i < Nrows; i++)
-      printf("U[%i,%i]=%f\n",i,j,h_U[j*Nrows + i]);
-  }
-
-  std::cout << "\nRight singular vectors - For y = A * x, the columns of V span the space of x\n";
-  for(int i = 0; i < Ncols; i++) {
-    printf("\n");
-    for(int j = 0; j < Ncols; j++){
-      printf("V[%i,%i]=%f\n",i,j,h_V[j*Ncols + i]);
-    }
-  }
-
-  cusolverDnDestroy(solver_handle);
-*/
 
 
   return 0;

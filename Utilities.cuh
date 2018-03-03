@@ -54,9 +54,6 @@ __device__ int modulo(int, int);
 __device__ double atomicAdd(double *, double);
 __device__ float  atomicMin(float *, float);
 
-__global__ void copy(float *odata, const float *idata);
-
-__global__ void transposeNaive(float *odata, const float *idata);
 
 double deg2rad(double);
 

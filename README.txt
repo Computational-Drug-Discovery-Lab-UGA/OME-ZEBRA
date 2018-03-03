@@ -1,2 +1,3 @@
-g++ -std=c++11 -c MatrixOperations.cpp -o MatrixOperations.o
-g++ -std=c++11 -o MatrixOperations.exe MatrixOperations.o
+nvcc -std=c++11 -c MatrixOperations.o MatrixOperations.cu
+nvcc -std=c++11 -c Utilities.cu Utilities.o
+nvcc -std=c++11 -o SVD.exe MatrixOperations.o Utilities.o

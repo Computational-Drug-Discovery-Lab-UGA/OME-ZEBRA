@@ -5,17 +5,17 @@ LINK := /usr/bin/g++-6
 NVCC := nvcc
 
 # Includes
-INCLUDES = -I. -I/usr/local/cuda/include
+INCLUDES = -I/usr/local/cuda/include -I/usr/local/include
 
 # Common flags
 COMMONFLAGS += ${INCLUDES}
 NVCCFLAGS += ${COMMONFLAGS}
-NVCCFLAGS += -std=c++11 -gencode=arch=compute_60,code=sm_60 -Iinclude
+NVCCFLAGS += -std=c++11 -gencode=arch=compute_60,code=sm_60
 CXXFLAGS += ${COMMONFLAGS}
-CXXFLAGS += -Wall -g -std=c++11 -Iinclude
+CXXFLAGS += -Wall -g -std=c++11
 
 LIB_CUDA := -L/usr/local/cuda-9.1/lib64 -lcudart
-
+LIB_TIFF := -L/usr/local/lib -ltiff
 
 SRCDIR = ./src
 OBJDIR = ./obj
@@ -25,16 +25,16 @@ _OBJS = main.cpp.o
 OBJS = ${patsubst %, ${OBJDIR}/%, ${_OBJS}}
 
 TARGET = ZEBRA_NNMF.exe
-LINKLINE = ${LINK} -o ${BINDIR}/${TARGET} ${OBJS} ${LIB_CUDA}
+LINKLINE = ${LINK} -o ${BINDIR}/${TARGET} ${OBJS} ${LIB_CUDA} ${LIB_TIFF} ${INCLUDES}
 
 
 .SUFFIXES: .cpp .cu .o
 
 ${OBJDIR}/%.cu.o: ${SRCDIR}/%.cu
-	${NVCC} ${NVCCFLAGS} -c $< -o $@
+	${NVCC} ${NVCCFLAGS} ${INCLUDES} -c $< -o $@
 
 ${OBJDIR}/%.cpp.o: ${SRCDIR}/%.cpp
-	${CXX} ${CXXFLAGS} -c $< -o $@
+	${CXX} ${CXXFLAGS} ${INCLUDES} -c $< -o $@
 
 ${BINDIR}/${TARGET}: ${OBJS} Makefile
 	${LINKLINE}

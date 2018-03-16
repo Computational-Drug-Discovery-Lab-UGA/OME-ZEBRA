@@ -1,6 +1,4 @@
-#include <ome/files/VariantPixelBuffer.h>
-#include <ome/files/in/TIFFReader.h>
-#include <ome/files/in/OMETIFFReader.h>
+#include "tiffio.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -8,7 +6,7 @@
 #include <vector>
 
 using namespace std;
-
+/*
 void readPixelData(const FormatReader& reader, std::ostream& stream, std::string filename) {
     // Get total number of images (series)
     dimension_size_type ic = reader.getSeriesCount();
@@ -57,19 +55,57 @@ void readPixelData(const FormatReader& reader, std::ostream& stream, std::string
         }
     }
 }
-
+*/
 int main(int argc, char *argv[]) {
-    shared_ptr<FormatReader> reader(make_shared<OMETIFFReader>());
-    reader->setMetadataFiltered(false);
-    reader->setGroupFiles(true);
+    //shared_ptr<FormatReader> reader(make_shared<OMETIFFReader>());
+    //reader->setMetadataFiltered(false);
+    //reader->setGroupFiles(true);
 
     if(argc!=2) {
-      cout << "Usage: ./exe <file>"
+      cout << "Usage: ./exe <file>";
       return 1;
     } else {
-      reader->setId(argv[1]);
-      readPixelData(*reader, cout, fileName.string());
-      reader->close();
+      TIFF* tif = TIFFOpen(argv[1], "r");
+      if (tif){
+        uint32 imagelength;
+        uint32 config;
+        tdata_t buf;
+        uint32 row;
+
+        TIFFGetField(tif, TIFFTAG_IMAGELENGTH, &imagelength);
+        TIFFGetField(tif, TIFFTAG_PLANARCONFIG, &config);
+        buf = _TIFFmalloc(TIFFScanlineSize(tif));
+        if (config == PLANARCONFIG_CONTIG) {
+          cout<<"PLANE CONFIGURATION IS CONTIGUOUS"<<endl;
+          for (row = 0; row < imagelength; row++){
+            TIFFReadScanline(tif, buf, row);
+
+            printf("here is the row - %d\n",row);
+          }
+        }
+        else if (config == PLANARCONFIG_SEPARATE) {
+          uint16 s, nsamples;
+          cout<<"PLANE CONFIGURATION IS SEPARATE"<<endl;
+          TIFFGetField(tif, TIFFTAG_SAMPLESPERPIXEL, &nsamples);
+          for (s = 0; s < nsamples; s++){
+            for (row = 0; row < imagelength; row++){
+            TIFFReadScanline(tif, buf, row, s);
+            printf("here is the row - %d\n",row);
+
+            }
+          }
+        }
+        _TIFFfree(buf);
+        TIFFClose(tif);
+       }
+       else{
+         cout<<"COULD NOT OPEN"<<argv[1];
+         return 1;
+       }
+
+      //reader->setId(argv[1]);
+      //readPixelData(*reader, cout, fileName.string());
+      //reader->close();
     }
     return 0;
 }

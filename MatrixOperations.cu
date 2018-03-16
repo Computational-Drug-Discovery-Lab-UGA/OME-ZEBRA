@@ -230,7 +230,6 @@ int main(){
     //transposition
 
     short min = findMin(flatTransposed, Nrows*Ncols);
-    cout<<"min = "<<min<<endl;
 
 
     CudaSafeCall(cudaMalloc((void**)&fullDevice, Nrows*Ncols*sizeof(short)));

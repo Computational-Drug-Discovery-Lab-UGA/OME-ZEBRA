@@ -39,7 +39,12 @@ int main(int argc, char *argv[]) {
           //access matrix with fullTiffVector = timePoints
           printf("Total TimePoints = %d\nTotal Rows = %d\nTotal Columns = %d\n",fullTiffVector.size(), fullTiffVector[0].size(), numColumns);
 
+          //structure of final vector is:
+          //timePoints = vector<rows>
+          //  rows = vector<columns>
+          //    columns = uint16[numColumns]
 
+          //prepare arrays
 
 
       }

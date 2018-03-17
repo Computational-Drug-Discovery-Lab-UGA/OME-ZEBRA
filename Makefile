@@ -21,7 +21,7 @@ SRCDIR = ./src
 OBJDIR = ./obj
 BINDIR = ./bin
 
-_OBJS = main.cpp.o
+_OBJS = OME_ZEBRA.cu.o
 OBJS = ${patsubst %, ${OBJDIR}/%, ${_OBJS}}
 
 TARGET = ZEBRA_NNMF.exe

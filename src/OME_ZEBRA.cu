@@ -4,7 +4,7 @@
 #include <vector>
 #include <inttypes.h>
 #include "tiffio.h"
-
+#include <fstream>
 
 using namespace std;
 
@@ -98,16 +98,102 @@ int main(int argc, char *argv[]) {
 
           //prepare arrays
           //flatten time points
+          cout << "Preparing to flatten" << endl;
           for(int i = 0; i < fullTiffVector.size(); ++i){
             flattenedTimePoints.push_back(flattenMatrix(fullTiffVector[i],numColumns, fullTiffVector[i].size()));
           }
           //transpose time TimePoints
 
-          //convert to final array / matrix
+          cout << "Preparing to convert to array and transpose" << endl;
+          int NNormal = 512;
+          int MNormal = (1024*512);
+
+          bool* key = new bool[MNormal];
+
+          for (int i = 0; i < MNormal; i++) {
+            key[i] = false;
+          }
+
+          uint16* temp;
+          temp = new uint16[MNormal*NNormal];
+          int indexOfTemp = 0;
+          int nonZeroCounter = 0;
+          uint16* rowArray = new uint16[512];
+          int rowArrayIndex = 0;
+          int lastGoodIndex = 0;
+
+          for(unsigned i=0; (i < MNormal); i++) {
+            nonZeroCounter = 0;
+            rowArrayIndex = 0;
+            for(unsigned j=0; (j < NNormal); j++) {
+              if (flattenedTimePoints[j][i] != 0){
+                nonZeroCounter++;
+              }
+              rowArray[rowArrayIndex] = flattenedTimePoints[j][i];
+              rowArrayIndex++;
+            }
+
+            if (nonZeroCounter != 0) {
+              for (int k = 0; k < 512; k++) {
+                temp[indexOfTemp] = rowArray[k];
+                indexOfTemp++;
+              }
+              lastGoodIndex++;
+              key[i] = true;
+            }
+
+          }
+          cout << lastGoodIndex << endl;
+          uint16* actualArray = new uint16[(lastGoodIndex)*512];
+          cout << "test1" << endl;
+          for (long i = 0; i < ((lastGoodIndex) * 512); i++) {
+            actualArray[i] = temp[i];
+          }
+
+           cout << "Dumping to File" << endl;
+
+           ofstream myfile ("new.csv");
+           if (myfile.is_open()) {
+             for(long count = 0; count < ((lastGoodIndex) * 512); count ++){
+
+               if ((count + 1) % 512 == 0) {
+
+                  myfile << actualArray[count] << "\n" ;
+
+               }
+               else {
+
+                 myfile << actualArray[count] << " " ;
+
+               }
+             }
+             myfile.close();
+           }
+
+           // ifstream inFile ("A.csv");
+           //  long count = (512*2048*1024);
+           //  uint16* testArray;
+           //  testArray = new uint16[count];
+           //  printf("Test\n");
+           //  for(long i = 0; i < count; i++){
+           //    inFile >> testArray[i];
+           //  }
+           //  inFile.close();
+           //
+           // for (long i = 0; i < count; i++) {
+           //   if (temp[i] != testArray[i]) {
+           //     cout << "Not equal" << endl;
+           //   }
+           //   if (testArray[i] != 0) {
+           //     cout << testArray[i] << endl;
+           //   }
+           // }
+
 
           //SVD
 
-          //nnmf 
+
+          //nnmf
 
 
       }

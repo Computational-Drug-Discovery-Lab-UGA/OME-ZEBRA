@@ -152,9 +152,9 @@ int main(int argc, char *argv[]) {
 
            cout << "Dumping to File" << endl;
 
-           ofstream myfile ("new.csv");
+           ofstream myfile ("data/new.csv");
            if (myfile.is_open()) {
-             for(long count = 0; count < ((lastGoodIndex) * 512); count ++){
+             for(long count = 0; count < ((lastGoodIndex) * 512); count++){
 
                if ((count + 1) % 512 == 0) {
 
@@ -168,6 +168,17 @@ int main(int argc, char *argv[]) {
                }
              }
              myfile.close();
+           }
+
+           ofstream mykeyfile ("data/key.csv");
+           if (mykeyfile.is_open()) {
+             for(long i = 0; i < MNormal; i++){
+
+                mykeyfile << key[i] << "\n" ;
+
+              }
+            }
+             mykeyfile.close();
            }
 
            // ifstream inFile ("A.csv");
@@ -196,7 +207,7 @@ int main(int argc, char *argv[]) {
           //nnmf
 
 
-      }
+
       else{
         cout<<"COULD NOT OPEN"<<argv[1];
         return 1;

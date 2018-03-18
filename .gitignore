@@ -1,9 +1,6 @@
 *~
 *.o
 *.log
-bin
-bin/*
-/bin/*
 *.ply
 .DS_Store
 util/.DS_Store

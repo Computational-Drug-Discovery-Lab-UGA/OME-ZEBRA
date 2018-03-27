@@ -5,7 +5,9 @@
 #include <inttypes.h>
 #include "tiffio.h"
 #include <fstream>
-
+#include "cuda_runtime.h"
+#include "device_launch_parameters.h"
+#include <cuda.h>
 using namespace std;
 
 // Define this to turn on error checking
@@ -187,32 +189,26 @@ int main(int argc, char *argv[]) {
              mykeyfile.close();
            }
 
-           // ifstream inFile ("A.csv");
-           //  long count = (512*2048*1024);
-           //  uint16* testArray;
-           //  testArray = new uint16[count];
-           //  printf("Test\n");
-           //  for(long i = 0; i < count; i++){
-           //    inFile >> testArray[i];
-           //  }
-           //  inFile.close();
-           //
-           // for (long i = 0; i < count; i++) {
-           //   if (temp[i] != testArray[i]) {
-           //     cout << "Not equal" << endl;
-           //   }
-           //   if (testArray[i] != 0) {
-           //     cout << testArray[i] << endl;
-           //   }
-           // }
+           /*
+           ifstream inFile ("A.csv");
+           long count = (512*2048*1024);
+           uint16* testArray;
+           testArray = new uint16[count];
+           printf("Test\n");
+           for(long i = 0; i < count; i++){
+             inFile >> testArray[i];
+           }
+           inFile.close();
 
-
-          //SVD
-
-
-          //nnmf
-
-
+           for (long i = 0; i < count; i++) {
+             if (temp[i] != testArray[i]) {
+               cout << "Not equal" << endl;
+             }
+             if (testArray[i] != 0) {
+               cout << testArray[i] << endl;
+             }
+           }
+           */
 
       else{
         cout<<"COULD NOT OPEN"<<argv[1];
@@ -259,42 +255,50 @@ void printArray(uint16 * array, uint16 width){
 }
 
 vector<uint16*> extractMartrices(TIFF* tif, string fileName){
+  string newtiff = fileName.substr(0, fileName.length() - 8) + "_TP1.tif";
+  TIFF* firstTimePoint = TIFFOpen(newtiff.c_str(), "w");
+  if(firstTimePoint){
+    tdata_t buf;
+    uint32 row;
+    uint32 config;
+    vector<uint16*> currentPlane;
 
-  uint32 height,width;
-  tdata_t buf;
-  uint32 row;
-  uint32 config;
-  vector<uint16*> currentPlane;
+    uint32 height, width, samplesPerPixel, bitsPerSample, photo;
 
-  TIFFGetField(tif, TIFFTAG_IMAGEWIDTH, &width);
-  TIFFGetField(tif, TIFFTAG_IMAGELENGTH, &height);
-  buf = _TIFFmalloc(TIFFScanlineSize(tif));
+    TIFFGetField(tif, TIFFTAG_IMAGEWIDTH, &width);
+    TIFFGetField(tif, TIFFTAG_IMAGELENGTH, &height);
+    TIFFGetField(tif, TIFFTAG_SAMPLESPERPIXEL, &samplesPerPixel);
+    TIFFGetField(tif, TIFFTAG_BITSPERSAMPLE, &bitsPerSample);
+    TIFFGetField(tif, TIFFTAG_PHOTOMETRIC, &photo);
 
-  uint16* data;
-  string newfile = fileName.substr(0, fileName.length() - 8) + "_TP1.csv";
-  ofstream myfile(newfile);
+    TIFFSetField(firstTimePoint, TIFFTAG_IMAGEWIDTH, (int) width);
+    TIFFSetField(firstTimePoint, TIFFTAG_IMAGELENGTH,(int) height);
+    TIFFSetField(firstTimePoint, TIFFTAG_SAMPLESPERPIXEL, (int)samplesPerPixel);
+    TIFFSetField(firstTimePoint, TIFFTAG_BITSPERSAMPLE,(int) bitsPerSample);
+    TIFFSetField(firstTimePoint, TIFFTAG_PHOTOMETRIC,(int)photo);
+    TIFFSetField(firstTimePoint, TIFFTAG_PLANARCONFIG, PLANARCONFIG_CONTIG);
+    TIFFSetField(firstTimePoint, TIFFTAG_ROWSPERSTRIP, TIFFScanlineSize(tif));
+    buf = _TIFFmalloc(TIFFScanlineSize(tif));
+    uint16* data;
 
-  //printf("Height,Width = %u,%u -> scanLineSize = %d bytes\n", height, width,TIFFScanlineSize(tif));
-  for (row = 0; row < height; row++){
-    TIFFReadScanline(tif, buf, row);
-    data=(uint16*)buf;
-    currentPlane.push_back(data);
-    for(int i = 0; i < width; ++i){
-      if(i != width -1){
-        if(!myfile.is_open()) exit(0);
-        myfile<<data[i]<<",";
+    //printf("Height,Width = %u,%u -> scanLineSize = %d bytes\n", height, width,TIFFScanlineSize(tif));
+    for (row = 0; row < height; row++){
+      TIFFReadScanline(tif, buf, row);
+      data=(uint16*)buf;
+      if(TIFFWriteScanline(firstTimePoint, buf, row) != 1){
+        cout<<"ERROR WRITING FIRST TIMEPOINT"<<endl;
+        exit(-1);
       }
-      else{
-        myfile<<data[i];
-      }
+      currentPlane.push_back(data);
     }
-    myfile<<"\n";
-
-    //printArray(data,width);//make sure you have a big screen
+    TIFFClose(firstTimePoint);
+    _TIFFfree(buf);
+    return currentPlane;
   }
-  //cout<<endl<<endl;//if you are using the printArray method
-  _TIFFfree(buf);
-  return currentPlane;
+  else{
+    cout<<"COULD NOT CREATE FIRST TIMEPOINT TIFF"<<endl;
+    exit(-1);
+  }
 }
 vector<uint16*> extractMartrices(TIFF* tif){
 

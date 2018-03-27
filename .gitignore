@@ -1,4 +1,4 @@
 *~
 *.o
-data/
+data/*
 tiff-4.0.9/

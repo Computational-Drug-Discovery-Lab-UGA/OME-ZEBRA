@@ -24,7 +24,7 @@ BINDIR = ./bin
 _OBJS = OME_ZEBRA.cu.o
 OBJS = ${patsubst %, ${OBJDIR}/%, ${_OBJS}}
 
-TARGET = ZEBRA_NNMF.exe
+TARGET = ZEBRA.exe
 LINKLINE = ${LINK} -o ${BINDIR}/${TARGET} ${OBJS} ${LIB_CUDA} ${LIB_TIFF} ${INCLUDES}
 
 
@@ -42,3 +42,5 @@ ${BINDIR}/${TARGET}: ${OBJS} Makefile
 clean:
 	rm -f bin/*.exe
 	rm -f obj/*
+	rm -f data/*.csv
+	rm -f data/*TP1*

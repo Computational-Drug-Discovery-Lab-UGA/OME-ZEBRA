@@ -2,7 +2,7 @@
 
 for file in registeredOMEs/*.ome.tif
 do
-  bin/./ZEBRA_NNMF.exe "$file"
+  bin/./ZEBRA.exe "$file"
   bin/./NMF_GPU  data/new.csv  -k 2  -j 10  -t 40  -i 20000
 
   justFilename=$(basename $file)

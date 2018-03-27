@@ -54,6 +54,7 @@ inline void __cudaCheckError(const char *file, const int line) {
 
 void printDeviceProperties();
 void printArray(uint16 * array, uint16 width);
+vector<uint16*> extractMartrices(TIFF* tif, string fileName);
 vector<uint16*> extractMartrices(TIFF* tif);
 vector<uint16> flattenMatrix(vector<uint16*> matrix, int cols, int rows);
 uint16** hostTranspose(uint16** matrix, int rows, int cols);
@@ -72,10 +73,15 @@ int main(int argc, char *argv[]) {
     else {
       TIFF* tif = TIFFOpen(argv[1], "r");
       cout<<endl<<argv[1]<<" IS OPENED\n"<<endl;
+      string fileName = argv[1];
+      int dircount = 0;
       if (tif) {
-          int dircount = 0;
           do {
-            fullTiffVector.push_back(extractMartrices(tif));
+            vector<uint16*> matrix;
+            if(dircount == 0) matrix = extractMartrices(tif, fileName);
+            else matrix = extractMartrices(tif);
+            fullTiffVector.push_back(matrix);
+
             dircount++;
           }
           while (TIFFReadDirectory(tif));
@@ -152,7 +158,7 @@ int main(int argc, char *argv[]) {
 
            cout << "Dumping to File" << endl;
 
-           ofstream myfile ("data/new.csv");
+           ofstream myfile("data/new.csv");
            if (myfile.is_open()) {
              for(long count = 0; count < ((lastGoodIndex) * 512); count++){
 
@@ -251,6 +257,45 @@ void printArray(uint16 * array, uint16 width){
     }
     cout<<endl;
 }
+
+vector<uint16*> extractMartrices(TIFF* tif, string fileName){
+
+  uint32 height,width;
+  tdata_t buf;
+  uint32 row;
+  uint32 config;
+  vector<uint16*> currentPlane;
+
+  TIFFGetField(tif, TIFFTAG_IMAGEWIDTH, &width);
+  TIFFGetField(tif, TIFFTAG_IMAGELENGTH, &height);
+  buf = _TIFFmalloc(TIFFScanlineSize(tif));
+
+  uint16* data;
+  string newfile = fileName.substr(0, fileName.length() - 8) + "_TP1.csv";
+  ofstream myfile(newfile);
+
+  //printf("Height,Width = %u,%u -> scanLineSize = %d bytes\n", height, width,TIFFScanlineSize(tif));
+  for (row = 0; row < height; row++){
+    TIFFReadScanline(tif, buf, row);
+    data=(uint16*)buf;
+    currentPlane.push_back(data);
+    for(int i = 0; i < width; ++i){
+      if(i != width -1){
+        if(!myfile.is_open()) exit(0);
+        myfile<<data[i]<<",";
+      }
+      else{
+        myfile<<data[i];
+      }
+    }
+    myfile<<"\n";
+
+    //printArray(data,width);//make sure you have a big screen
+  }
+  //cout<<endl<<endl;//if you are using the printArray method
+  _TIFFfree(buf);
+  return currentPlane;
+}
 vector<uint16*> extractMartrices(TIFF* tif){
 
   uint32 height,width;
@@ -269,6 +314,7 @@ vector<uint16*> extractMartrices(TIFF* tif){
     TIFFReadScanline(tif, buf, row);
     data=(uint16*)buf;
     currentPlane.push_back(data);
+
     //printArray(data,width);//make sure you have a big screen
   }
   //cout<<endl<<endl;//if you are using the printArray method
@@ -289,6 +335,7 @@ uint16** hostTranspose(uint16** matrix, int rows, int cols){
 
   return transposable;
 }
+
 __global__ void transposeuint16Matrix(uint16* flatOrigin, uint16* flatTransposed, long Nrows, long Ncols){
 
   long globalID = blockIdx.x * blockDim.x + threadIdx.x;

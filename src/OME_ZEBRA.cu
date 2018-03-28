@@ -205,7 +205,7 @@ vector<uint32*> extractMartrices(TIFF* tif, string fileName){
     printf("width = %d\nheight = %d\nsamplesPerPixel = %d\nbitsPerSample = %lo\nscanLineSize = %d\n\n",width,height,samplesPerPixel,bitsPerSample,photo,scanLineSize);
     buf = _TIFFmalloc(TIFFScanlineSize(tif));
     uint32* data;
-    ofstream test("data/test.csv");
+    ofstream test("data/TP1.csv");
     //printf("Height,Width = %u,%u -> scanLineSize = %d bytes\n", height, width,TIFFScanlineSize(tif));
     for (row = 0; row < height; row++){
       TIFFReadScanline(tif, buf, row);

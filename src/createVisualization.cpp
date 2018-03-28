@@ -67,6 +67,7 @@ int main(int argc, char *argv[]) {
           float seizure, isNot;
           string currentLine;
           if(wFile.is_open()){
+            ofstream test("data/RESULT.csv");
             for (row = 0; row < height; ++row){
               TIFFReadScanline(tif, buf, row);
               data=(uint32*)buf;
@@ -77,14 +78,18 @@ int main(int argc, char *argv[]) {
                 ss>>seizure;
                 ss>>isNot;
                 //if(seizure > isNot) data[col] = max;
-                data[col]+=1;
+                if(seizure > isNot) data[col] += 1000000;
+                test<<data[col];
+                if(col != width - 1) test<<",";
               }
+              test<<"\n"<<endl;
               if(TIFFWriteScanline(resultTif, data, row) != 1){
                 cout<<"ERROR WRITING FIRST TIMEPOINT"<<endl;
                 exit(-1);
               }
               currentPixel++;
             }
+            test.close();
           }
           TIFFClose(resultTif);
           _TIFFfree(buf);

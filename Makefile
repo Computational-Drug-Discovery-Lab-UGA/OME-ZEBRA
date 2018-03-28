@@ -54,3 +54,5 @@ clean:
 	rm -f obj/*
 	rm -f -r data/out/
 	rm -f data/registeredOMEs/*TP1*
+	rm -f *.o
+	

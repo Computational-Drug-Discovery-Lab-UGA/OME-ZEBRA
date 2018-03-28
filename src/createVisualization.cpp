@@ -75,10 +75,9 @@ int main(int argc, char *argv[]) {
                 getline(wFile, currentLine);
                 stringstream ss;
                 ss<<currentLine;
-                ss>>seizure;
                 ss>>isNot;
-                //if(seizure > isNot) data[col] = max;
-                if(seizure > isNot) data[col] += 1000000;
+                ss>>seizure;
+                if(seizure > isNot) data[col] += 100000;
                 test<<data[col];
                 if(col != width - 1) test<<",";
               }

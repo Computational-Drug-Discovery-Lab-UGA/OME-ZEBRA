@@ -55,19 +55,19 @@ inline void __cudaCheckError(const char *file, const int line) {
 
 
 void printDeviceProperties();
-void printArray(uint16 * array, uint16 width);
-vector<uint16*> extractMartrices(TIFF* tif, string fileName);
-vector<uint16*> extractMartrices(TIFF* tif);
-vector<uint16> flattenMatrix(vector<uint16*> matrix, int cols, int rows);
-uint16** hostTranspose(uint16** matrix, int rows, int cols);
-__global__ void transposeuint16Matrix(uint16* flatOrigin, uint16* flatTransposed, long Nrows, long Ncols);
-uint16 findMin(uint16* flatMatrix, int size);
-__global__ void calcCa(uint16* flatMatrix, uint16 min);
+void printArray(uint32 * array, uint32 width);
+vector<uint32*> extractMartrices(TIFF* tif, string fileName);
+vector<uint32*> extractMartrices(TIFF* tif);
+vector<uint32> flattenMatrix(vector<uint32*> matrix, int cols, int rows);
+uint32** hostTranspose(uint32** matrix, int rows, int cols);
+__global__ void transposeuint32Matrix(uint32* flatOrigin, uint32* flatTransposed, long Nrows, long Ncols);
+uint32 findMin(uint32* flatMatrix, int size);
+__global__ void calcCa(uint32* flatMatrix, uint32 min);
 
 
 int main(int argc, char *argv[]) {
 
-    vector<vector<uint16*>> fullTiffVector;
+    vector<vector<uint32*>> fullTiffVector;
     if(argc!=2) {
       cout << "Usage: ./exe <file>";
       return 1;
@@ -79,7 +79,7 @@ int main(int argc, char *argv[]) {
       int dircount = 0;
       if (tif) {
           do {
-            vector<uint16*> matrix;
+            vector<uint32*> matrix;
             if(dircount == 0) matrix = extractMartrices(tif, fileName);
             else matrix = extractMartrices(tif);
             fullTiffVector.push_back(matrix);
@@ -101,8 +101,8 @@ int main(int argc, char *argv[]) {
           //structure of final vector is:
           //timePoints = vector<rows>
           //  rows = vector<columns>
-          //    columns = uint16[numColumns]
-          vector<vector<uint16>> flattenedTimePoints;
+          //    columns = uint32[numColumns]
+          vector<vector<uint32>> flattenedTimePoints;
 
           //prepare arrays
           //flatten time points
@@ -110,108 +110,30 @@ int main(int argc, char *argv[]) {
           for(int i = 0; i < fullTiffVector.size(); ++i){
             flattenedTimePoints.push_back(flattenMatrix(fullTiffVector[i],numColumns, fullTiffVector[i].size()));
           }
-          //transpose time TimePoints
 
-          cout << "Preparing to convert to array and transpose" << endl;
-          int NNormal = 512;
-          int MNormal = (1024*512);
+          //long numPixels = ((int)fullTiffVector[0].size())*numColumns;
+          //bool* key = new bool[numPixels];
+          //for(int i = 0; i < numPixels; +i) key[i] = false;
 
-          bool* key = new bool[MNormal];
 
-          for (int i = 0; i < MNormal; i++) {
-            key[i] = false;
-          }
-
-          uint16* temp;
-          temp = new uint16[MNormal*NNormal];
-          int indexOfTemp = 0;
-          int nonZeroCounter = 0;
-          uint16* rowArray = new uint16[512];
-          int rowArrayIndex = 0;
-          int lastGoodIndex = 0;
-
-          for(unsigned i=0; (i < MNormal); i++) {
-            nonZeroCounter = 0;
-            rowArrayIndex = 0;
-            for(unsigned j=0; (j < NNormal); j++) {
-              if (flattenedTimePoints[j][i] != 0){
-                nonZeroCounter++;
-              }
-              rowArray[rowArrayIndex] = flattenedTimePoints[j][i];
-              rowArrayIndex++;
-            }
-
-            if (nonZeroCounter != 0) {
-              for (int k = 0; k < 512; k++) {
-                temp[indexOfTemp] = rowArray[k];
-                indexOfTemp++;
-              }
-              lastGoodIndex++;
-              key[i] = true;
-            }
-
-          }
-          cout << lastGoodIndex << endl;
-          uint16* actualArray = new uint16[(lastGoodIndex)*512];
-          cout << "test1" << endl;
-          for (long i = 0; i < ((lastGoodIndex) * 512); i++) {
-            actualArray[i] = temp[i];
-          }
-
-           cout << "Dumping to File" << endl;
-
-           ofstream myfile("data/new.csv");
+          cout<<"dumping to file while transposing"<<endl;
+           ofstream myfile("data/NNMF.csv");
            if (myfile.is_open()) {
-             for(long count = 0; count < ((lastGoodIndex) * 512); count++){
-
-               if ((count + 1) % 512 == 0) {
-
-                  myfile << actualArray[count] << "\n" ;
-
+             for(long count = 0; count < flattenedTimePoints[0].size(); count++){
+               for(int i = 0; i < flattenedTimePoints.size(); ++i){
+                 myfile<<flattenedTimePoints[i][count] + 1;
+                 if(i != 511){
+                   myfile<<" ";
+                 }
                }
-               else {
-
-                 myfile << actualArray[count] << " " ;
-
-               }
+               myfile<<"\n";
              }
              myfile.close();
            }
-
-           ofstream mykeyfile ("data/key.csv");
-           if (mykeyfile.is_open()) {
-             for(long i = 0; i < MNormal; i++){
-
-                mykeyfile << key[i] << "\n" ;
-
-              }
-            }
-             mykeyfile.close();
-           }
-
-           /*
-           ifstream inFile ("A.csv");
-           long count = (512*2048*1024);
-           uint16* testArray;
-           testArray = new uint16[count];
-           printf("Test\n");
-           for(long i = 0; i < count; i++){
-             inFile >> testArray[i];
-           }
-           inFile.close();
-
-           for (long i = 0; i < count; i++) {
-             if (temp[i] != testArray[i]) {
-               cout << "Not equal" << endl;
-             }
-             if (testArray[i] != 0) {
-               cout << testArray[i] << endl;
-             }
-           }
-           */
-
+           cout<<"NNMF.csv created successfuly"<<endl;
+      }
       else{
-        cout<<"COULD NOT OPEN"<<argv[1];
+        cout<<"COULD NOT OPEN "<<argv[1]<<endl;
         return 1;
       }
     }
@@ -246,7 +168,7 @@ void printDeviceProperties(){
 
     }
 }
-void printArray(uint16 * array, uint16 width){
+void printArray(uint32 * array, uint32 width){
     uint32 i;
     for (i=0;i<width;i++){
       printf("%u ", array[i]);
@@ -254,43 +176,53 @@ void printArray(uint16 * array, uint16 width){
     cout<<endl;
 }
 
-vector<uint16*> extractMartrices(TIFF* tif, string fileName){
+vector<uint32*> extractMartrices(TIFF* tif, string fileName){
   string newtiff = fileName.substr(0, fileName.length() - 8) + "_TP1.tif";
   TIFF* firstTimePoint = TIFFOpen(newtiff.c_str(), "w");
   if(firstTimePoint){
     tdata_t buf;
     uint32 row;
     uint32 config;
-    vector<uint16*> currentPlane;
+    vector<uint32*> currentPlane;
 
-    uint32 height, width, samplesPerPixel, bitsPerSample, photo;
+    uint32 height, width, samplesPerPixel, bitsPerSample, photo, scanLineSize;
 
     TIFFGetField(tif, TIFFTAG_IMAGEWIDTH, &width);
     TIFFGetField(tif, TIFFTAG_IMAGELENGTH, &height);
     TIFFGetField(tif, TIFFTAG_SAMPLESPERPIXEL, &samplesPerPixel);
     TIFFGetField(tif, TIFFTAG_BITSPERSAMPLE, &bitsPerSample);
     TIFFGetField(tif, TIFFTAG_PHOTOMETRIC, &photo);
+    TIFFGetField(tif, TIFFTAG_ROWSPERSTRIP, &scanLineSize);
 
-    TIFFSetField(firstTimePoint, TIFFTAG_IMAGEWIDTH, (int) width);
-    TIFFSetField(firstTimePoint, TIFFTAG_IMAGELENGTH,(int) height);
-    TIFFSetField(firstTimePoint, TIFFTAG_SAMPLESPERPIXEL, (int)samplesPerPixel);
-    TIFFSetField(firstTimePoint, TIFFTAG_BITSPERSAMPLE,(int) bitsPerSample);
-    TIFFSetField(firstTimePoint, TIFFTAG_PHOTOMETRIC,(int)photo);
-    TIFFSetField(firstTimePoint, TIFFTAG_PLANARCONFIG, PLANARCONFIG_CONTIG);
-    TIFFSetField(firstTimePoint, TIFFTAG_ROWSPERSTRIP, TIFFScanlineSize(tif));
+
+    TIFFSetField(firstTimePoint, TIFFTAG_IMAGEWIDTH, width);
+    TIFFSetField(firstTimePoint, TIFFTAG_IMAGELENGTH, height);
+    TIFFSetField(firstTimePoint, TIFFTAG_SAMPLESPERPIXEL, samplesPerPixel);
+    TIFFSetField(firstTimePoint, TIFFTAG_BITSPERSAMPLE,bitsPerSample);
+    TIFFSetField(firstTimePoint, TIFFTAG_PHOTOMETRIC, photo);
+    TIFFSetField(firstTimePoint, TIFFTAG_ROWSPERSTRIP, scanLineSize);
+    cout<<"\nTIMEPOINT 1 .tif info:"<<endl;
+    printf("width = %d\nheight = %d\nsamplesPerPixel = %d\nbitsPerSample = %lo\nscanLineSize = %d\n\n",width,height,samplesPerPixel,bitsPerSample,photo,scanLineSize);
     buf = _TIFFmalloc(TIFFScanlineSize(tif));
-    uint16* data;
-
+    uint32* data;
+    ofstream test("data/test.csv");
     //printf("Height,Width = %u,%u -> scanLineSize = %d bytes\n", height, width,TIFFScanlineSize(tif));
     for (row = 0; row < height; row++){
       TIFFReadScanline(tif, buf, row);
-      data=(uint16*)buf;
+      data=(uint32*)buf;
+      for(int i = 0; i < width; ++i){
+        test<<data[i];
+        if(i != width - 1) test<<",";
+      }
+      test<<"\n"<<endl;
       if(TIFFWriteScanline(firstTimePoint, buf, row) != 1){
         cout<<"ERROR WRITING FIRST TIMEPOINT"<<endl;
         exit(-1);
       }
+
       currentPlane.push_back(data);
     }
+    test.close();
     TIFFClose(firstTimePoint);
     _TIFFfree(buf);
     return currentPlane;
@@ -300,23 +232,23 @@ vector<uint16*> extractMartrices(TIFF* tif, string fileName){
     exit(-1);
   }
 }
-vector<uint16*> extractMartrices(TIFF* tif){
+vector<uint32*> extractMartrices(TIFF* tif){
 
   uint32 height,width;
   tdata_t buf;
   uint32 row;
   uint32 config;
-  vector<uint16*> currentPlane;
+  vector<uint32*> currentPlane;
 
   TIFFGetField(tif, TIFFTAG_IMAGEWIDTH, &width);
   TIFFGetField(tif, TIFFTAG_IMAGELENGTH, &height);
   buf = _TIFFmalloc(TIFFScanlineSize(tif));
 
-  uint16* data;
+  uint32* data;
   //printf("Height,Width = %u,%u -> scanLineSize = %d bytes\n", height, width,TIFFScanlineSize(tif));
   for (row = 0; row < height; row++){
     TIFFReadScanline(tif, buf, row);
-    data=(uint16*)buf;
+    data=(uint32*)buf;
     currentPlane.push_back(data);
 
     //printArray(data,width);//make sure you have a big screen
@@ -326,10 +258,10 @@ vector<uint16*> extractMartrices(TIFF* tif){
   return currentPlane;
 }
 
-uint16** hostTranspose(uint16** matrix, int rows, int cols){
-  uint16** transposable = new uint16*[rows];
+uint32** hostTranspose(uint32** matrix, int rows, int cols){
+  uint32** transposable = new uint32*[rows];
   for(int row = 0; row < rows; ++row){
-    transposable[row] = new uint16[cols];
+    transposable[row] = new uint32[cols];
     for(int col = 0; col < cols; ++col){
       transposable[row][col] = matrix[col][row];
     }
@@ -340,7 +272,7 @@ uint16** hostTranspose(uint16** matrix, int rows, int cols){
   return transposable;
 }
 
-__global__ void transposeuint16Matrix(uint16* flatOrigin, uint16* flatTransposed, long Nrows, long Ncols){
+__global__ void transposeuint32Matrix(uint32* flatOrigin, uint32* flatTransposed, long Nrows, long Ncols){
 
   long globalID = blockIdx.x * blockDim.x + threadIdx.x;
   long pixel = globalID;
@@ -348,7 +280,7 @@ __global__ void transposeuint16Matrix(uint16* flatOrigin, uint16* flatTransposed
   long flatLength = Nrows * Ncols;
   long row = 0;
   long col = 0;
-  uint16 currentPixelIntensity = 0;
+  uint32 currentPixelIntensity = 0;
   while(pixel < flatLength){
     row = pixel/Ncols;
     col = pixel - Ncols*row;
@@ -358,8 +290,8 @@ __global__ void transposeuint16Matrix(uint16* flatOrigin, uint16* flatTransposed
 
 }
 
-vector<uint16> flattenMatrix(vector<uint16*> matrix, int cols, int rows){
-  vector<uint16> flat;
+vector<uint32> flattenMatrix(vector<uint32*> matrix, int cols, int rows){
+  vector<uint32> flat;
   for(int r = 0; r < rows; ++r){
     for(int c = 0; c < cols; ++c){
       flat.push_back(matrix[r][c]);
@@ -368,8 +300,8 @@ vector<uint16> flattenMatrix(vector<uint16*> matrix, int cols, int rows){
   //cout<<"Matrix is flattened."<<endl;
   return flat;
 }
-uint16 findMin(uint16* flatMatrix, int size){
-  uint16 currentMin = 0;
+uint32 findMin(uint32* flatMatrix, int size){
+  uint32 currentMin = 0;
   for(int i = 0; i < size; ++i){
     if(currentMin > flatMatrix[i]){
       currentMin = flatMatrix[i];
@@ -377,7 +309,7 @@ uint16 findMin(uint16* flatMatrix, int size){
   }
   return currentMin;
 }
-__global__ void calcCa(uint16* flatMatrix, uint16 min){
+__global__ void calcCa(uint32* flatMatrix, uint32 min){
   int globalID = blockIdx.x * blockDim.x + threadIdx.x;
   flatMatrix[globalID] = flatMatrix[globalID] - min;
 }

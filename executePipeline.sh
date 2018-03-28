@@ -1,16 +1,19 @@
 #!/bin/bash
 
-for file in registeredOMEs/*.ome.tif
+for file in data/registeredOMEs/*.ome.tif
 do
-  bin/./ZEBRA.exe "$file"
-  bin/./NMF_GPU  data/new.csv  -k 2  -j 10  -t 40  -i 20000
+  mkdir data/out
+  ./bin/ZEBRA.exe "$file"
+  ./bin/NMF_GPU  data/NNMF.csv  -k 2  -j 10  -t 40  -i 20000
 
   justFilename=$(basename $file)
 
-  mkdir output/"${justFilename%%.*}"
-  mv data/new.csv_H.txt output/"${justFilename%%.*}"/"${justFilename%%.*}"_H.txt
-  mv data/new.csv_W.txt output/"${justFilename%%.*}"/"${justFilename%%.*}"_W.txt
-  mv data/key.csv output/"${justFilename%%.*}"/"${justFilename%%.*}"_key.csv
+  mkdir data/out/"${justFilename%%.*}"
+  mv data/NNMF.csv_H.txt data/out/"${justFilename%%.*}"/"${justFilename%%.*}"_H.txt
+  mv data/NNMF.csv_W.txt data/out/"${justFilename%%.*}"/"${justFilename%%.*}"_W.txt
+  mv data/registeredOMEs/"${justFilename%%.*}"_TP1.tif data/out/"${justFilename%%.*}"/"${justFilename%%.*}"_TP1.tif
 
-  rm data/new.csv
+  ./bin/NNMF_VISUALIZE.exe "${justFilename%%.*}"
+
+  rm data/NNMF/new.csv
 done

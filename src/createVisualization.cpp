@@ -77,7 +77,7 @@ int main(int argc, char *argv[]) {
                 ss<<currentLine;
                 ss>>isNot;
                 ss>>seizure;
-                if(seizure > isNot) data[col] += 100000;
+                if(seizure > isNot) data[col] = max;
                 test<<data[col];
                 if(col != width - 1) test<<",";
               }

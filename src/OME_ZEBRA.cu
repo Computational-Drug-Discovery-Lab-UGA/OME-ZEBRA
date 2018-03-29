@@ -115,6 +115,7 @@ int main(int argc, char *argv[]) {
           //bool* key = new bool[numPixels];
           //for(int i = 0; i < numPixels; +i) key[i] = false;
 
+          //need to do calcCa
 
           cout<<"dumping to file while transposing"<<endl;
            ofstream myfile("data/NNMF.csv");

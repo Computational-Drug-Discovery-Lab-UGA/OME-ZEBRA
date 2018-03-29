@@ -1,3 +1,11 @@
+/*
+Created and edited by Jackson Parker and Godfrey Hendrix
+This script is used to create a visualized tif image of the output
+of NNMF run on a tif directory. The necessary inputs include a tif image
+of the first timepoint, the w matrix of NNMF output and a  key csv that represents
+the if a pixel row is all 0.
+*/
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <iostream>
@@ -77,7 +85,7 @@ int main(int argc, char *argv[]) {
                 ss<<currentLine;
                 ss>>isNot;
                 ss>>seizure;
-                if(seizure > isNot) data[col] = max;
+                if(seizure*.5 < isNot && seizure > isNot) data[col] = max;
                 test<<data[col];
                 if(col != width - 1) test<<",";
               }

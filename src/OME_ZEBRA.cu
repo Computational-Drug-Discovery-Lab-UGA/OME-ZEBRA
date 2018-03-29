@@ -62,7 +62,7 @@ vector<uint32> flattenMatrix(vector<uint32*> matrix, int cols, int rows);
 uint32** hostTranspose(uint32** matrix, int rows, int cols);
 __global__ void transposeuint32Matrix(uint32* flatOrigin, uint32* flatTransposed, long Nrows, long Ncols);
 uint32 findMin(uint32* flatMatrix, int size);
-__global__ void calcCa(uint32* flatMatrix, uint32 min);
+__global__ void calcCa(uint32* flatMatrix, uint32 min, long size);
 
 
 int main(int argc, char *argv[]) {
@@ -117,10 +117,9 @@ int main(int argc, char *argv[]) {
 
           //need to do calcCa
 
-          cout << "Preparing to convert to array and transpose" << endl;
-
-          int NNormal = 512;
-          int MNormal = (1024*512);
+          cout<<"Creating key"<<endl;
+          int NNormal = dircount;
+          int MNormal = (fullTiffVector[0].size()*numColumns);
 
           bool* key = new bool[MNormal];
 
@@ -129,6 +128,7 @@ int main(int argc, char *argv[]) {
           }
 
           uint32* temp;
+          uint32 min = 4294967295;
           temp = new uint32[MNormal*NNormal];
           int indexOfTemp = 0;
           int nonZeroCounter = 0;
@@ -142,6 +142,7 @@ int main(int argc, char *argv[]) {
             for(unsigned j=0; (j < NNormal); j++) {
               if (flattenedTimePoints[j][i] != 0){
                 nonZeroCounter++;
+                if(flattenedTimePoints[j][i] < min) min = flattenedTimePoints[j][i];
               }
               rowArray[rowArrayIndex] = flattenedTimePoints[j][i];
               rowArrayIndex++;
@@ -157,14 +158,44 @@ int main(int argc, char *argv[]) {
             }
 
           }
+          cout<<"key created"<<endl;
           cout << lastGoodIndex << endl;
-          uint32* actualArray = new uint32[(lastGoodIndex)*512];
-          cout << "test1" << endl;
-          for (long i = 0; i < ((lastGoodIndex) * 512); i++) {
+          long minimizedSize = lastGoodIndex*512;
+          uint32* actualArray = new uint32[minimizedSize];
+          cout << "loading arrys based on key" << endl;
+          for (long i = 0; i < minimizedSize; i++) {
 
             actualArray[i] = temp[i] + 1;
 
           }
+          dim3 grid = {1,1,1};
+          dim3 block = {1,1,1};
+          if(65535 > minimizedSize){
+            grid.x = minimizedSize;
+          }
+          else if(65535*1024 > minimizedSize){
+            grid.x = 65535;
+            block.x = 1024;
+            while(block.x*grid.x > minimizedSize){
+              block.x--;
+            }
+          }
+          else{
+            grid.x = 65535;
+            block.x = 1024;
+            while(grid.x*grid.y*block.x < minimizedSize){
+              grid.y++;
+            }
+          }
+          cout<<"prepare for calcCa cuda kernel with min = "<<min<<endl;
+          uint32* actualArrayDevice;
+          CudaSafeCall(cudaMalloc((void**)&actualArrayDevice,minimizedSize*sizeof(uint32)));
+          CudaSafeCall(cudaMemcpy(actualArrayDevice,actualArray, minimizedSize*sizeof(uint32), cudaMemcpyHostToDevice));
+          calcCa<<<grid,block>>>(actualArrayDevice, min, minimizedSize);
+          CudaCheckError();
+          CudaSafeCall(cudaMemcpy(actualArray,actualArrayDevice, minimizedSize*sizeof(uint32), cudaMemcpyDeviceToHost));
+          CudaSafeCall(cudaFree(actualArrayDevice));
+          cout<<"calcCa has completed applying offset"<<endl;
 
           cout << "Dumping to File" << endl;
 
@@ -269,7 +300,7 @@ vector<uint32*> extractMartrices(TIFF* tif, string fileName){
     TIFFSetField(firstTimePoint, TIFFTAG_PHOTOMETRIC, photo);
     TIFFSetField(firstTimePoint, TIFFTAG_ROWSPERSTRIP, scanLineSize);
     cout<<"\nTIMEPOINT 1 .tif info:"<<endl;
-    printf("width = %d\nheight = %d\nsamplesPerPixel = %d\nbitsPerSample = %lo\nscanLineSize = %d\n\n",width,height,samplesPerPixel,bitsPerSample,photo,scanLineSize);
+    printf("width = %d\nheight = %d\nsamplesPerPixel = %d\nbitsPerSample = %lo\nscanLineSize = %d\n\n",width,height,samplesPerPixel,bitsPerSample,scanLineSize);
     buf = _TIFFmalloc(TIFFScanlineSize(tif));
     uint32* data;
     ofstream test("data/TP1.csv");
@@ -376,7 +407,13 @@ uint32 findMin(uint32* flatMatrix, int size){
   }
   return currentMin;
 }
-__global__ void calcCa(uint32* flatMatrix, uint32 min){
-  int globalID = blockIdx.x * blockDim.x + threadIdx.x;
-  flatMatrix[globalID] = flatMatrix[globalID] - min;
+__global__ void calcCa(uint32* flatMatrix, uint32 min, long size){
+  int blockID = blockIdx.y * gridDim.x + blockIdx.x;
+  int globalID = blockID * blockDim.x + threadIdx.x;
+  int stride = gridDim.x * gridDim.y * blockDim.x;
+  long currentIndex = globalID;
+  while(currentIndex < size){
+    flatMatrix[globalID] = flatMatrix[globalID] - min + 1;//+1 to ensure we do not have 0 values
+    currentIndex += stride;
+  }
 }

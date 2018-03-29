@@ -55,4 +55,4 @@ clean:
 	rm -f -r data/out/
 	rm -f data/registeredOMEs/*TP1*
 	rm -f *.o
-	
+	rm -f data/*.csv

@@ -117,29 +117,95 @@ int main(int argc, char *argv[]) {
 
           //need to do calcCa
 
-          cout<<"dumping to file while transposing"<<endl;
-           ofstream myfile("data/NNMF.csv");
-           if (myfile.is_open()) {
-             for(long count = 0; count < flattenedTimePoints[0].size(); count++){
-               for(int i = 0; i < flattenedTimePoints.size(); ++i){
-                 myfile<<flattenedTimePoints[i][count] + 1;
-                 if(i != 511){
-                   myfile<<" ";
-                 }
-               }
-               myfile<<"\n";
+          cout << "Preparing to convert to array and transpose" << endl;
+
+          int NNormal = 512;
+          int MNormal = (1024*512);
+
+          bool* key = new bool[MNormal];
+
+          for (int i = 0; i < MNormal; i++) {
+            key[i] = false;
+          }
+
+          uint32* temp;
+          temp = new uint32[MNormal*NNormal];
+          int indexOfTemp = 0;
+          int nonZeroCounter = 0;
+          uint32* rowArray = new uint32[512];
+          int rowArrayIndex = 0;
+          int lastGoodIndex = 0;
+
+          for(unsigned i=0; (i < MNormal); i++) {
+            nonZeroCounter = 0;
+            rowArrayIndex = 0;
+            for(unsigned j=0; (j < NNormal); j++) {
+              if (flattenedTimePoints[j][i] != 0){
+                nonZeroCounter++;
+              }
+              rowArray[rowArrayIndex] = flattenedTimePoints[j][i];
+              rowArrayIndex++;
+            }
+
+            if (nonZeroCounter != 0) {
+              for (int k = 0; k < 512; k++) {
+                temp[indexOfTemp] = rowArray[k];
+                indexOfTemp++;
+              }
+              lastGoodIndex++;
+              key[i] = true;
+            }
+
+          }
+          cout << lastGoodIndex << endl;
+          uint32* actualArray = new uint32[(lastGoodIndex)*512];
+          cout << "test1" << endl;
+          for (long i = 0; i < ((lastGoodIndex) * 512); i++) {
+
+            actualArray[i] = temp[i] + 1;
+
+          }
+
+          cout << "Dumping to File" << endl;
+
+          ofstream myfile ("data/NNMF.csv");
+          if (myfile.is_open()) {
+            for(long count = 0; count < ((lastGoodIndex) * 512); count++){
+
+              if ((count + 1) % 512 == 0) {
+
+                 myfile << actualArray[count] << "\n" ;
+
+              }
+              else {
+
+                myfile << actualArray[count] << " " ;
+
+              }
+            }
+            myfile.close();
+          }
+
+          ofstream mykeyfile ("data/key.csv");
+          if (mykeyfile.is_open()) {
+            for(long i = 0; i < MNormal; i++){
+
+               mykeyfile << key[i] << "\n" ;
+
              }
-             myfile.close();
+
            }
+            mykeyfile.close();
+          }
+
            cout<<"NNMF.csv created successfuly"<<endl;
       }
-      else{
-        cout<<"COULD NOT OPEN "<<argv[1]<<endl;
-        return 1;
-      }
+
+      return 0;
+
     }
-    return 0;
-}
+
+
 
 //method implementations
 

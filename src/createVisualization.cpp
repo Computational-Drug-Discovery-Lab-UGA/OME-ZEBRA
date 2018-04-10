@@ -15,93 +15,161 @@ the if a pixel row is all 0.
 #include <fstream>
 #include <sstream>
 #include <string>
+#include <cstring>
 
 using namespace std;
 
 
 int main(int argc, char *argv[]) {
 
-    if(argc!=2) {
+    if(argc<2) {
       cout << "Usage: ./exe <file>";
       return 1;
     }
     else {
+      int k = 2;
+      string wFileLocation;
       string tifName = argv[1];
       string tifFile = "data/out/" + tifName + "/" + tifName + "_TP1.tif";
-      string wFileLocation = "data/out/" + tifName + "/" + tifName + "_W.txt";
-
+      string nmfChecker = "data/out/" + tifName + "/NNMF.nmf";
+      string keyFileLocation = "data/out/" + tifName + "/" + "key.csv";
       TIFF* tif = TIFFOpen(tifFile.c_str(), "r");
       string fileName = "data/out/" + tifName + "/" + tifName  + "_RESULT.tif";
+      if(argc == 3){
+        istringstream argK(argv[2]);
+        argK >> k;
+        wFileLocation = "data/out/" + tifName + "/" + tifName + "_W.txt";
+      }
+      else if(argc == 4){//needs to have a better check
+        string testCheck = argv[3];
+        if(testCheck != "test"){cout<<"incorrect test flag"<<endl; exit(-1);}
+        cout<<"test initiating"<<endl;
+        istringstream argK(argv[2]);
+        argK >> k;
+        wFileLocation = "data/test.nmf_W.txt";
+      }
+      cout<<wFileLocation<<endl;
+      cout<<tifFile<<endl;
+      cout<<keyFileLocation<<endl;
+      cout<<fileName<<endl;
+      cout<<"k = "<<k<<endl;
+
       if (tif) {
         TIFF* resultTif = TIFFOpen(fileName.c_str(), "w");
+
         if(resultTif){
           tdata_t buf;
+          tsize_t scanLineSize;
           uint32 row;
           uint32 config;
           vector<uint32*> currentPlane;
 
-          uint32 height, width, samplesPerPixel, bitsPerSample, photo, scanLineSize;
+          uint32 height, width, samplesPerPixel, bitsPerSample, photo;
 
           TIFFGetField(tif, TIFFTAG_IMAGEWIDTH, &width);
           TIFFGetField(tif, TIFFTAG_IMAGELENGTH, &height);
           TIFFGetField(tif, TIFFTAG_SAMPLESPERPIXEL, &samplesPerPixel);
           TIFFGetField(tif, TIFFTAG_BITSPERSAMPLE, &bitsPerSample);
           TIFFGetField(tif, TIFFTAG_PHOTOMETRIC, &photo);
-          TIFFGetField(tif, TIFFTAG_ROWSPERSTRIP, &scanLineSize);
 
           cout<<"\nTIMEPOINT 1 .tif info:"<<endl;
-          printf("width = %d\nheight = %d\nsamplesPerPixel = %d\nbitsPerSample = %lo\nscanLineSize = %d\n\n",width,height,samplesPerPixel,bitsPerSample,photo,scanLineSize);
 
           TIFFSetField(resultTif, TIFFTAG_IMAGEWIDTH, width);
           TIFFSetField(resultTif, TIFFTAG_IMAGELENGTH, height);
           TIFFSetField(resultTif, TIFFTAG_SAMPLESPERPIXEL, samplesPerPixel);
           TIFFSetField(resultTif, TIFFTAG_BITSPERSAMPLE, bitsPerSample);
           TIFFSetField(resultTif, TIFFTAG_PHOTOMETRIC, photo);
-          TIFFSetField(resultTif, TIFFTAG_ROWSPERSTRIP, scanLineSize);
-          buf = _TIFFmalloc(TIFFScanlineSize(tif));
-          uint32* data;
-          uint32 max = 0;
 
-          //printf("Height,Width = %u,%u -> scanLineSize = %d bytes\n", height, width,TIFFScanlineSize(tif));
-          for (row = 0; row < height; ++row){
-            TIFFReadScanline(tif, buf, row);
-            data=(uint32*)buf;
-            for(int col = 0; col < width; ++col){
-              if(data[col] > max) max = data[col];
-            }
-          }
+          scanLineSize = TIFFScanlineSize(tif);
+          buf = _TIFFmalloc(scanLineSize);
+
+          uint32 max = 0;
+          uint32 min = 4294967295;
+          uint32* data = new uint32[width];
+          cout<<"starting visualization prep"<<endl;
           int currentPixel = 0;
           ifstream wFile(wFileLocation);
+          ifstream keyFile(keyFileLocation);
+          ifstream nmfTest(nmfChecker);
+          uint32 currentPixelValue;
           float seizure, isNot;
+          float k1,k2,k3;
           string currentLine;
-          if(wFile.is_open()){
-            ofstream test("data/RESULT.csv");
-            for (row = 0; row < height; ++row){
-              TIFFReadScanline(tif, buf, row);
-              data=(uint32*)buf;
+          string currentKey;
+          //printf("Height,Width = %u,%u -> scanLineSize = %d bytes\n", height, width,TIFFScanlineSize(tif));
+          for (row = 0; row < height; ++row){
+            if(TIFFReadScanline(tif, buf, row, 0) != -1){
+              memcpy(data, buf, scanLineSize);
               for(int col = 0; col < width; ++col){
-                getline(wFile, currentLine);
-                stringstream ss;
-                ss<<currentLine;
-                ss>>isNot;
-                ss>>seizure;
-                if(seizure*.5 < isNot && seizure > isNot) data[col] = max;
-                test<<data[col];
-                if(col != width - 1) test<<",";
+                if(data[col] > max) max = data[col];
+                if(data[col] < min && data[col] != 0) min = data[col];
               }
-              test<<"\n"<<endl;
-              if(TIFFWriteScanline(resultTif, data, row) != 1){
-                cout<<"ERROR WRITING FIRST TIMEPOINT"<<endl;
+            }
+            else{
+              cout<<"ERROR READING SCANLINE"<<endl;
+              exit(-1);
+            }
+          }
+          currentLine = "";
+          if(wFile.is_open() && keyFile.is_open()){
+            cout<<"key and W nmf file are open"<<endl;
+            ofstream test("data/out/" + tifName + "/RESULT.csv");
+            for (row = 0; row < height; ++row){
+              if(TIFFReadScanline(tif, buf, row, 0) != -1){
+                memcpy(data, buf, scanLineSize);
+                getline(keyFile, currentKey);
+                if(currentKey == "1"){
+                  for(int col = 0; col < width; ++col){
+                    getline(wFile, currentLine);
+                    data[col] -= min;
+                    stringstream ss;
+                    ss<<currentLine;
+                    if(k == 3){
+                      ss>>k1;
+                      ss>>k2;
+                      ss>>k3;
+                      //needs to be further configured
+                      if(k3 > k1 && k3 > k2) data[col] += (max - min)/2;
+                    }
+                    else if(k == 2){
+                      ss>>isNot;
+                      ss>>seizure;
+                      //if(seizure > isNot) data[col] += (max - min)/2;
+                      if(seizure > isNot) data[col] = max;
+
+                    }
+                    test<<data[col];
+                    if(col != width - 1) test<<",";
+                  }
+                  test<<"\n"<<endl;
+                }
+                memcpy(buf, data, scanLineSize);
+                if(TIFFWriteScanline(resultTif, data, row) != 1){
+                  cout<<"ERROR WRITING FIRST TIMEPOINT"<<endl;
+                  exit(-1);
+                }
+                currentPixel++;
+              }
+              else{
+                cout<<"ERROR READING SCANLINE"<<endl;
                 exit(-1);
               }
-              currentPixel++;
             }
             test.close();
+            cout<<"pipeline visualization file has been created"<<endl;
+            wFile.close();
+            keyFile.close();
           }
+          else{
+            cout<<"FAILURE OPENING W_NMF file or key file"<<endl;
+          }
+          currentLine = "";
           TIFFClose(resultTif);
           _TIFFfree(buf);
+          TIFFClose(tif);
         }
-        TIFFClose(tif);
+
+
       }
       else{
         cout<<"COULD NOT OPEN"<<argv[1]<<endl;

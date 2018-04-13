@@ -53,6 +53,7 @@ clean:
 	rm -f bin/*.exe
 	rm -f obj/*
 	rm -f -r data/out/
-	rm -f data/registeredOMEs/*TP1*
+	rm -f data/registeredOMEs/*TP*.tif
 	rm -f *.o
 	rm -f data/*.csv
+	rm -f data/NNMF.nmf

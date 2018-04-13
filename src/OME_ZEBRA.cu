@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string>
 #include <iostream>
 #include <vector>
 #include <inttypes.h>
@@ -8,6 +9,9 @@
 #include "cuda_runtime.h"
 #include "device_launch_parameters.h"
 #include <cuda.h>
+#include <curand.h>
+#include <curand_kernel.h>
+#include <cstdlib>
 using namespace std;
 
 // Define this to turn on error checking
@@ -55,117 +59,139 @@ inline void __cudaCheckError(const char *file, const int line) {
 
 
 void printDeviceProperties();
+string createFourCharInt(int i);
 void printArray(uint32 * array, uint32 width);
-vector<uint32*> extractMartrices(TIFF* tif, string fileName);
-vector<uint32*> extractMartrices(TIFF* tif);
+uint32* extractMartrices(TIFF* tif, string fileName);
+uint32* extractMartrices(TIFF* tif, string fileName, int currentTimePoint);
+uint32* extractMartrices(TIFF* tif);
 vector<uint32> flattenMatrix(vector<uint32*> matrix, int cols, int rows);
 uint32** hostTranspose(uint32** matrix, int rows, int cols);
 __global__ void transposeuint32Matrix(uint32* flatOrigin, uint32* flatTransposed, long Nrows, long Ncols);
 uint32 findMin(uint32* flatMatrix, int size);
 __global__ void calcCa(uint32* flatMatrix, uint32 min, long size);
-
+__global__ void fillTestMatrix(uint32* flatMatrix, long size);
 
 int main(int argc, char *argv[]) {
 
-    vector<vector<uint32*>> fullTiffVector;
-    if(argc!=2) {
-      cout << "Usage: ./exe <file>";
+    if(argc != 3) {
+      cout << "Usage: ./exe <file> <# of time points>";
       return 1;
     }
     else {
-      TIFF* tif = TIFFOpen(argv[1], "r");
-      cout<<endl<<argv[1]<<" IS OPENED\n"<<endl;
-      string fileName = argv[1];
-      int dircount = 0;
-      if (tif) {
-          do {
-            vector<uint32*> matrix;
-            if(dircount == 0) matrix = extractMartrices(tif, fileName);
-            else matrix = extractMartrices(tif);
-            fullTiffVector.push_back(matrix);
 
-            dircount++;
+      vector<uint32*> flattenedTimePoints;
+      string baseName = argv[1];
+      int numTimePoints = atoi(argv[2]);
+      if(numTimePoints == 0){
+        cout<<"ERROR INVALID TIMEPOINTS"<<endl;
+        exit(-1);
+      }
+      bool allTifsAreGood = true;
+      uint32 numColumns;
+      uint32 numRows;
+      string currentTif;
+      for(int i = 0; i < numTimePoints; ++i){
+
+        currentTif = "data/registeredOMEs/" + baseName + "/" +
+        baseName + ".ome" + createFourCharInt(i) + ".tif";
+
+        TIFF* tif = TIFFOpen(currentTif.c_str(), "r");
+
+        if (tif) {
+          if(i == 0){
+            TIFFGetField(tif, TIFFTAG_IMAGEWIDTH, &numColumns);
+            TIFFGetField(tif, TIFFTAG_IMAGELENGTH, &numRows);
           }
-          while (TIFFReadDirectory(tif));
-          printf("%d directories in %s\n", dircount, argv[1]);
+          uint32 tempCol;
+          uint32 tempRow;
+          cout<<endl<<currentTif<<" IS OPENED\n"<<endl;
+          TIFFGetField(tif, TIFFTAG_IMAGEWIDTH, &tempCol);
+          TIFFGetField(tif, TIFFTAG_IMAGELENGTH, &tempRow);
+          if(numRows != tempRow || numColumns != tempCol){
+            cout<<"ERROR NOT ALL TIFFS ARE THE SAME LENGTH"<<endl;
+            exit(-1);
+          }
 
-          //to save numColumns
-          uint32 numColumns;
-          TIFFGetField(tif, TIFFTAG_IMAGEWIDTH, &numColumns);
-
+          uint32* flatMatrix = new uint32[numRows*numColumns];
+          if(i == 0){
+            flatMatrix = extractMartrices(tif, baseName);
+          }
+          else{
+            flatMatrix = extractMartrices(tif);
+          }
+          flattenedTimePoints.push_back(flatMatrix);
           TIFFClose(tif);
 
-          //access matrix with fullTiffVector = timePoints
-          printf("Total TimePoints = %d\nTotal Rows = %d\nTotal Columns = %d\n",fullTiffVector.size(), fullTiffVector[0].size(), numColumns);
+        }
+        else{
+          allTifsAreGood = false;
+          break;
+        }
+      }
+      if (allTifsAreGood) {
 
-          //structure of final vector is:
-          //timePoints = vector<rows>
-          //  rows = vector<columns>
-          //    columns = uint32[numColumns]
-          vector<vector<uint32>> flattenedTimePoints;
 
-          //prepare arrays
-          //flatten time points
-          cout << "Preparing to flatten" << endl;
-          for(int i = 0; i < fullTiffVector.size(); ++i){
-            flattenedTimePoints.push_back(flattenMatrix(fullTiffVector[i],numColumns, fullTiffVector[i].size()));
-          }
-
-          //long numPixels = ((int)fullTiffVector[0].size())*numColumns;
-          //bool* key = new bool[numPixels];
-          //for(int i = 0; i < numPixels; +i) key[i] = false;
-
-          //need to do calcCa
 
           cout<<"Creating key"<<endl;
-          int NNormal = dircount;
-          int MNormal = (fullTiffVector[0].size()*numColumns);
+          int NNormal = numTimePoints;
+          int MNormal = (numRows*numColumns);
 
           bool* key = new bool[MNormal];
-
           for (int i = 0; i < MNormal; i++) {
             key[i] = false;
           }
+
 
           uint32* temp;
           uint32 min = 4294967295;
           temp = new uint32[MNormal*NNormal];
           int indexOfTemp = 0;
           int nonZeroCounter = 0;
-          uint32* rowArray = new uint32[512];
+          uint32* rowArray = new uint32[numColumns];
           int rowArrayIndex = 0;
           int lastGoodIndex = 0;
-
-          for(unsigned i=0; (i < MNormal); i++) {
+          bool allRealRows = false;
+          uint32 max = 0;
+          for(unsigned i=0; i < MNormal; i++) {
+            allRealRows = false;
             nonZeroCounter = 0;
             rowArrayIndex = 0;
-            for(unsigned j=0; (j < NNormal); j++) {
+            for(unsigned j=0; j < NNormal; j++) {
               if (flattenedTimePoints[j][i] != 0){
                 nonZeroCounter++;
                 if(flattenedTimePoints[j][i] < min) min = flattenedTimePoints[j][i];
+                if(flattenedTimePoints[j][i] > max) max = flattenedTimePoints[j][i];
+
               }
               rowArray[rowArrayIndex] = flattenedTimePoints[j][i];
               rowArrayIndex++;
             }
 
             if (nonZeroCounter != 0) {
-              for (int k = 0; k < 512; k++) {
+              for (int k = 0; k < NNormal; k++) {
                 temp[indexOfTemp] = rowArray[k];
+                rowArray[k] = 0;
                 indexOfTemp++;
               }
               lastGoodIndex++;
               key[i] = true;
+              allRealRows = true;
             }
-
           }
-          cout<<"key created"<<endl;
+          if(allRealRows){
+            cout<<"key created but all pixels have at least 1 non-zero value"<<endl;
+          }
+          else{
+
+            cout<<"key created and all temporal zero pixels have that been removed are indicated by 0 in the key"<<endl;
+          }
           cout << lastGoodIndex << endl;
           long minimizedSize = lastGoodIndex*512;
           uint32* actualArray = new uint32[minimizedSize];
-          cout << "loading arrys based on key" << endl;
+          cout << "loading arrays based on key" << endl;
           for (long i = 0; i < minimizedSize; i++) {
 
-            actualArray[i] = temp[i] + 1;
+            actualArray[i] = temp[i];
 
           }
           dim3 grid = {1,1,1};
@@ -187,7 +213,7 @@ int main(int argc, char *argv[]) {
               grid.y++;
             }
           }
-          cout<<"prepare for calcCa cuda kernel with min = "<<min<<endl;
+          cout<<"prepare for calcCa cuda kernel with min = "<<min<<",max = "<<max<<endl;
           uint32* actualArrayDevice;
           CudaSafeCall(cudaMalloc((void**)&actualArrayDevice,minimizedSize*sizeof(uint32)));
           CudaSafeCall(cudaMemcpy(actualArrayDevice,actualArray, minimizedSize*sizeof(uint32), cudaMemcpyHostToDevice));
@@ -199,7 +225,7 @@ int main(int argc, char *argv[]) {
 
           cout << "Dumping to File" << endl;
 
-          ofstream myfile ("data/NNMF.csv");
+          ofstream myfile ("data/NNMF.nmf");
           if (myfile.is_open()) {
             for(long count = 0; count < ((lastGoodIndex) * 512); count++){
 
@@ -227,10 +253,16 @@ int main(int argc, char *argv[]) {
 
            }
             mykeyfile.close();
+            cout<<"NNMF.csv created successfuly"<<endl;
+
+          }
+          else{
+            cout<<"ERROR OPENING TIFF IN THIS DIRECTORY"<<endl;
+            exit(-1);
           }
 
-           cout<<"NNMF.csv created successfuly"<<endl;
       }
+
 
       return 0;
 
@@ -266,6 +298,22 @@ void printDeviceProperties(){
 
     }
 }
+string createFourCharInt(int i){
+  string strInt;
+  if(i < 10){
+    strInt = "000" + to_string(i);
+  }
+  else if(i < 100){
+    strInt = "00" + to_string(i);
+  }
+  else if(i < 1000){
+    strInt = "0" + to_string(i);
+  }
+  else{
+    strInt = to_string(i);
+  }
+  return strInt;
+}
 void printArray(uint32 * array, uint32 width){
     uint32 i;
     for (i=0;i<width;i++){
@@ -274,86 +322,138 @@ void printArray(uint32 * array, uint32 width){
     cout<<endl;
 }
 
-vector<uint32*> extractMartrices(TIFF* tif, string fileName){
+uint32* extractMartrices(TIFF* tif, string fileName){
   string newtiff = fileName.substr(0, fileName.length() - 8) + "_TP1.tif";
   TIFF* firstTimePoint = TIFFOpen(newtiff.c_str(), "w");
   if(firstTimePoint){
     tdata_t buf;
-    uint32 row;
     uint32 config;
-    vector<uint32*> currentPlane;
 
-    uint32 height, width, samplesPerPixel, bitsPerSample, photo, scanLineSize;
+    uint32 height, width, photo;
+    short samplesPerPixel, bitsPerSample;
+    tsize_t scanLineSize;
 
     TIFFGetField(tif, TIFFTAG_IMAGEWIDTH, &width);
     TIFFGetField(tif, TIFFTAG_IMAGELENGTH, &height);
     TIFFGetField(tif, TIFFTAG_SAMPLESPERPIXEL, &samplesPerPixel);
     TIFFGetField(tif, TIFFTAG_BITSPERSAMPLE, &bitsPerSample);
     TIFFGetField(tif, TIFFTAG_PHOTOMETRIC, &photo);
-    TIFFGetField(tif, TIFFTAG_ROWSPERSTRIP, &scanLineSize);
 
+    uint32* currentTimePoint = new uint32[width*height];
 
     TIFFSetField(firstTimePoint, TIFFTAG_IMAGEWIDTH, width);
     TIFFSetField(firstTimePoint, TIFFTAG_IMAGELENGTH, height);
     TIFFSetField(firstTimePoint, TIFFTAG_SAMPLESPERPIXEL, samplesPerPixel);
     TIFFSetField(firstTimePoint, TIFFTAG_BITSPERSAMPLE,bitsPerSample);
     TIFFSetField(firstTimePoint, TIFFTAG_PHOTOMETRIC, photo);
-    TIFFSetField(firstTimePoint, TIFFTAG_ROWSPERSTRIP, scanLineSize);
     cout<<"\nTIMEPOINT 1 .tif info:"<<endl;
-    printf("width = %d\nheight = %d\nsamplesPerPixel = %d\nbitsPerSample = %lo\nscanLineSize = %d\n\n",width,height,samplesPerPixel,bitsPerSample,scanLineSize);
-    buf = _TIFFmalloc(TIFFScanlineSize(tif));
-    uint32* data;
-    ofstream test("data/TP1.csv");
+    printf("width = %d\nheight = %d\nsamplesPerPixel = %d\nbitsPerSample = %d\n\n",width,height,samplesPerPixel,bitsPerSample);
+    scanLineSize = TIFFScanlineSize(tif);
+    buf = _TIFFmalloc(scanLineSize);
+    cout<<"TIFF SCANLINE SIZE IS "<<scanLineSize<<" bits"<<endl;
     //printf("Height,Width = %u,%u -> scanLineSize = %d bytes\n", height, width,TIFFScanlineSize(tif));
-    for (row = 0; row < height; row++){
-      TIFFReadScanline(tif, buf, row);
-      data=(uint32*)buf;
-      for(int i = 0; i < width; ++i){
-        test<<data[i];
-        if(i != width - 1) test<<",";
+    for (uint32 row = 0; row < height; row++){
+      if(TIFFReadScanline(tif, buf, row, 0) != -1){
+        memcpy(&currentTimePoint[row*width], buf, scanLineSize);
+        if(TIFFWriteScanline(firstTimePoint, buf, row, 0) == -1){
+          cout<<"ERROR WRITING SCANLINE"<<endl;
+          exit(-1);
+        }
       }
-      test<<"\n"<<endl;
-      if(TIFFWriteScanline(firstTimePoint, buf, row) != 1){
-        cout<<"ERROR WRITING FIRST TIMEPOINT"<<endl;
+      else{
+        cout<<"ERROR READING SCANLINE"<<endl;
         exit(-1);
       }
-
-      currentPlane.push_back(data);
     }
-    test.close();
     TIFFClose(firstTimePoint);
     _TIFFfree(buf);
-    return currentPlane;
+    return currentTimePoint;
   }
   else{
     cout<<"COULD NOT CREATE FIRST TIMEPOINT TIFF"<<endl;
     exit(-1);
   }
 }
-vector<uint32*> extractMartrices(TIFF* tif){
+uint32* extractMartrices(TIFF* tif, string fileName, int currentTimePoint){
+  string newtiff = fileName.substr(0, fileName.length() - 8) + "_TP" + to_string(currentTimePoint) + ".tif";
+  TIFF* currentDir = TIFFOpen(newtiff.c_str(), "w");
+  if(currentDir){
+    tdata_t buf;
+    uint32 config;
+
+    uint32 height, width, photo;
+    short samplesPerPixel, bitsPerSample;
+    tsize_t scanLineSize;
+
+    TIFFGetField(tif, TIFFTAG_IMAGEWIDTH, &width);
+    TIFFGetField(tif, TIFFTAG_IMAGELENGTH, &height);
+    TIFFGetField(tif, TIFFTAG_SAMPLESPERPIXEL, &samplesPerPixel);
+    TIFFGetField(tif, TIFFTAG_BITSPERSAMPLE, &bitsPerSample);
+    TIFFGetField(tif, TIFFTAG_PHOTOMETRIC, &photo);
+
+    uint32* timePoint = new uint32[width*height];
+
+    TIFFSetField(currentDir, TIFFTAG_IMAGEWIDTH, width);
+    TIFFSetField(currentDir, TIFFTAG_IMAGELENGTH, height);
+    TIFFSetField(currentDir, TIFFTAG_SAMPLESPERPIXEL, samplesPerPixel);
+    TIFFSetField(currentDir, TIFFTAG_BITSPERSAMPLE,bitsPerSample);
+    TIFFSetField(currentDir, TIFFTAG_PHOTOMETRIC, photo);
+    cout<<"\nTIMEPOINT "<<currentTimePoint<<" .tif info:"<<endl;
+    printf("width = %d\nheight = %d\nsamplesPerPixel = %d\nbitsPerSample = %d\n\n",width,height,samplesPerPixel,bitsPerSample);
+    scanLineSize = TIFFScanlineSize(tif);
+    buf = _TIFFmalloc(scanLineSize);
+    cout<<"TIFF SCANLINE SIZE IS "<<scanLineSize<<" bits"<<endl;
+    //printf("Height,Width = %u,%u -> scanLineSize = %d bytes\n", height, width,TIFFScanlineSize(tif));
+    for (uint32 row = 0; row < height; row++){
+      if(TIFFReadScanline(tif, buf, row, 0) != -1){
+        memcpy(&timePoint[row*width], buf, scanLineSize);
+        if(TIFFWriteScanline(currentDir, buf, row, 0) == -1){
+          cout<<"ERROR WRITING SCANLINE"<<endl;
+          exit(-1);
+        }
+      }
+      else{
+        cout<<"ERROR READING SCANLINE"<<endl;
+        exit(-1);
+      }
+    }
+    TIFFClose(currentDir);
+    _TIFFfree(buf);
+    return timePoint;
+  }
+  else{
+    cout<<"COULD NOT CREATE FIRST TIMEPOINT TIFF"<<endl;
+    exit(-1);
+  }
+}
+uint32* extractMartrices(TIFF* tif){
 
   uint32 height,width;
   tdata_t buf;
-  uint32 row;
   uint32 config;
   vector<uint32*> currentPlane;
+  tsize_t scanLineSize;
 
   TIFFGetField(tif, TIFFTAG_IMAGEWIDTH, &width);
   TIFFGetField(tif, TIFFTAG_IMAGELENGTH, &height);
-  buf = _TIFFmalloc(TIFFScanlineSize(tif));
 
-  uint32* data;
+  uint32* currentTimePoint = new uint32[width*height];
+  scanLineSize = TIFFScanlineSize(tif);
+  buf = _TIFFmalloc(scanLineSize);
+
   //printf("Height,Width = %u,%u -> scanLineSize = %d bytes\n", height, width,TIFFScanlineSize(tif));
-  for (row = 0; row < height; row++){
-    TIFFReadScanline(tif, buf, row);
-    data=(uint32*)buf;
-    currentPlane.push_back(data);
+  for (uint32 row = 0; row < height; row++){
+    if(TIFFReadScanline(tif, buf, row, 0) != -1){
+      memcpy(&currentTimePoint[row*width], buf, scanLineSize);
+    }
+    else{
+      cout<<"ERROR READING SCANLINE"<<endl;
+      exit(-1);
+    }
 
-    //printArray(data,width);//make sure you have a big screen
   }
-  //cout<<endl<<endl;//if you are using the printArray method
   _TIFFfree(buf);
-  return currentPlane;
+  return currentTimePoint;
 }
 
 uint32** hostTranspose(uint32** matrix, int rows, int cols){
@@ -414,6 +514,18 @@ __global__ void calcCa(uint32* flatMatrix, uint32 min, long size){
   long currentIndex = globalID;
   while(currentIndex < size){
     flatMatrix[globalID] = flatMatrix[globalID] - min + 1;//+1 to ensure we do not have 0 values
+    currentIndex += stride;
+  }
+}
+__global__ void fillTestMatrix(uint32* flatMatrix, long size){
+  int blockID = blockIdx.y * gridDim.x + blockIdx.x;
+  int globalID = blockID * blockDim.x + threadIdx.x;
+  int stride = gridDim.x * gridDim.y * blockDim.x;
+  long currentIndex = globalID;
+  curandState state;
+  while(currentIndex < size){
+    curand_init(clock64(), currentIndex, 0, &state);
+    flatMatrix[currentIndex] = curand_uniform(&state);
     currentIndex += stride;
   }
 }

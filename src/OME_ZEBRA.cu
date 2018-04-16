@@ -10,6 +10,7 @@
 #include <cuda.h>
 #include <curand.h>
 #include <curand_kernel.h>
+
 using namespace std;
 
 // Define this to turn on error checking
@@ -71,6 +72,7 @@ double calculateStandardDeviation(double * subVarX, double lengthOfSet);
 double calculateCoVariance(double * subVarX, double * subVarY, double lengthOfSets);
 void calculateSubvariance(uint32 * inputSet, double lengthOfSet, double * resultArray);
 double calculateAverage(uint32 * inputSet, double lengthOfSet);
+double calculatePearsonCorrelationCoefficient(uint32 * x, uint32 * y, double lengthOfSets);
 
 
 
@@ -213,6 +215,49 @@ int main(int argc, char *argv[]) {
           CudaSafeCall(cudaMemcpy(actualArray,actualArrayDevice, minimizedSize*sizeof(uint32), cudaMemcpyDeviceToHost));
           CudaSafeCall(cudaFree(actualArrayDevice));
           cout<<"calcCa has completed applying offset"<<endl;
+
+          cout << "Starting Pearson Correlation Coefficient processing" << endl;
+
+          uint32 * firstPoint = new uint32[512];
+          uint32 * secondPoint = new uint32[512];
+
+          int sizeOfPearson = 0;
+
+          for(int i = 0; i < (512*1024); i++) {
+
+            for (int j = (i+1); j < (512*1024); j++) {
+
+              sizeOfPearson++;
+
+            }
+
+          }
+
+          double * pearsonArray = new double[sizeOfPearson];
+          sizeOfPearson = 0;
+
+          for (int i = 0; i < (512*1024); i++) {
+
+            for (int index1 = 0; index1 < 512; index1++) {
+
+              firstPoint[index1] = i*512 + index1;
+
+            }
+
+            for (int j = (i+1); j < (512*1024); j++) {
+
+              for (int index2 = 0; index2 < 512; index2++) {
+
+                secondPoint[index2] = j*512 + index2;
+
+              }
+
+              pearsonArray[sizeOfPearson] = calculatePearsonCorrelationCoefficient(firstPoint, secondPoint, 512);
+              sizeOfPearson++;
+
+            }
+
+          }
 
           cout << "Dumping to File" << endl;
 
@@ -512,6 +557,9 @@ double calculatePearsonCorrelationCoefficient(uint32 * x, uint32 * y, double len
   double standarDeviationY = calculateStandardDeviation(subVarianceY, lengthOfSets);
 
   double pearsonCorrelationCoefficient = coVarianceXY / (standarDeviationX * standarDeviationY);
+
+  delete[] subVarianceX;
+  delete[] subVarianceY;
 
   return pearsonCorrelationCoefficient;
 

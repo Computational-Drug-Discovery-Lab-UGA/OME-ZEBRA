@@ -67,6 +67,13 @@ __global__ void transposeuint32Matrix(uint32* flatOrigin, uint32* flatTransposed
 uint32 findMin(uint32* flatMatrix, int size);
 __global__ void calcCa(uint32* flatMatrix, uint32 min, long size);
 __global__ void fillTestMatrix(uint32* flatMatrix, long size);
+double calculateStandardDeviation(double * subVarX, double lengthOfSet);
+double calculateCoVariance(double * subVarX, double * subVarY, double lengthOfSets);
+void calculateSubvariance(uint32 * inputSet, double lengthOfSet, double * resultArray);
+double calculateAverage(uint32 * inputSet, double lengthOfSet);
+
+
+
 
 int main(int argc, char *argv[]) {
 
@@ -494,8 +501,8 @@ __global__ void fillTestMatrix(uint32* flatMatrix, long size){
 
 double calculatePearsonCorrelationCoefficient(uint32 * x, uint32 * y, double lengthOfSets) {
 
-  double * subVarianceX = new double[lengthOfSets];
-  double * subVarianceY = new double[lengthOfSets];
+  double * subVarianceX = new double[(int) lengthOfSets];
+  double * subVarianceY = new double[(int) lengthOfSets];
 
   calculateSubvariance(x, lengthOfSets, subVarianceX);
   calculateSubvariance(x, lengthOfSets, subVarianceX);
@@ -507,7 +514,7 @@ double calculatePearsonCorrelationCoefficient(uint32 * x, uint32 * y, double len
   double pearsonCorrelationCoefficient = coVarianceXY / (standarDeviationX * standarDeviationY);
 
   return pearsonCorrelationCoefficient;
-  
+
 }
 
 double calculateAverage(uint32 * inputSet, double lengthOfSet) {
@@ -516,7 +523,7 @@ double calculateAverage(uint32 * inputSet, double lengthOfSet) {
 
   for (int i = 0; i < lengthOfSet; i++) {
 
-    average = average + (double) x[i];
+    average = average + (double) inputSet[i];
 
   }
 

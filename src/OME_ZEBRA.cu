@@ -491,3 +491,77 @@ __global__ void fillTestMatrix(uint32* flatMatrix, long size){
     currentIndex += stride;
   }
 }
+
+double calculatePearsonCorrelationCoefficient(uint32 * x, uint32 * y, double lengthOfSets) {
+
+  double * subVarianceX = new double[lengthOfSets];
+  double * subVarianceY = new double[lengthOfSets];
+
+  calculateSubvariance(x, lengthOfSets, subVarianceX);
+  calculateSubvariance(x, lengthOfSets, subVarianceX);
+
+  double coVarianceXY = calculateCoVariance(subVarianceX, subVarianceY, lengthOfSets);
+  double standarDeviationX = calculateStandardDeviation(subVarianceX, lengthOfSets);
+  double standarDeviationY = calculateStandardDeviation(subVarianceY, lengthOfSets);
+
+  double pearsonCorrelationCoefficient = coVarianceXY / (standarDeviationX * standarDeviationY);
+
+  return pearsonCorrelationCoefficient;
+  
+}
+
+double calculateAverage(uint32 * inputSet, double lengthOfSet) {
+
+  double average = 0;
+
+  for (int i = 0; i < lengthOfSet; i++) {
+
+    average = average + (double) x[i];
+
+  }
+
+  average = average / lengthOfSet;
+
+  return average;
+
+}
+
+void calculateSubvariance(uint32 * inputSet, double lengthOfSet, double * resultArray) {
+
+  double average = calculateAverage(inputSet, lengthOfSet);
+
+  for (int i = 0; i < lengthOfSet; i++) {
+
+    resultArray[i] = ((double) inputSet[i]) - average;
+
+  }
+
+}
+
+double calculateCoVariance(double * subVarX, double * subVarY, double lengthOfSets) {
+
+  double coVariance = 0;
+
+  for (int i = 0; i < lengthOfSets; i++) {
+
+    coVariance = coVariance + (subVarX[i] * subVarY[i]);
+
+  }
+
+  return coVariance;
+
+}
+
+double calculateStandardDeviation(double * subVarX, double lengthOfSet) {
+
+  double standarDeviation = 0;
+
+  for (int i = 0; i < lengthOfSet; i++) {
+
+    standarDeviation = standarDeviation + (subVarX[i] * subVarX[i]);
+
+  }
+
+  return standarDeviation;
+
+}

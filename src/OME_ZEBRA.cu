@@ -259,6 +259,25 @@ int main(int argc, char *argv[]) {
 
           }
 
+          ofstream myPearsonFile ("data/pearsonArray.txt");
+          if (myPearsonFile.is_open()) {
+
+            for(int i = 0; i < sizeOfPearson; i++){
+
+              myPearsonFile << pearsonArray[i];
+
+              if (i != (sizeOfPearson - 1)) {
+
+                myPearsonFile << "\n";
+
+              }
+
+            }
+
+            myPearsonFile.close();
+
+          }
+
           cout << "Dumping to File" << endl;
 
           ofstream myfile ("data/NNMF.nmf");

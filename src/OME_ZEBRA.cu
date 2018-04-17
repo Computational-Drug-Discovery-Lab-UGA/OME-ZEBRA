@@ -68,7 +68,7 @@ vector<uint32> flattenMatrix(vector<uint32*> matrix, int cols, int rows);
 uint32** hostTranspose(uint32** matrix, int rows, int cols);
 __global__ void transposeuint32Matrix(uint32* flatOrigin, uint32* flatTransposed, long Nrows, long Ncols);
 uint32 findMin(uint32* flatMatrix, int size);
-__global__ void calcCa(uint32* flatMatrix, uint32 min, long size);
+__global__ void calcCa(uint32* flatMatrix, uint32 min, uint32 max, long size);
 __global__ void fillTestMatrix(uint32* flatMatrix, long size);
 
 int main(int argc, char *argv[]) {
@@ -144,6 +144,7 @@ int main(int argc, char *argv[]) {
 
           uint32* temp;
           uint32 min = 4294967295;
+          uint32 max = 0;
           temp = new uint32[MNormal*NNormal];
           int indexOfTemp = 0;
           int nonZeroCounter = 0;
@@ -151,7 +152,6 @@ int main(int argc, char *argv[]) {
           int rowArrayIndex = 0;
           int lastGoodIndex = 0;
           bool allRealRows = false;
-          uint32 max = 0;
           for(unsigned i=0; i < MNormal; i++) {
             allRealRows = false;
             nonZeroCounter = 0;
@@ -217,7 +217,7 @@ int main(int argc, char *argv[]) {
           uint32* actualArrayDevice;
           CudaSafeCall(cudaMalloc((void**)&actualArrayDevice,minimizedSize*sizeof(uint32)));
           CudaSafeCall(cudaMemcpy(actualArrayDevice,actualArray, minimizedSize*sizeof(uint32), cudaMemcpyHostToDevice));
-          calcCa<<<grid,block>>>(actualArrayDevice, min, minimizedSize);
+          calcCa<<<grid,block>>>(actualArrayDevice, min, max, minimizedSize);
           CudaCheckError();
           CudaSafeCall(cudaMemcpy(actualArray,actualArrayDevice, minimizedSize*sizeof(uint32), cudaMemcpyDeviceToHost));
           CudaSafeCall(cudaFree(actualArrayDevice));
@@ -507,13 +507,18 @@ uint32 findMin(uint32* flatMatrix, int size){
   }
   return currentMin;
 }
-__global__ void calcCa(uint32* flatMatrix, uint32 min, long size){
+__global__ void calcCa(uint32* flatMatrix, uint32 min, uint32 max, long size){
   int blockID = blockIdx.y * gridDim.x + blockIdx.x;
   int globalID = blockID * blockDim.x + threadIdx.x;
   int stride = gridDim.x * gridDim.y * blockDim.x;
   long currentIndex = globalID;
+  uint32 caConc = 0;
+  uint32 currentIntensity = 0;
+  uint32 firingRate = 0;
   while(currentIndex < size){
-    flatMatrix[globalID] = flatMatrix[globalID] - min + 1;//+1 to ensure we do not have 0 values
+    currentIntensity = flatMatrix[globalID];
+    caConc = 3.16227766e-7*((currentIntensity - min)/(max - currentIntensity));
+    flatMatrix[globalID] = caConc + 1;
     currentIndex += stride;
   }
 }

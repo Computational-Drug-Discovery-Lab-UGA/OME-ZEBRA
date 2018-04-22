@@ -69,6 +69,7 @@ uint32** hostTranspose(uint32** matrix, int rows, int cols);
 __global__ void transposeuint32Matrix(uint32* flatOrigin, uint32* flatTransposed, long Nrows, long Ncols);
 uint32 findMin(uint32* flatMatrix, int size);
 __global__ void calcCa(uint32* flatMatrix, uint32 min, uint32 max, long size);
+__global__ void calcFiringRate(uint32* caMatrix, float* frMatrix, long size, int numTimePoints);
 __global__ void fillTestMatrix(uint32* flatMatrix, long size);
 
 int main(int argc, char *argv[]) {
@@ -104,7 +105,7 @@ int main(int argc, char *argv[]) {
           }
           uint32 tempCol;
           uint32 tempRow;
-          cout<<endl<<currentTif<<" IS OPENED\n"<<endl;
+          cout<<currentTif<<" IS OPENED"<<endl;
           TIFFGetField(tif, TIFFTAG_IMAGEWIDTH, &tempCol);
           TIFFGetField(tif, TIFFTAG_IMAGELENGTH, &tempRow);
           if(numRows != tempRow || numColumns != tempCol){
@@ -188,9 +189,10 @@ int main(int argc, char *argv[]) {
           cout << lastGoodIndex << endl;
           long minimizedSize = lastGoodIndex*512;
           uint32* actualArray = new uint32[minimizedSize];
+          float* firingRateArray = new float[minimizedSize];
           cout << "loading arrays based on key" << endl;
           for (long i = 0; i < minimizedSize; i++) {
-
+            firingRateArray[i] = 0.0f;
             actualArray[i] = temp[i];
 
           }
@@ -214,13 +216,20 @@ int main(int argc, char *argv[]) {
             }
           }
           cout<<"prepare for calcCa cuda kernel with min = "<<min<<",max = "<<max<<endl;
+          float* firingRateArrayDevice;
           uint32* actualArrayDevice;
           CudaSafeCall(cudaMalloc((void**)&actualArrayDevice,minimizedSize*sizeof(uint32)));
+          CudaSafeCall(cudaMalloc((void**)&firingRateArrayDevice,minimizedSize*sizeof(float)));
           CudaSafeCall(cudaMemcpy(actualArrayDevice,actualArray, minimizedSize*sizeof(uint32), cudaMemcpyHostToDevice));
           calcCa<<<grid,block>>>(actualArrayDevice, min, max, minimizedSize);
           CudaCheckError();
           CudaSafeCall(cudaMemcpy(actualArray,actualArrayDevice, minimizedSize*sizeof(uint32), cudaMemcpyDeviceToHost));
+          cout<<"Executing firing rate cuda kernel"<<endl;
+          CudaSafeCall(cudaMemcpy(firingRateArrayDevice,firingRateArray, minimizedSize*sizeof(float), cudaMemcpyHostToDevice));
+          calcFiringRate<<<grid,block>>>(actualArrayDevice, firingRateArrayDevice, minimizedSize, numTimePoints);
+          CudaSafeCall(cudaMemcpy(firingRateArray,firingRateArrayDevice, minimizedSize*sizeof(float), cudaMemcpyDeviceToHost));
           CudaSafeCall(cudaFree(actualArrayDevice));
+          CudaSafeCall(cudaFree(firingRateArrayDevice));
           cout<<"calcCa has completed applying offset"<<endl;
 
           cout << "Dumping to File" << endl;
@@ -231,12 +240,14 @@ int main(int argc, char *argv[]) {
 
               if ((count + 1) % 512 == 0) {
 
-                 myfile << actualArray[count] << "\n" ;
+                //myfile << actualArray[count] << "\n" ;
+                myfile << firingRateArray[count] << "\n" ;
 
               }
               else {
 
-                myfile << actualArray[count] << " " ;
+                //myfile << actualArray[count] << " " ;
+                myfile << firingRateArray[count] << " " ;
 
               }
             }
@@ -327,7 +338,6 @@ uint32* extractMartrices(TIFF* tif, string fileName){
   TIFF* firstTimePoint = TIFFOpen(newtiff.c_str(), "w");
   if(firstTimePoint){
     tdata_t buf;
-    uint32 config;
 
     uint32 height, width, photo;
     short samplesPerPixel, bitsPerSample;
@@ -379,7 +389,6 @@ uint32* extractMartrices(TIFF* tif, string fileName, int currentTimePoint){
   TIFF* currentDir = TIFFOpen(newtiff.c_str(), "w");
   if(currentDir){
     tdata_t buf;
-    uint32 config;
 
     uint32 height, width, photo;
     short samplesPerPixel, bitsPerSample;
@@ -430,7 +439,6 @@ uint32* extractMartrices(TIFF* tif){
 
   uint32 height,width;
   tdata_t buf;
-  uint32 config;
   vector<uint32*> currentPlane;
   tsize_t scanLineSize;
 
@@ -507,21 +515,49 @@ uint32 findMin(uint32* flatMatrix, int size){
   }
   return currentMin;
 }
+
 __global__ void calcCa(uint32* flatMatrix, uint32 min, uint32 max, long size){
   int blockID = blockIdx.y * gridDim.x + blockIdx.x;
-  int globalID = blockID * blockDim.x + threadIdx.x;
+  long globalID = blockID * blockDim.x + threadIdx.x;
   int stride = gridDim.x * gridDim.y * blockDim.x;
-  long currentIndex = globalID;
   uint32 caConc = 0;
   uint32 currentIntensity = 0;
-  uint32 firingRate = 0;
-  while(currentIndex < size){
+  while(globalID < size){
     currentIntensity = flatMatrix[globalID];
-    caConc = 3.16227766e-7*((currentIntensity - min)/(max - currentIntensity));
-    flatMatrix[globalID] = caConc + 1;
-    currentIndex += stride;
+    caConc = (currentIntensity - min)/(max - currentIntensity);
+    flatMatrix[globalID] = caConc;
+    globalID += stride;
   }
 }
+
+__global__ void calcFiringRate(uint32* caMatrix, float* frMatrix, long size, int numTimePoints){
+  int blockID = blockIdx.y * gridDim.x + blockIdx.x;
+  long globalID = blockID * blockDim.x + threadIdx.x;
+  int stride = gridDim.x * gridDim.y * blockDim.x;
+  float caConc = 3.16227766e-7;
+  //float caConc = 1.0f;
+  float nextCaConc = 3.16227766e-7;
+  //float nextCaConc = 1.0f;
+  float firingRate = 0.0f;
+  float tau = 0.15;
+  float deltaT = 0.0416777;
+  float alpha = 250.0f;
+  long numPixels = size/numTimePoints;
+  int currentTimePoint = globalID % numTimePoints;
+  while(globalID < size && currentTimePoint < numTimePoints - 1){
+    firingRate = 0.0f;
+    caConc *= (float) caMatrix[globalID];
+    nextCaConc *=  (float) caMatrix[globalID + 1];
+    if(nextCaConc != 0.0f) firingRate = ((nextCaConc*expf(deltaT/tau))-caConc)/(expm1f(deltaT/tau)*tau*alpha);
+    frMatrix[globalID] = firingRate;
+    //if(currentTimePoint == numTimePoints - 2){//not sure this is what we want to do
+    //  frMatrix[globalID + 1] = firingRate;
+    //  return;
+    //}
+    globalID += stride;
+  }
+}
+
 __global__ void fillTestMatrix(uint32* flatMatrix, long size){
   int blockID = blockIdx.y * gridDim.x + blockIdx.x;
   int globalID = blockID * blockDim.x + threadIdx.x;

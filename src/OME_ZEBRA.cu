@@ -233,22 +233,22 @@ int main(int argc, char *argv[]) {
 
           cout << "Dumping to File" << endl;
 
-          ofstream myfile ("data/NNMF.nmf");
-          if (myfile.is_open()) {
+          ofstream nnmfFile ("data/NNMF.nmf");
+          if (nnmfFile.is_open()) {
             for(long count = 0; count < ((totalSize) * 512); count++){
 
               if ((count + 1) % 512 == 0) {
 
-                 myfile << actualArray[count] << "\n" ;
+                 nnmfFile << actualArray[count] << "\n" ;
 
               }
               else {
 
-                myfile << actualArray[count] << " " ;
+                nnmfFile << actualArray[count] << " " ;
 
               }
             }
-            myfile.close();
+            nnmfFile.close();
           }
 
           // ofstream mykeyfile ("data/key.csv");

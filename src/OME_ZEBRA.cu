@@ -133,8 +133,6 @@ int main(int argc, char *argv[]) {
       }
       if (allTifsAreGood) {
 
-
-
           cout<<"Creating key"<<endl;
           int NNormal = numTimePoints;
           int MNormal = (numRows*numColumns);
@@ -170,7 +168,7 @@ int main(int argc, char *argv[]) {
               rowArrayIndex++;
             }
 
-            if (nonZeroCounter != 0) {
+            if (nonZeroCounter >= 0) {
               for (int k = 0; k < NNormal; k++) {
                 temp[indexOfTemp] = rowArray[k];
                 rowArray[k] = 0;

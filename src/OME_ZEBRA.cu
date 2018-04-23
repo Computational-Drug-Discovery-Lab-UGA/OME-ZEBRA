@@ -73,6 +73,7 @@ double calculateCoVariance(double * subVarX, double * subVarY, double lengthOfSe
 void calculateSubvariance(uint32 * inputSet, double lengthOfSet, double * resultArray);
 double calculateAverage(uint32 * inputSet, double lengthOfSet);
 double calculatePearsonCorrelationCoefficient(uint32 * x, uint32 * y, double lengthOfSets);
+void transposeArray(vector<uint32*> inputArray, int n, int m, uint32 * outputArray, uint32 & min, uint32 & max);
 
 
 
@@ -124,165 +125,117 @@ int main(int argc, char *argv[]) {
           //cout << "Preparing to flatten" << endl;
           //vector<uint32> fullTiffVector = flattenMatrix(flattenedTimePoints, numRows*numColumns, dircount);
 
+          cout << "Flattening Array" << endl;
 
-          cout<<"Creating key"<<endl;
           int NNormal = dircount;
           int MNormal = (numRows*numColumns);
+          int totalSize = MNormal*NNormal;
 
-          bool* key = new bool[MNormal];
-          for (int i = 0; i < MNormal; i++) {
-            key[i] = false;
-          }
-
-
-          uint32* temp;
           uint32 min = 4294967295;
-          temp = new uint32[MNormal*NNormal];
-          int indexOfTemp = 0;
-          int nonZeroCounter = 0;
-          uint32* rowArray = new uint32[numColumns];
-          int rowArrayIndex = 0;
-          int lastGoodIndex = 0;
-          bool allRealRows = false;
           uint32 max = 0;
-          for(unsigned i=0; i < MNormal; i++) {
-            allRealRows = false;
-            nonZeroCounter = 0;
-            rowArrayIndex = 0;
-            for(unsigned j=0; j < NNormal; j++) {
-              if (flattenedTimePoints[j][i] != 0){
-                nonZeroCounter++;
-                if(flattenedTimePoints[j][i] < min) min = flattenedTimePoints[j][i];
-                if(flattenedTimePoints[j][i] > max) max = flattenedTimePoints[j][i];
+          uint32* actualArray = new uint32[totalSize];
 
-              }
-              rowArray[rowArrayIndex] = flattenedTimePoints[j][i];
-              rowArrayIndex++;
-            }
+          transposeArray(flattenedTimePoints, NNormal, MNormal, actualArray, min, max);
 
-            if (nonZeroCounter != 0) {
-              for (int k = 0; k < NNormal; k++) {
-                temp[indexOfTemp] = rowArray[k];
-                rowArray[k] = 0;
-                indexOfTemp++;
-              }
-              lastGoodIndex++;
-              key[i] = true;
-              allRealRows = true;
-            }
-          }
-          if(allRealRows){
-            cout<<"key created but all pixels have at least 1 non-zero value"<<endl;
-          }
-          else{
-
-            cout<<"key created and all temporal zero pixels have that been removed are indicated by 0 in the key"<<endl;
-          }
-          cout << lastGoodIndex << endl;
-          long minimizedSize = lastGoodIndex*512;
-          uint32* actualArray = new uint32[minimizedSize];
           cout << "loading arrays based on key" << endl;
-          for (long i = 0; i < minimizedSize; i++) {
 
-            actualArray[i] = temp[i];
-
-          }
           dim3 grid = {1,1,1};
           dim3 block = {1,1,1};
-          if(65535 > minimizedSize){
-            grid.x = minimizedSize;
+          if(65535 > totalSize){
+            grid.x = totalSize;
           }
-          else if(65535*1024 > minimizedSize){
+          else if(65535*1024 > totalSize){
             grid.x = 65535;
             block.x = 1024;
-            while(block.x*grid.x > minimizedSize){
+            while(block.x*grid.x > totalSize){
               block.x--;
             }
           }
           else{
             grid.x = 65535;
             block.x = 1024;
-            while(grid.x*grid.y*block.x < minimizedSize){
+            while(grid.x*grid.y*block.x < totalSize){
               grid.y++;
             }
           }
           cout<<"prepare for calcCa cuda kernel with min = "<<min<<",max = "<<max<<endl;
           uint32* actualArrayDevice;
-          CudaSafeCall(cudaMalloc((void**)&actualArrayDevice,minimizedSize*sizeof(uint32)));
-          CudaSafeCall(cudaMemcpy(actualArrayDevice,actualArray, minimizedSize*sizeof(uint32), cudaMemcpyHostToDevice));
-          calcCa<<<grid,block>>>(actualArrayDevice, min, minimizedSize);
+          CudaSafeCall(cudaMalloc((void**)&actualArrayDevice,totalSize*sizeof(uint32)));
+          CudaSafeCall(cudaMemcpy(actualArrayDevice,actualArray, totalSize*sizeof(uint32), cudaMemcpyHostToDevice));
+          calcCa<<<grid,block>>>(actualArrayDevice, min, totalSize);
           CudaCheckError();
-          CudaSafeCall(cudaMemcpy(actualArray,actualArrayDevice, minimizedSize*sizeof(uint32), cudaMemcpyDeviceToHost));
+          CudaSafeCall(cudaMemcpy(actualArray,actualArrayDevice, totalSize*sizeof(uint32), cudaMemcpyDeviceToHost));
           CudaSafeCall(cudaFree(actualArrayDevice));
-          cout<<"calcCa has completed applying offset"<<endl;
+          cout << "calcCa has completed applying offset" << endl;
 
-          cout << "Starting Pearson Correlation Coefficient processing" << endl;
-
-          uint32 * firstPoint = new uint32[512];
-          uint32 * secondPoint = new uint32[512];
-
-          int sizeOfPearson = 0;
-
-          for(int i = 0; i < (512*1024); i++) {
-
-            for (int j = (i+1); j < (512*1024); j++) {
-
-              sizeOfPearson++;
-
-            }
-
-          }
-
-          double * pearsonArray = new double[sizeOfPearson];
-          sizeOfPearson = 0;
-
-          for (int i = 0; i < (512*1024); i++) {
-
-            for (int index1 = 0; index1 < 512; index1++) {
-
-              firstPoint[index1] = i*512 + index1;
-
-            }
-
-            for (int j = (i+1); j < (512*1024); j++) {
-
-              for (int index2 = 0; index2 < 512; index2++) {
-
-                secondPoint[index2] = j*512 + index2;
-
-              }
-
-              pearsonArray[sizeOfPearson] = calculatePearsonCorrelationCoefficient(firstPoint, secondPoint, 512);
-              sizeOfPearson++;
-
-            }
-
-          }
-
-          ofstream myPearsonFile ("data/pearsonArray.txt");
-          if (myPearsonFile.is_open()) {
-
-            for(int i = 0; i < sizeOfPearson; i++){
-
-              myPearsonFile << pearsonArray[i];
-
-              if (i != (sizeOfPearson - 1)) {
-
-                myPearsonFile << "\n";
-
-              }
-
-            }
-
-            myPearsonFile.close();
-
-          }
+          // cout << "Starting Pearson Correlation Coefficient processing" << endl;
+          //
+          // uint32 * firstPoint = new uint32[512];
+          // uint32 * secondPoint = new uint32[512];
+          //
+          // long dimOfArray1 = 512;
+          // long dimOfArray2 = 1024;
+          //
+          // unsigned long sizeOfPearson = (((dimOfArray1 * dimOfArray2) * (dimOfArray1 * dimOfArray2)) - (dimOfArray1 * dimOfArray2))/2;
+          //
+          // cout << "pearsonArray created of size: " << sizeOfPearson << endl;
+          //
+          // double * pearsonArray = new double[sizeOfPearson];
+          // sizeOfPearson = 0;
+          //
+          // for (int i = 0; i < (512*1024); i++) {
+          //
+          //   for (int index1 = 0; index1 < 512; index1++) {
+          //
+          //     firstPoint[index1] = i*512 + index1;
+          //
+          //   }
+          //
+          //   for (int j = (i+1); j < (512*1024); j++) {
+          //
+          //     for (int index2 = 0; index2 < 512; index2++) {
+          //
+          //       secondPoint[index2] = j*512 + index2;
+          //
+          //     }
+          //
+          //     pearsonArray[sizeOfPearson] = calculatePearsonCorrelationCoefficient(firstPoint, secondPoint, 512);
+          //     sizeOfPearson++;
+          //
+          //   }
+          //
+          //   if (i % 1000 == 0) {
+          //
+          //     cout << i << endl;
+          //
+          //   }
+          //
+          // }
+          //
+          // ofstream myPearsonFile ("data/pearsonArray.txt");
+          // if (myPearsonFile.is_open()) {
+          //
+          //   for(int i = 0; i < sizeOfPearson; i++){
+          //
+          //     myPearsonFile << pearsonArray[i];
+          //
+          //     if (i != (sizeOfPearson - 1)) {
+          //
+          //       myPearsonFile << "\n";
+          //
+          //     }
+          //
+          //   }
+          //
+          //   myPearsonFile.close();
+          //
+          // }
 
           cout << "Dumping to File" << endl;
 
           ofstream myfile ("data/NNMF.nmf");
           if (myfile.is_open()) {
-            for(long count = 0; count < ((lastGoodIndex) * 512); count++){
+            for(long count = 0; count < ((totalSize) * 512); count++){
 
               if ((count + 1) % 512 == 0) {
 
@@ -298,16 +251,17 @@ int main(int argc, char *argv[]) {
             myfile.close();
           }
 
-          ofstream mykeyfile ("data/key.csv");
-          if (mykeyfile.is_open()) {
-            for(long i = 0; i < MNormal; i++){
+          // ofstream mykeyfile ("data/key.csv");
+          // if (mykeyfile.is_open()) {
+          //   for(long i = 0; i < MNormal; i++){
+          //
+          //      mykeyfile << key[i] << "\n" ;
+          //
+          //    }
+          //
+          //  }
+          //   mykeyfile.close();
 
-               mykeyfile << key[i] << "\n" ;
-
-             }
-
-           }
-            mykeyfile.close();
           }
 
            cout<<"NNMF.csv created successfuly"<<endl;
@@ -637,5 +591,34 @@ double calculateStandardDeviation(double * subVarX, double lengthOfSet) {
   }
 
   return standarDeviation;
+
+}
+
+void transposeArray(vector<uint32*> inputArray, int n, int m, uint32 * outputArray, uint32 & min, uint32 & max) {
+
+  int outputArrayIndex = 0;
+
+  for(unsigned i=0; i < m; i++) {
+
+    for(unsigned j=0; j < n; j++) {
+
+      if(inputArray[j][i] < min) {
+
+       min = inputArray[j][i];
+
+      }
+
+      if(inputArray[j][i] > max) {
+
+         max = inputArray[j][i];
+
+      }
+
+      outputArray[outputArrayIndex] = inputArray[j][i];
+      outputArrayIndex++;
+
+    }
+
+  }
 
 }

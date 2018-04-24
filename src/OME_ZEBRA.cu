@@ -131,15 +131,16 @@ int main(int argc, char *argv[]) {
       }
       if (allTifsAreGood) {
 
-
-
           cout<<"Creating key"<<endl;
+
           int NNormal = numTimePoints;
           int MNormal = (numRows*numColumns);
 
           bool* key = new bool[MNormal];
           for (int i = 0; i < MNormal; i++) {
+
             key[i] = false;
+
           }
 
 
@@ -154,50 +155,54 @@ int main(int argc, char *argv[]) {
           int lastGoodIndex = 0;
           bool allRealRows = false;
           for(unsigned i=0; i < MNormal; i++) {
+
             allRealRows = false;
             nonZeroCounter = 0;
             rowArrayIndex = 0;
             for(unsigned j=0; j < NNormal; j++) {
+
               if (flattenedTimePoints[j][i] != 0){
+
                 nonZeroCounter++;
                 if(flattenedTimePoints[j][i] < min) min = flattenedTimePoints[j][i];
                 if(flattenedTimePoints[j][i] > max) max = flattenedTimePoints[j][i];
 
               }
+
               rowArray[rowArrayIndex] = flattenedTimePoints[j][i];
               rowArrayIndex++;
+
             }
 
-            if (nonZeroCounter != 0) {
-              for (int k = 0; k < NNormal; k++) {
-                temp[indexOfTemp] = rowArray[k];
-                rowArray[k] = 0;
-                indexOfTemp++;
-              }
-              lastGoodIndex++;
-              key[i] = true;
-              allRealRows = true;
-            }
-          }
-          if(allRealRows){
-            cout<<"key created but all pixels have at least 1 non-zero value"<<endl;
-          }
-          else{
+            for (int k = 0; k < NNormal; k++) {
 
-            cout<<"key created and all temporal zero pixels have that been removed are indicated by 0 in the key"<<endl;
+              temp[indexOfTemp] = rowArray[k];
+              rowArray[k] = 0;
+              indexOfTemp++;
+
+            }
+
+            lastGoodIndex++;
+            allRealRows = true;
+
           }
+
           cout << lastGoodIndex << endl;
           long minimizedSize = lastGoodIndex*512;
           uint32* actualArray = new uint32[minimizedSize];
           float* firingRateArray = new float[minimizedSize];
           cout << "loading arrays based on key" << endl;
+
           for (long i = 0; i < minimizedSize; i++) {
+
             firingRateArray[i] = 0.0f;
             actualArray[i] = temp[i];
 
           }
+
           dim3 grid = {1,1,1};
           dim3 block = {1,1,1};
+
           if(65535 > minimizedSize){
             grid.x = minimizedSize;
           }
@@ -232,27 +237,98 @@ int main(int argc, char *argv[]) {
           CudaSafeCall(cudaFree(firingRateArrayDevice));
           cout<<"calcCa has completed applying offset"<<endl;
 
+          float* tempCalc = new float[minimizedSize];
+          indexOfTemp = 0;
+          lastGoodIndex = 0;
+          float * newRowArray = new float[NNormal];
+          float calcMin = 999999.0;
+          float calcMax = -1024.0;
+
+          for(unsigned i=0; i < MNormal; i++) {
+
+            nonZeroCounter = 0;
+            rowArrayIndex = 0;
+
+            for(unsigned j=0; j < NNormal; j++) {
+
+              if (firingRateArray[(NNormal*i) + j] != 0){
+
+                nonZeroCounter++;
+                if(firingRateArray[(NNormal*i) + j] < calcMin) calcMin = firingRateArray[(NNormal*i) + j];
+                if(firingRateArray[(NNormal*i) + j] > calcMax) calcMax = firingRateArray[(NNormal*i) + j];
+
+              }
+
+              newRowArray[rowArrayIndex] = firingRateArray[(NNormal*i) + j];
+              rowArrayIndex++;
+
+            }
+            if (nonZeroCounter != 0) {
+
+              for (int k = 0; k < NNormal; k++) {
+
+                tempCalc[indexOfTemp] = newRowArray[k];
+                rowArray[k] = 0;
+                indexOfTemp++;
+                key[i] = true;
+
+              }
+
+              lastGoodIndex++;
+
+            }
+
+          }
+
+          cout << lastGoodIndex << endl;
+
+          delete[] firingRateArray;
+
+          cout << "Test" << endl;
+
+          float* newFiringRateArray = new float[lastGoodIndex*NNormal];
+
+          for (int i = 0; i < (lastGoodIndex+1)*NNormal; i++) {
+
+            newFiringRateArray[i] = (tempCalc[i] + calcMin*-1)/calcMax;
+
+            if (i % NNormal == 0) {
+
+              cout << lastGoodIndex << " " << i/512 << endl;
+
+            }
+
+          }
+
           cout << "Dumping to File" << endl;
 
           ofstream myfile ("data/NNMF.nmf");
           if (myfile.is_open()) {
-            for(long count = 0; count < ((lastGoodIndex) * 512); count++){
+            for(int i = 0; i < (lastGoodIndex+1)*NNormal; i++){
 
-              if ((count + 1) % 512 == 0) {
+              if (i % NNormal == 0) {
+
+                cout << lastGoodIndex << " " << i/512 << endl;
+
+              }
+
+              if ((i + 1) % 512 == 0) {
 
                 //myfile << actualArray[count] << "\n" ;
-                myfile << firingRateArray[count] << "\n" ;
+                myfile << newFiringRateArray[i] << "\n" ;
 
               }
               else {
 
                 //myfile << actualArray[count] << " " ;
-                myfile << firingRateArray[count] << " " ;
+                myfile << newFiringRateArray[i] << " " ;
 
               }
             }
             myfile.close();
           }
+
+          cout << "done" << endl;
 
           ofstream mykeyfile ("data/key.csv");
           if (mykeyfile.is_open()) {

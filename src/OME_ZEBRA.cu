@@ -68,8 +68,8 @@ vector<uint32> flattenMatrix(vector<uint32*> matrix, int cols, int rows);
 uint32** hostTranspose(uint32** matrix, int rows, int cols);
 __global__ void transposeuint32Matrix(uint32* flatOrigin, uint32* flatTransposed, long Nrows, long Ncols);
 uint32 findMin(uint32* flatMatrix, int size);
-__global__ void calcCa(uint32* flatMatrix, uint32 min, uint32 max, long size);
-__global__ void calcFiringRate(uint32* caMatrix, float* frMatrix, long size, int numTimePoints);
+__global__ void calcCa(uint32* flatMatrix, float* calcium, uint32 min, uint32 max, long size);
+__global__ void calcFiringRate(float* frMatrix, long size, int numTimePoints);
 __global__ void fillTestMatrix(uint32* flatMatrix, long size);
 void transposeArray(vector<uint32*> inputArray, int n, int m, uint32 * outputArray, uint32 & min, uint32 & max);
 
@@ -221,12 +221,11 @@ int main(int argc, char *argv[]) {
           CudaSafeCall(cudaMalloc((void**)&actualArrayDevice,minimizedSize*sizeof(uint32)));
           CudaSafeCall(cudaMalloc((void**)&firingRateArrayDevice,minimizedSize*sizeof(float)));
           CudaSafeCall(cudaMemcpy(actualArrayDevice,actualArray, minimizedSize*sizeof(uint32), cudaMemcpyHostToDevice));
-          calcCa<<<grid,block>>>(actualArrayDevice, min, max, minimizedSize);
-          CudaCheckError();
-          CudaSafeCall(cudaMemcpy(actualArray,actualArrayDevice, minimizedSize*sizeof(uint32), cudaMemcpyDeviceToHost));
-          cout<<"Executing firing rate cuda kernel"<<endl;
           CudaSafeCall(cudaMemcpy(firingRateArrayDevice,firingRateArray, minimizedSize*sizeof(float), cudaMemcpyHostToDevice));
-          calcFiringRate<<<grid,block>>>(actualArrayDevice, firingRateArrayDevice, minimizedSize, numTimePoints);
+          calcCa<<<grid,block>>>(actualArrayDevice, firingRateArrayDevice, min, max, minimizedSize);
+          CudaCheckError();
+          cout<<"Executing firing rate cuda kernel"<<endl;
+          calcFiringRate<<<grid,block>>>(firingRateArrayDevice, minimizedSize, numTimePoints);
           CudaSafeCall(cudaMemcpy(firingRateArray,firingRateArrayDevice, minimizedSize*sizeof(float), cudaMemcpyDeviceToHost));
           CudaSafeCall(cudaFree(actualArrayDevice));
           CudaSafeCall(cudaFree(firingRateArrayDevice));
@@ -516,27 +515,27 @@ uint32 findMin(uint32* flatMatrix, int size){
   return currentMin;
 }
 
-__global__ void calcCa(uint32* flatMatrix, uint32 min, uint32 max, long size){
+__global__ void calcCa(uint32* flatMatrix, float* calcium, uint32 min, uint32 max, long size){
   int blockID = blockIdx.y * gridDim.x + blockIdx.x;
   long globalID = blockID * blockDim.x + threadIdx.x;
   int stride = gridDim.x * gridDim.y * blockDim.x;
-  uint32 caConc = 0;
-  uint32 currentIntensity = 0;
+  float caConc = 0;
+  float currentIntensity = 0;
   while(globalID < size){
-    currentIntensity = flatMatrix[globalID];
+    currentIntensity = (float) flatMatrix[globalID];
     caConc = (currentIntensity - min)/(max - currentIntensity);
-    flatMatrix[globalID] = caConc;
+    calcium[globalID] = 3.16227766e-7*caConc;
     globalID += stride;
   }
 }
 
-__global__ void calcFiringRate(uint32* caMatrix, float* frMatrix, long size, int numTimePoints){
+__global__ void calcFiringRate(float* frMatrix, long size, int numTimePoints){
   int blockID = blockIdx.y * gridDim.x + blockIdx.x;
   long globalID = blockID * blockDim.x + threadIdx.x;
   int stride = gridDim.x * gridDim.y * blockDim.x;
-  float caConc = 3.16227766e-7;
+  float caConc = 0.0f;
   //float caConc = 1.0f;
-  float nextCaConc = 3.16227766e-7;
+  float nextCaConc = 0.0f;
   //float nextCaConc = 1.0f;
   float firingRate = 0.0f;
   float tau = 0.15;
@@ -546,8 +545,8 @@ __global__ void calcFiringRate(uint32* caMatrix, float* frMatrix, long size, int
   int currentTimePoint = globalID % numTimePoints;
   while(globalID < size && currentTimePoint < numTimePoints - 1){
     firingRate = 0.0f;
-    caConc *= (float) caMatrix[globalID];
-    nextCaConc *=  (float) caMatrix[globalID + 1];
+    caConc = frMatrix[globalID];
+    nextCaConc =   frMatrix[globalID + 1];
     if(nextCaConc != 0.0f) firingRate = ((nextCaConc*expf(deltaT/tau))-caConc)/(expm1f(deltaT/tau)*tau*alpha);
     frMatrix[globalID] = firingRate;
     //if(currentTimePoint == numTimePoints - 2){//not sure this is what we want to do

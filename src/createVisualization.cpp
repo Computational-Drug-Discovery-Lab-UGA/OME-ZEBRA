@@ -30,7 +30,7 @@ int main(int argc, char *argv[]) {
       int k = 2;
       string wFileLocation;
       string tifName = argv[1];
-      string tifFile = "data/out/" + tifName + "/" + tifName + "_TP1.tif";
+      string tifFile = "data/out/" + tifName + "/" + tifName + ".ome0000.tif";
       string nmfChecker = "data/out/" + tifName + "/NNMF.nmf";
       string keyFileLocation = "data/out/" + tifName + "/" + "key.csv";
       TIFF* tif = TIFFOpen(tifFile.c_str(), "r");

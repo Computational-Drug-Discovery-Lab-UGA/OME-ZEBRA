@@ -72,8 +72,6 @@ int main(int argc, char *argv[]) {
           TIFFGetField(tif, TIFFTAG_BITSPERSAMPLE, &bitsPerSample);
           TIFFGetField(tif, TIFFTAG_PHOTOMETRIC, &photo);
 
-          cout<<"\nTIMEPOINT 1 .tif info:"<<endl;
-
           TIFFSetField(resultTif, TIFFTAG_IMAGEWIDTH, width);
           TIFFSetField(resultTif, TIFFTAG_IMAGELENGTH, height);
           TIFFSetField(resultTif, TIFFTAG_SAMPLESPERPIXEL, samplesPerPixel);
@@ -173,7 +171,7 @@ int main(int argc, char *argv[]) {
 
       }
       else{
-        cout<<"COULD NOT OPEN"<<argv[1]<<endl;
+        cout<<"COULD NOT OPEN "<<argv[1]<<endl;
         return 1;
       }
     }

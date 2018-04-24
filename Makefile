@@ -14,7 +14,7 @@ NVCCFLAGS += -std=c++11 -gencode=arch=compute_60,code=sm_60 -Iinclude -lcublas
 CXXFLAGS += ${COMMONFLAGS}
 CXXFLAGS += -Wall -g -std=c++11 -Iinclude -lcublas
 
-LIB_CUDA := -L/usr/local/cuda-9.1/lib64 -lcudart -lcublas
+LIB_CUDA := -L/usr/local/cuda/lib64 -lcudart -lcublas
 LIB_TIFF := -L/usr/local/lib -ltiff
 
 SRCDIR = ./src

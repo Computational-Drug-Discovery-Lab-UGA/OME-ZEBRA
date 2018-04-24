@@ -1,6 +1,5 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <string>
 #include <iostream>
 #include <vector>
 #include <inttypes.h>
@@ -11,7 +10,7 @@
 #include <cuda.h>
 #include <curand.h>
 #include <curand_kernel.h>
-#include <cstdlib>
+
 using namespace std;
 
 // Define this to turn on error checking
@@ -59,7 +58,6 @@ inline void __cudaCheckError(const char *file, const int line) {
 
 
 void printDeviceProperties();
-string createFourCharInt(int i);
 void printArray(uint32 * array, uint32 width);
 uint32* extractMartrices(TIFF* tif, string fileName);
 uint32* extractMartrices(TIFF* tif, string fileName, int currentTimePoint);
@@ -68,287 +66,206 @@ vector<uint32> flattenMatrix(vector<uint32*> matrix, int cols, int rows);
 uint32** hostTranspose(uint32** matrix, int rows, int cols);
 __global__ void transposeuint32Matrix(uint32* flatOrigin, uint32* flatTransposed, long Nrows, long Ncols);
 uint32 findMin(uint32* flatMatrix, int size);
-__global__ void calcCa(uint32* flatMatrix, float* calcium, uint32 min, uint32 max, long size);
-__global__ void calcFiringRate(float* frMatrix, long size, int numTimePoints);
+__global__ void calcCa(uint32* flatMatrix, uint32 min, long size);
 __global__ void fillTestMatrix(uint32* flatMatrix, long size);
+double calculateStandardDeviation(double * subVarX, double lengthOfSet);
+double calculateCoVariance(double * subVarX, double * subVarY, double lengthOfSets);
+void calculateSubvariance(uint32 * inputSet, double lengthOfSet, double * resultArray);
+double calculateAverage(uint32 * inputSet, double lengthOfSet);
+double calculatePearsonCorrelationCoefficient(uint32 * x, uint32 * y, double lengthOfSets);
 void transposeArray(vector<uint32*> inputArray, int n, int m, uint32 * outputArray, uint32 & min, uint32 & max);
+
+
 
 
 int main(int argc, char *argv[]) {
 
-    if(argc != 3) {
-      cout << "Usage: ./exe <file> <# of time points>";
+    if(argc != 2) {
+      cout << "Usage: ./exe <file>";
       return 1;
     }
     else {
-
       vector<uint32*> flattenedTimePoints;
-      string baseName = argv[1];
-      int numTimePoints = atoi(argv[2]);
-      if(numTimePoints == 0){
-        cout<<"ERROR INVALID TIMEPOINTS"<<endl;
-        exit(-1);
-      }
-      bool allTifsAreGood = true;
+      TIFF* tif = TIFFOpen(argv[1], "r");
+      cout<<endl<<argv[1]<<" IS OPENED\n"<<endl;
+      string fileName = argv[1];
+      int dircount = 0;
       uint32 numColumns;
       uint32 numRows;
-      string currentTif;
-      for(int i = 0; i < numTimePoints; ++i){
+      if (tif) {
+        TIFFGetField(tif, TIFFTAG_IMAGEWIDTH, &numColumns);
+        TIFFGetField(tif, TIFFTAG_IMAGELENGTH, &numRows);
+          do {
+            uint32* flatMatrix = new uint32[numRows*numColumns];
+            if(dircount == 100){
+              flatMatrix = extractMartrices(tif, fileName, dircount);
+              //exit(0);
+            }
+            if(dircount == 0){
+              flatMatrix = extractMartrices(tif, fileName);
+            }
 
-        currentTif = "data/registeredOMEs/" + baseName + "/" +
-        baseName + ".ome" + createFourCharInt(i) + ".tif";
+            else flatMatrix = extractMartrices(tif);
 
-        TIFF* tif = TIFFOpen(currentTif.c_str(), "r");
+            flattenedTimePoints.push_back(flatMatrix);
+            dircount++;
+          }
+          while (TIFFReadDirectory(tif));
+          printf("%d directories in %s\n", dircount, argv[1]);
 
-        if (tif) {
-          if(i == 0){
-            TIFFGetField(tif, TIFFTAG_IMAGEWIDTH, &numColumns);
-            TIFFGetField(tif, TIFFTAG_IMAGELENGTH, &numRows);
-          }
-          uint32 tempCol;
-          uint32 tempRow;
-          cout<<currentTif<<" IS OPENED"<<endl;
-          TIFFGetField(tif, TIFFTAG_IMAGEWIDTH, &tempCol);
-          TIFFGetField(tif, TIFFTAG_IMAGELENGTH, &tempRow);
-          if(numRows != tempRow || numColumns != tempCol){
-            cout<<"ERROR NOT ALL TIFFS ARE THE SAME LENGTH"<<endl;
-            exit(-1);
-          }
+          //to save numColumns
 
-          uint32* flatMatrix = new uint32[numRows*numColumns];
-          if(i == 0){
-            flatMatrix = extractMartrices(tif, baseName);
-          }
-          else{
-            flatMatrix = extractMartrices(tif);
-          }
-          flattenedTimePoints.push_back(flatMatrix);
+
           TIFFClose(tif);
 
-        }
-        else{
-          allTifsAreGood = false;
-          break;
-        }
-      }
-      if (allTifsAreGood) {
 
-          cout<<"Creating key"<<endl;
-          int NNormal = numTimePoints;
+          //NO NEED TO DO THIS
+          //prepare arrays
+          //flatten time points
+          //cout << "Preparing to flatten" << endl;
+          //vector<uint32> fullTiffVector = flattenMatrix(flattenedTimePoints, numRows*numColumns, dircount);
+
+          cout << "Flattening Array" << endl;
+
+          int NNormal = dircount;
           int MNormal = (numRows*numColumns);
+          int totalSize = MNormal*NNormal;
 
-          bool* key = new bool[MNormal];
-          for (int i = 0; i < MNormal; i++) {
-
-            key[i] = false;
-
-          }
-
-
-          uint32* temp;
           uint32 min = 4294967295;
           uint32 max = 0;
-          temp = new uint32[MNormal*NNormal];
-          int indexOfTemp = 0;
-          int nonZeroCounter = 0;
-          uint32* rowArray = new uint32[numColumns];
-          int rowArrayIndex = 0;
-          int lastGoodIndex = 0;
-          bool allRealRows = false;
-          for(unsigned i=0; i < MNormal; i++) {
+          uint32* actualArray = new uint32[totalSize];
 
-            allRealRows = false;
-            nonZeroCounter = 0;
-            rowArrayIndex = 0;
-            for(unsigned j=0; j < NNormal; j++) {
+          transposeArray(flattenedTimePoints, NNormal, MNormal, actualArray, min, max);
 
-              if (flattenedTimePoints[j][i] != 0){
-
-                nonZeroCounter++;
-                if(flattenedTimePoints[j][i] < min) min = flattenedTimePoints[j][i];
-                if(flattenedTimePoints[j][i] > max) max = flattenedTimePoints[j][i];
-
-              }
-
-              rowArray[rowArrayIndex] = flattenedTimePoints[j][i];
-              rowArrayIndex++;
-
-            }
-
-            for (int k = 0; k < NNormal; k++) {
-
-              temp[indexOfTemp] = rowArray[k];
-              rowArray[k] = 0;
-              indexOfTemp++;
-
-            }
-
-            lastGoodIndex++;
-            allRealRows = true;
-
-          }
-
-          cout << lastGoodIndex << endl;
-          long minimizedSize = lastGoodIndex*512;
-          uint32* actualArray = new uint32[minimizedSize];
-          float* firingRateArray = new float[minimizedSize];
           cout << "loading arrays based on key" << endl;
-
-          for (long i = 0; i < minimizedSize; i++) {
-            firingRateArray[i] = 0.0f;
-            actualArray[i] = temp[i];
-
-          }
 
           dim3 grid = {1,1,1};
           dim3 block = {1,1,1};
-
-          if(65535 > minimizedSize){
-            grid.x = minimizedSize;
+          if(65535 > totalSize){
+            grid.x = totalSize;
           }
-          else if(65535*1024 > minimizedSize){
+          else if(65535*1024 > totalSize){
             grid.x = 65535;
             block.x = 1024;
-            while(block.x*grid.x > minimizedSize){
+            while(block.x*grid.x > totalSize){
               block.x--;
             }
           }
           else{
             grid.x = 65535;
             block.x = 1024;
-            while(grid.x*grid.y*block.x < minimizedSize){
+            while(grid.x*grid.y*block.x < totalSize){
               grid.y++;
             }
           }
           cout<<"prepare for calcCa cuda kernel with min = "<<min<<",max = "<<max<<endl;
-          float* firingRateArrayDevice;
           uint32* actualArrayDevice;
-          CudaSafeCall(cudaMalloc((void**)&actualArrayDevice,minimizedSize*sizeof(uint32)));
-          CudaSafeCall(cudaMalloc((void**)&firingRateArrayDevice,minimizedSize*sizeof(float)));
-          CudaSafeCall(cudaMemcpy(actualArrayDevice,actualArray, minimizedSize*sizeof(uint32), cudaMemcpyHostToDevice));
-          CudaSafeCall(cudaMemcpy(firingRateArrayDevice,firingRateArray, minimizedSize*sizeof(float), cudaMemcpyHostToDevice));
-          calcCa<<<grid,block>>>(actualArrayDevice, firingRateArrayDevice, min, max, minimizedSize);
+          CudaSafeCall(cudaMalloc((void**)&actualArrayDevice,totalSize*sizeof(uint32)));
+          CudaSafeCall(cudaMemcpy(actualArrayDevice,actualArray, totalSize*sizeof(uint32), cudaMemcpyHostToDevice));
+          calcCa<<<grid,block>>>(actualArrayDevice, min, totalSize);
           CudaCheckError();
-          cout<<"Executing firing rate cuda kernel"<<endl;
-          calcFiringRate<<<grid,block>>>(firingRateArrayDevice, minimizedSize, numTimePoints);
-          CudaSafeCall(cudaMemcpy(firingRateArray,firingRateArrayDevice, minimizedSize*sizeof(float), cudaMemcpyDeviceToHost));
+          CudaSafeCall(cudaMemcpy(actualArray,actualArrayDevice, totalSize*sizeof(uint32), cudaMemcpyDeviceToHost));
           CudaSafeCall(cudaFree(actualArrayDevice));
-          CudaSafeCall(cudaFree(firingRateArrayDevice));
-          cout<<"calcCa has completed applying offset"<<endl;
+          cout << "calcCa has completed applying offset" << endl;
 
-          float* tempCalc = new float[minimizedSize];
-          indexOfTemp = 0;
-          lastGoodIndex = 0;
-          float * newRowArray = new float[NNormal];
-          float calcMin = 999999.0;
-          float calcMax = -1024.0;
-
-          for(unsigned i=0; i < MNormal; i++) {
-
-            nonZeroCounter = 0;
-            rowArrayIndex = 0;
-
-            for(unsigned j=0; j < NNormal; j++) {
-
-              if (firingRateArray[(NNormal*i) + j] != 0){
-
-                nonZeroCounter++;
-                if(firingRateArray[(NNormal*i) + j] < calcMin) calcMin = firingRateArray[(NNormal*i) + j];
-                if(firingRateArray[(NNormal*i) + j] > calcMax) calcMax = firingRateArray[(NNormal*i) + j];
-
-              }
-
-              newRowArray[rowArrayIndex] = firingRateArray[(NNormal*i) + j];
-              rowArrayIndex++;
-
-            }
-            if (nonZeroCounter != 0) {
-
-              for (int k = 0; k < NNormal; k++) {
-
-                tempCalc[indexOfTemp] = newRowArray[k];
-                rowArray[k] = 0;
-                indexOfTemp++;
-                key[i] = true;
-
-              }
-
-              lastGoodIndex++;
-
-            }
-
-          }
-
-          cout << lastGoodIndex << endl;
-
-          delete[] firingRateArray;
-
-          cout << "Test" << endl;
-
-          float* newFiringRateArray = new float[lastGoodIndex*NNormal];
-
-          for (int i = 0; i < (lastGoodIndex+1)*NNormal; i++) {
-
-            newFiringRateArray[i] = (tempCalc[i] + calcMin*-1)/calcMax;
-
-            if (i % NNormal == 0) {
-
-              cout << lastGoodIndex << " " << i/512 << endl;
-
-            }
-
-          }
+          // cout << "Starting Pearson Correlation Coefficient processing" << endl;
+          //
+          // uint32 * firstPoint = new uint32[512];
+          // uint32 * secondPoint = new uint32[512];
+          //
+          // long dimOfArray1 = 512;
+          // long dimOfArray2 = 1024;
+          //
+          // unsigned long sizeOfPearson = (((dimOfArray1 * dimOfArray2) * (dimOfArray1 * dimOfArray2)) - (dimOfArray1 * dimOfArray2))/2;
+          //
+          // cout << "pearsonArray created of size: " << sizeOfPearson << endl;
+          //
+          // double * pearsonArray = new double[sizeOfPearson];
+          // sizeOfPearson = 0;
+          //
+          // for (int i = 0; i < (512*1024); i++) {
+          //
+          //   for (int index1 = 0; index1 < 512; index1++) {
+          //
+          //     firstPoint[index1] = i*512 + index1;
+          //
+          //   }
+          //
+          //   for (int j = (i+1); j < (512*1024); j++) {
+          //
+          //     for (int index2 = 0; index2 < 512; index2++) {
+          //
+          //       secondPoint[index2] = j*512 + index2;
+          //
+          //     }
+          //
+          //     pearsonArray[sizeOfPearson] = calculatePearsonCorrelationCoefficient(firstPoint, secondPoint, 512);
+          //     sizeOfPearson++;
+          //
+          //   }
+          //
+          //   if (i % 1000 == 0) {
+          //
+          //     cout << i << endl;
+          //
+          //   }
+          //
+          // }
+          //
+          // ofstream myPearsonFile ("data/pearsonArray.txt");
+          // if (myPearsonFile.is_open()) {
+          //
+          //   for(int i = 0; i < sizeOfPearson; i++){
+          //
+          //     myPearsonFile << pearsonArray[i];
+          //
+          //     if (i != (sizeOfPearson - 1)) {
+          //
+          //       myPearsonFile << "\n";
+          //
+          //     }
+          //
+          //   }
+          //
+          //   myPearsonFile.close();
+          //
+          // }
 
           cout << "Dumping to File" << endl;
 
-          ofstream myfile ("data/NNMF.nmf");
-          if (myfile.is_open()) {
-            for(int i = 0; i < (lastGoodIndex+1)*NNormal; i++){
+          ofstream nnmfFile ("data/NNMF.nmf");
+          if (nnmfFile.is_open()) {
+            for(long count = 0; count < ((totalSize) * 512); count++){
 
-              if (i % NNormal == 0) {
+              if ((count + 1) % 512 == 0) {
 
-                cout << lastGoodIndex << " " << i/512 << endl;
-
-              }
-
-              if ((i + 1) % 512 == 0) {
-
-                //myfile << actualArray[count] << "\n" ;
-                myfile << newFiringRateArray[i] << "\n" ;
+                 nnmfFile << actualArray[count] << "\n" ;
 
               }
               else {
 
-                //myfile << actualArray[count] << " " ;
-                myfile << newFiringRateArray[i] << " " ;
+                nnmfFile << actualArray[count] << " " ;
 
               }
             }
-            myfile.close();
+            nnmfFile.close();
           }
 
-          cout << "done" << endl;
-
-          ofstream mykeyfile ("data/key.csv");
-          if (mykeyfile.is_open()) {
-            for(long i = 0; i < MNormal; i++){
-
-               mykeyfile << key[i] << "\n" ;
-
-             }
-
-           }
-            mykeyfile.close();
-            cout<<"NNMF.csv created successfuly"<<endl;
+          // ofstream mykeyfile ("data/key.csv");
+          // if (mykeyfile.is_open()) {
+          //   for(long i = 0; i < MNormal; i++){
+          //
+          //      mykeyfile << key[i] << "\n" ;
+          //
+          //    }
+          //
+          //  }
+          //   mykeyfile.close();
 
           }
-          else{
-            cout<<"ERROR OPENING TIFF IN THIS DIRECTORY"<<endl;
-            exit(-1);
-          }
 
+           cout<<"NNMF.csv created successfuly"<<endl;
       }
-
 
       return 0;
 
@@ -384,22 +301,6 @@ void printDeviceProperties(){
 
     }
 }
-string createFourCharInt(int i){
-  string strInt;
-  if(i < 10){
-    strInt = "000" + to_string(i);
-  }
-  else if(i < 100){
-    strInt = "00" + to_string(i);
-  }
-  else if(i < 1000){
-    strInt = "0" + to_string(i);
-  }
-  else{
-    strInt = to_string(i);
-  }
-  return strInt;
-}
 void printArray(uint32 * array, uint32 width){
     uint32 i;
     for (i=0;i<width;i++){
@@ -413,6 +314,7 @@ uint32* extractMartrices(TIFF* tif, string fileName){
   TIFF* firstTimePoint = TIFFOpen(newtiff.c_str(), "w");
   if(firstTimePoint){
     tdata_t buf;
+    uint32 config;
 
     uint32 height, width, photo;
     short samplesPerPixel, bitsPerSample;
@@ -461,9 +363,10 @@ uint32* extractMartrices(TIFF* tif, string fileName){
 }
 uint32* extractMartrices(TIFF* tif, string fileName, int currentTimePoint){
   string newtiff = fileName.substr(0, fileName.length() - 8) + "_TP" + to_string(currentTimePoint) + ".tif";
-  TIFF* currentDir = TIFFOpen(newtiff.c_str(), "w");
-  if(currentDir){
+  TIFF* timePoint = TIFFOpen(newtiff.c_str(), "w");
+  if(timePoint){
     tdata_t buf;
+    uint32 config;
 
     uint32 height, width, photo;
     short samplesPerPixel, bitsPerSample;
@@ -475,23 +378,23 @@ uint32* extractMartrices(TIFF* tif, string fileName, int currentTimePoint){
     TIFFGetField(tif, TIFFTAG_BITSPERSAMPLE, &bitsPerSample);
     TIFFGetField(tif, TIFFTAG_PHOTOMETRIC, &photo);
 
-    uint32* timePoint = new uint32[width*height];
+    uint32* currentTimePoint = new uint32[width*height];
 
-    TIFFSetField(currentDir, TIFFTAG_IMAGEWIDTH, width);
-    TIFFSetField(currentDir, TIFFTAG_IMAGELENGTH, height);
-    TIFFSetField(currentDir, TIFFTAG_SAMPLESPERPIXEL, samplesPerPixel);
-    TIFFSetField(currentDir, TIFFTAG_BITSPERSAMPLE,bitsPerSample);
-    TIFFSetField(currentDir, TIFFTAG_PHOTOMETRIC, photo);
-    cout<<"\nTIMEPOINT "<<currentTimePoint<<" .tif info:"<<endl;
+    TIFFSetField(timePoint, TIFFTAG_IMAGEWIDTH, width);
+    TIFFSetField(timePoint, TIFFTAG_IMAGELENGTH, height);
+    TIFFSetField(timePoint, TIFFTAG_SAMPLESPERPIXEL, samplesPerPixel);
+    TIFFSetField(timePoint, TIFFTAG_BITSPERSAMPLE,bitsPerSample);
+    TIFFSetField(timePoint, TIFFTAG_PHOTOMETRIC, photo);
+    cout<<"\nTIMEPOINT 1 .tif info:"<<endl;
     printf("width = %d\nheight = %d\nsamplesPerPixel = %d\nbitsPerSample = %d\n\n",width,height,samplesPerPixel,bitsPerSample);
     scanLineSize = TIFFScanlineSize(tif);
     buf = _TIFFmalloc(scanLineSize);
-    cout<<"TIFF SCANLINE SIZE IS "<<scanLineSize<<" bits"<<endl;
+    cout<<"TIFF SCANLINE SIZE IS "<<TIFFScanlineSize(tif)<<" bits"<<endl;
     //printf("Height,Width = %u,%u -> scanLineSize = %d bytes\n", height, width,TIFFScanlineSize(tif));
     for (uint32 row = 0; row < height; row++){
       if(TIFFReadScanline(tif, buf, row, 0) != -1){
-        memcpy(&timePoint[row*width], buf, scanLineSize);
-        if(TIFFWriteScanline(currentDir, buf, row, 0) == -1){
+        memcpy(&currentTimePoint[row*width], buf, scanLineSize);
+        if(TIFFWriteScanline(timePoint, buf, row, 0) == -1){
           cout<<"ERROR WRITING SCANLINE"<<endl;
           exit(-1);
         }
@@ -501,9 +404,9 @@ uint32* extractMartrices(TIFF* tif, string fileName, int currentTimePoint){
         exit(-1);
       }
     }
-    TIFFClose(currentDir);
+    TIFFClose(timePoint);
     _TIFFfree(buf);
-    return timePoint;
+    return currentTimePoint;
   }
   else{
     cout<<"COULD NOT CREATE FIRST TIMEPOINT TIFF"<<endl;
@@ -514,6 +417,7 @@ uint32* extractMartrices(TIFF* tif){
 
   uint32 height,width;
   tdata_t buf;
+  uint32 config;
   vector<uint32*> currentPlane;
   tsize_t scanLineSize;
 
@@ -590,49 +494,16 @@ uint32 findMin(uint32* flatMatrix, int size){
   }
   return currentMin;
 }
-
-__global__ void calcCa(uint32* flatMatrix, float* calcium, uint32 min, uint32 max, long size){
+__global__ void calcCa(uint32* flatMatrix, uint32 min, long size){
   int blockID = blockIdx.y * gridDim.x + blockIdx.x;
-  long globalID = blockID * blockDim.x + threadIdx.x;
+  int globalID = blockID * blockDim.x + threadIdx.x;
   int stride = gridDim.x * gridDim.y * blockDim.x;
-  float caConc = 0;
-  float currentIntensity = 0;
-  while(globalID < size){
-    currentIntensity = (float) flatMatrix[globalID];
-    caConc = (currentIntensity - min)/(max - currentIntensity);
-    calcium[globalID] = 3.16227766e-7*caConc;
-    globalID += stride;
+  long currentIndex = globalID;
+  while(currentIndex < size){
+    flatMatrix[globalID] = flatMatrix[globalID] - min + 1;//+1 to ensure we do not have 0 values
+    currentIndex += stride;
   }
 }
-
-__global__ void calcFiringRate(float* frMatrix, long size, int numTimePoints){
-  int blockID = blockIdx.y * gridDim.x + blockIdx.x;
-  long globalID = blockID * blockDim.x + threadIdx.x;
-  int stride = gridDim.x * gridDim.y * blockDim.x;
-  float caConc = 0.0f;
-  //float caConc = 1.0f;
-  float nextCaConc = 0.0f;
-  //float nextCaConc = 1.0f;
-  float firingRate = 0.0f;
-  float tau = 0.15;
-  float deltaT = 0.0416777;
-  float alpha = 250.0f;
-  long numPixels = size/numTimePoints;
-  int currentTimePoint = globalID % numTimePoints;
-  while(globalID < size && currentTimePoint < numTimePoints - 1){
-    firingRate = 0.0f;
-    caConc = frMatrix[globalID];
-    nextCaConc =   frMatrix[globalID + 1];
-    if(nextCaConc != 0.0f) firingRate = ((nextCaConc*expf(deltaT/tau))-caConc)/(expm1f(deltaT/tau)*tau*alpha);
-    frMatrix[globalID] = firingRate;
-    //if(currentTimePoint == numTimePoints - 2){//not sure this is what we want to do
-    //  frMatrix[globalID + 1] = firingRate;
-    //  return;
-    //}
-    globalID += stride;
-  }
-}
-
 __global__ void fillTestMatrix(uint32* flatMatrix, long size){
   int blockID = blockIdx.y * gridDim.x + blockIdx.x;
   int globalID = blockID * blockDim.x + threadIdx.x;
@@ -644,6 +515,82 @@ __global__ void fillTestMatrix(uint32* flatMatrix, long size){
     flatMatrix[currentIndex] = curand_uniform(&state);
     currentIndex += stride;
   }
+}
+
+double calculatePearsonCorrelationCoefficient(uint32 * x, uint32 * y, double lengthOfSets) {
+
+  double * subVarianceX = new double[(int) lengthOfSets];
+  double * subVarianceY = new double[(int) lengthOfSets];
+
+  calculateSubvariance(x, lengthOfSets, subVarianceX);
+  calculateSubvariance(x, lengthOfSets, subVarianceX);
+
+  double coVarianceXY = calculateCoVariance(subVarianceX, subVarianceY, lengthOfSets);
+  double standarDeviationX = calculateStandardDeviation(subVarianceX, lengthOfSets);
+  double standarDeviationY = calculateStandardDeviation(subVarianceY, lengthOfSets);
+
+  double pearsonCorrelationCoefficient = coVarianceXY / (standarDeviationX * standarDeviationY);
+
+  delete[] subVarianceX;
+  delete[] subVarianceY;
+
+  return pearsonCorrelationCoefficient;
+
+}
+
+double calculateAverage(uint32 * inputSet, double lengthOfSet) {
+
+  double average = 0;
+
+  for (int i = 0; i < lengthOfSet; i++) {
+
+    average = average + (double) inputSet[i];
+
+  }
+
+  average = average / lengthOfSet;
+
+  return average;
+
+}
+
+void calculateSubvariance(uint32 * inputSet, double lengthOfSet, double * resultArray) {
+
+  double average = calculateAverage(inputSet, lengthOfSet);
+
+  for (int i = 0; i < lengthOfSet; i++) {
+
+    resultArray[i] = ((double) inputSet[i]) - average;
+
+  }
+
+}
+
+double calculateCoVariance(double * subVarX, double * subVarY, double lengthOfSets) {
+
+  double coVariance = 0;
+
+  for (int i = 0; i < lengthOfSets; i++) {
+
+    coVariance = coVariance + (subVarX[i] * subVarY[i]);
+
+  }
+
+  return coVariance;
+
+}
+
+double calculateStandardDeviation(double * subVarX, double lengthOfSet) {
+
+  double standarDeviation = 0;
+
+  for (int i = 0; i < lengthOfSet; i++) {
+
+    standarDeviation = standarDeviation + (subVarX[i] * subVarX[i]);
+
+  }
+
+  return standarDeviation;
 
 }
 

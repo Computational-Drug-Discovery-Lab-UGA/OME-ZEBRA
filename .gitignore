@@ -7,7 +7,7 @@ bin/ZEBRA\.exe
 
 bin/NNMF_VISUALIZE\.exe
 
-obj/
+*.tif
 
 bin/
 

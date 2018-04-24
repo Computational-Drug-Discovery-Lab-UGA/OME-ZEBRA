@@ -172,7 +172,7 @@ int main(int argc, char *argv[]) {
 
       }
       else{
-        cout<<"COULD NOT OPEN"<<argv[1]<<endl;
+        cout<<"COULD NOT OPEN "<<argv[1]<<endl;
         return 1;
       }
     }

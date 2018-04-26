@@ -542,11 +542,8 @@ __global__ void calcFiringRate(float* frMatrix, long size, int numTimePoints){
     //if(nextCaConc != 0.0f && isfinite(firingRate)) firingRate = ((nextCaConc*expf(deltaT/tau))-caConc)/(expm1f(deltaT/tau)*tau*alpha);
     firingRate = (1/tau)*log(1-(250*exp((-1*deltaT)/tau)*(1-exp(deltaT/tau)))/(nextCaConc - caConc*exp((-1*deltaT)/tau)));
 
-    if(isfinite(firingRate)) frMatrix[globalID] = firingRate;
-    else{//should not need this
-      frMatrix[globalID] = 0.0f;
-      //printf("NON FINITE = %f\n", firingRate);
-    }
+    frMatrix[globalID] = firingRate;
+  
     if(currentTimePoint == numTimePoints - 2){//not sure this is what we want to do
       frMatrix[globalID + 1] = firingRate;
       return;

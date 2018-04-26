@@ -12,6 +12,7 @@
 #include <curand.h>
 #include <curand_kernel.h>
 #include <cstdlib>
+#include <cfloat>
 using namespace std;
 
 // Define this to turn on error checking
@@ -62,7 +63,6 @@ void printDeviceProperties();
 string createFourCharInt(int i);
 void printArray(uint32 * array, uint32 width);
 uint32* extractMartrices(TIFF* tif, string fileName);
-uint32* extractMartrices(TIFF* tif, string fileName, int currentTimePoint);
 uint32* extractMartrices(TIFF* tif);
 vector<uint32> flattenMatrix(vector<uint32*> matrix, int cols, int rows);
 uint32** hostTranspose(uint32** matrix, int rows, int cols);
@@ -116,12 +116,7 @@ int main(int argc, char *argv[]) {
           }
 
           uint32* flatMatrix = new uint32[numRows*numColumns];
-          if(i == 0){
-            flatMatrix = extractMartrices(tif, baseName);
-          }
-          else{
-            flatMatrix = extractMartrices(tif);
-          }
+          flatMatrix = extractMartrices(tif);
           flattenedTimePoints.push_back(flatMatrix);
           TIFFClose(tif);
 
@@ -133,31 +128,20 @@ int main(int argc, char *argv[]) {
       }
       if (allTifsAreGood) {
 
-          cout<<"Creating key"<<endl;
           int NNormal = numTimePoints;
           int MNormal = (numRows*numColumns);
 
-          bool* key = new bool[MNormal];
-          for (int i = 0; i < MNormal; i++) {
+          cout<<"flattening"<<endl;
 
-            key[i] = false;
-
-          }
-
-
-          uint32* temp;
-          uint32 min = 4294967295;
-          uint32 max = 0;
-          temp = new uint32[MNormal*NNormal];
+          uint32 min = UINT32_MAX;
+          uint32 max = (uint32) 0;
+          uint32* temp = new uint32[MNormal*NNormal];
           int indexOfTemp = 0;
           int nonZeroCounter = 0;
           uint32* rowArray = new uint32[numColumns];
           int rowArrayIndex = 0;
-          int lastGoodIndex = 0;
-          bool allRealRows = false;
           for(unsigned i=0; i < MNormal; i++) {
 
-            allRealRows = false;
             nonZeroCounter = 0;
             rowArrayIndex = 0;
             for(unsigned j=0; j < NNormal; j++) {
@@ -174,7 +158,6 @@ int main(int argc, char *argv[]) {
               rowArrayIndex++;
 
             }
-
             for (int k = 0; k < NNormal; k++) {
 
               temp[indexOfTemp] = rowArray[k];
@@ -182,20 +165,16 @@ int main(int argc, char *argv[]) {
               indexOfTemp++;
 
             }
-
-            lastGoodIndex++;
-            allRealRows = true;
-
           }
+          //need to delete all flattenedTimePoints arrays
+          delete[] rowArray;
 
-          cout << lastGoodIndex << endl;
-          long minimizedSize = lastGoodIndex*512;
-          uint32* actualArray = new uint32[minimizedSize];
-          float* firingRateArray = new float[minimizedSize];
-          cout << "loading arrays based on key" << endl;
+          uint32* actualArray = new uint32[MNormal*NNormal];
+          float* firingRateArray = new float[MNormal*NNormal];
+          cout << "loading arrays" << endl;
 
-          for (long i = 0; i < minimizedSize; i++) {
-            firingRateArray[i] = 0.0f;
+          for (long i = 0; i < MNormal*NNormal; i++) {
+            //firingRateArray[i] = 0.0f;
             actualArray[i] = temp[i];
 
           }
@@ -203,71 +182,77 @@ int main(int argc, char *argv[]) {
           dim3 grid = {1,1,1};
           dim3 block = {1,1,1};
 
-          if(65535 > minimizedSize){
-            grid.x = minimizedSize;
+          if(65535 > MNormal*NNormal){
+            grid.x = MNormal*NNormal;
           }
-          else if(65535*1024 > minimizedSize){
+          else if(65535*1024 > MNormal*NNormal){
             grid.x = 65535;
             block.x = 1024;
-            while(block.x*grid.x > minimizedSize){
+            while(block.x*grid.x > MNormal*NNormal){
               block.x--;
             }
           }
           else{
             grid.x = 65535;
             block.x = 1024;
-            while(grid.x*grid.y*block.x < minimizedSize){
+            while(grid.x*grid.y*block.x < MNormal*NNormal){
               grid.y++;
             }
           }
           cout<<"prepare for calcCa cuda kernel with min = "<<min<<",max = "<<max<<endl;
           float* firingRateArrayDevice;
           uint32* actualArrayDevice;
-          CudaSafeCall(cudaMalloc((void**)&actualArrayDevice,minimizedSize*sizeof(uint32)));
-          CudaSafeCall(cudaMalloc((void**)&firingRateArrayDevice,minimizedSize*sizeof(float)));
-          CudaSafeCall(cudaMemcpy(actualArrayDevice,actualArray, minimizedSize*sizeof(uint32), cudaMemcpyHostToDevice));
-          CudaSafeCall(cudaMemcpy(firingRateArrayDevice,firingRateArray, minimizedSize*sizeof(float), cudaMemcpyHostToDevice));
-          calcCa<<<grid,block>>>(actualArrayDevice, firingRateArrayDevice, min, max, minimizedSize);
+          CudaSafeCall(cudaMalloc((void**)&actualArrayDevice,MNormal*NNormal*sizeof(uint32)));
+          CudaSafeCall(cudaMalloc((void**)&firingRateArrayDevice,MNormal*NNormal*sizeof(float)));
+          CudaSafeCall(cudaMemcpy(actualArrayDevice,actualArray, MNormal*NNormal*sizeof(uint32), cudaMemcpyHostToDevice));
+          CudaSafeCall(cudaMemcpy(firingRateArrayDevice,firingRateArray, MNormal*NNormal*sizeof(float), cudaMemcpyHostToDevice));
+          calcCa<<<grid,block>>>(actualArrayDevice, firingRateArrayDevice, min, max, MNormal*NNormal);
           CudaCheckError();
           cout<<"Executing firing rate cuda kernel"<<endl;
-          calcFiringRate<<<grid,block>>>(firingRateArrayDevice, minimizedSize, numTimePoints);
-          CudaSafeCall(cudaMemcpy(firingRateArray,firingRateArrayDevice, minimizedSize*sizeof(float), cudaMemcpyDeviceToHost));
+          calcFiringRate<<<grid,block>>>(firingRateArrayDevice, MNormal*NNormal, numTimePoints);
+          CudaSafeCall(cudaMemcpy(firingRateArray,firingRateArrayDevice, MNormal*NNormal*sizeof(float), cudaMemcpyDeviceToHost));
           CudaSafeCall(cudaFree(actualArrayDevice));
           CudaSafeCall(cudaFree(firingRateArrayDevice));
+          delete[] actualArray;
           cout<<"calcCa has completed applying offset"<<endl;
 
-          float* tempCalc = new float[minimizedSize];
+          float* tempCalc = new float[MNormal*NNormal];
           indexOfTemp = 0;
-          lastGoodIndex = 0;
-          float * newRowArray = new float[NNormal];
-          float calcMin = 999999.0;
-          float calcMax = -1024.0;
+          int lastGoodIndex = 0;
+
+          float *newRowArray = new float[NNormal];
+          float calcMin = FLT_MAX;
+          float calcMax = FLT_MIN;
+          cout<<"Creating key"<<endl;
+
+          bool* key = new bool[MNormal];
+          for (int i = 0; i < MNormal; i++) {
+
+            key[i] = false;
+
+          }
 
           for(unsigned i=0; i < MNormal; i++) {
 
             nonZeroCounter = 0;
-            rowArrayIndex = 0;
-
             for(unsigned j=0; j < NNormal; j++) {
 
-              if (firingRateArray[(NNormal*i) + j] != 0){
-
+              if (isfinite(firingRateArray[(NNormal*i) + j]) && firingRateArray[(NNormal*i) + j] != 0.0f){
                 nonZeroCounter++;
-                if(firingRateArray[(NNormal*i) + j] < calcMin) calcMin = firingRateArray[(NNormal*i) + j];
-                if(firingRateArray[(NNormal*i) + j] > calcMax) calcMax = firingRateArray[(NNormal*i) + j];
-
               }
-
-              newRowArray[rowArrayIndex] = firingRateArray[(NNormal*i) + j];
-              rowArrayIndex++;
-
+              if(firingRateArray[(NNormal*i) + j] < 0.0f){
+                cout<<"ERROR NEGATIVE FIRIING RATE"<<endl;
+                exit(-1);
+              }
+              newRowArray[j] = firingRateArray[(NNormal*i) + j];
             }
             if (nonZeroCounter != 0) {
 
               for (int k = 0; k < NNormal; k++) {
-
+                if(newRowArray[k] < calcMin) calcMin = newRowArray[k];
+                if(newRowArray[k] > calcMax) calcMax = newRowArray[k];
                 tempCalc[indexOfTemp] = newRowArray[k];
-                rowArray[k] = 0;
+                newRowArray[k] = 0.0f;
                 indexOfTemp++;
                 key[i] = true;
 
@@ -276,51 +261,34 @@ int main(int argc, char *argv[]) {
               lastGoodIndex++;
 
             }
-
-          }
-
-          cout << lastGoodIndex << endl;
-
-          delete[] firingRateArray;
-
-          cout << "Test" << endl;
-
-          float* newFiringRateArray = new float[lastGoodIndex*NNormal];
-
-          for (int i = 0; i < (lastGoodIndex+1)*NNormal; i++) {
-
-            newFiringRateArray[i] = (tempCalc[i] + calcMin*-1)/calcMax;
-
-            if (i % NNormal == 0) {
-
-              cout << lastGoodIndex << " " << i/512 << endl;
-
+            else{
+              cout<<"EMPTY ROW FOR PIXEL "<<i<<endl;
             }
 
           }
 
+          cout << lastGoodIndex << endl;
+          if(lastGoodIndex == NNormal - 1){
+            cout<<"KEY CREATED BUT ALL PIXELS HAVE ATLEAST 1 NONZERO VALUE"<<endl;
+          }
+          cout << "MAX = "<<calcMax<<" AND MIN = "<<calcMin<<endl;
+          delete[] firingRateArray;
           cout << "Dumping to File" << endl;
 
           ofstream myfile ("data/NNMF.nmf");
           if (myfile.is_open()) {
             for(int i = 0; i < (lastGoodIndex+1)*NNormal; i++){
 
-              if (i % NNormal == 0) {
-
-                cout << lastGoodIndex << " " << i/512 << endl;
-
-              }
-
               if ((i + 1) % 512 == 0) {
 
-                //myfile << actualArray[count] << "\n" ;
-                myfile << newFiringRateArray[i] << "\n" ;
+                myfile << tempCalc[i] << "\n" ;
+                //myfile << (tempCalc[i] + calcMin*-1)/calcMax << "\n" ;
 
               }
               else {
 
-                //myfile << actualArray[count] << " " ;
-                myfile << newFiringRateArray[i] << " " ;
+                myfile << tempCalc[i] << " " ;
+                //myfile << (tempCalc[i] + calcMin*-1)/calcMax << " " ;
 
               }
             }
@@ -339,7 +307,7 @@ int main(int argc, char *argv[]) {
 
            }
             mykeyfile.close();
-            cout<<"NNMF.csv created successfuly"<<endl;
+            cout<<"NNMF.nmf created successfuly"<<endl;
 
           }
           else{
@@ -409,8 +377,7 @@ void printArray(uint32 * array, uint32 width){
 }
 
 uint32* extractMartrices(TIFF* tif, string fileName){
-  string newtiff = fileName.substr(0, fileName.length() - 8) + "_TP1.tif";
-  TIFF* firstTimePoint = TIFFOpen(newtiff.c_str(), "w");
+  TIFF* firstTimePoint = TIFFOpen(fileName.c_str(), "w");
   if(firstTimePoint){
     tdata_t buf;
 
@@ -453,57 +420,6 @@ uint32* extractMartrices(TIFF* tif, string fileName){
     TIFFClose(firstTimePoint);
     _TIFFfree(buf);
     return currentTimePoint;
-  }
-  else{
-    cout<<"COULD NOT CREATE FIRST TIMEPOINT TIFF"<<endl;
-    exit(-1);
-  }
-}
-uint32* extractMartrices(TIFF* tif, string fileName, int currentTimePoint){
-  string newtiff = fileName.substr(0, fileName.length() - 8) + "_TP" + to_string(currentTimePoint) + ".tif";
-  TIFF* currentDir = TIFFOpen(newtiff.c_str(), "w");
-  if(currentDir){
-    tdata_t buf;
-
-    uint32 height, width, photo;
-    short samplesPerPixel, bitsPerSample;
-    tsize_t scanLineSize;
-
-    TIFFGetField(tif, TIFFTAG_IMAGEWIDTH, &width);
-    TIFFGetField(tif, TIFFTAG_IMAGELENGTH, &height);
-    TIFFGetField(tif, TIFFTAG_SAMPLESPERPIXEL, &samplesPerPixel);
-    TIFFGetField(tif, TIFFTAG_BITSPERSAMPLE, &bitsPerSample);
-    TIFFGetField(tif, TIFFTAG_PHOTOMETRIC, &photo);
-
-    uint32* timePoint = new uint32[width*height];
-
-    TIFFSetField(currentDir, TIFFTAG_IMAGEWIDTH, width);
-    TIFFSetField(currentDir, TIFFTAG_IMAGELENGTH, height);
-    TIFFSetField(currentDir, TIFFTAG_SAMPLESPERPIXEL, samplesPerPixel);
-    TIFFSetField(currentDir, TIFFTAG_BITSPERSAMPLE,bitsPerSample);
-    TIFFSetField(currentDir, TIFFTAG_PHOTOMETRIC, photo);
-    cout<<"\nTIMEPOINT "<<currentTimePoint<<" .tif info:"<<endl;
-    printf("width = %d\nheight = %d\nsamplesPerPixel = %d\nbitsPerSample = %d\n\n",width,height,samplesPerPixel,bitsPerSample);
-    scanLineSize = TIFFScanlineSize(tif);
-    buf = _TIFFmalloc(scanLineSize);
-    cout<<"TIFF SCANLINE SIZE IS "<<scanLineSize<<" bits"<<endl;
-    //printf("Height,Width = %u,%u -> scanLineSize = %d bytes\n", height, width,TIFFScanlineSize(tif));
-    for (uint32 row = 0; row < height; row++){
-      if(TIFFReadScanline(tif, buf, row, 0) != -1){
-        memcpy(&timePoint[row*width], buf, scanLineSize);
-        if(TIFFWriteScanline(currentDir, buf, row, 0) == -1){
-          cout<<"ERROR WRITING SCANLINE"<<endl;
-          exit(-1);
-        }
-      }
-      else{
-        cout<<"ERROR READING SCANLINE"<<endl;
-        exit(-1);
-      }
-    }
-    TIFFClose(currentDir);
-    _TIFFfree(buf);
-    return timePoint;
   }
   else{
     cout<<"COULD NOT CREATE FIRST TIMEPOINT TIFF"<<endl;
@@ -599,8 +515,9 @@ __global__ void calcCa(uint32* flatMatrix, float* calcium, uint32 min, uint32 ma
   float currentIntensity = 0;
   while(globalID < size){
     currentIntensity = (float) flatMatrix[globalID];
-    caConc = (currentIntensity - min)/(max - currentIntensity);
-    calcium[globalID] = 3.16227766e-7*caConc;
+    caConc = (float) (currentIntensity - min)/(max - currentIntensity);
+    calcium[globalID] = pow(10,-6.5)*caConc;
+    //calcium[globalID] = caConc;
     globalID += stride;
   }
 }
@@ -609,26 +526,31 @@ __global__ void calcFiringRate(float* frMatrix, long size, int numTimePoints){
   int blockID = blockIdx.y * gridDim.x + blockIdx.x;
   long globalID = blockID * blockDim.x + threadIdx.x;
   int stride = gridDim.x * gridDim.y * blockDim.x;
-  float caConc = 0.0f;
-  //float caConc = 1.0f;
-  float nextCaConc = 0.0f;
-  //float nextCaConc = 1.0f;
-  float firingRate = 0.0f;
+  float caConc = 0.0;
+  float nextCaConc = 0.0;
+  float firingRate = 0.0;
   float tau = 0.15;
   float deltaT = 0.0416777;
-  float alpha = 250.0f;
+  float alpha = 250.0;
   long numPixels = size/numTimePoints;
   int currentTimePoint = globalID % numTimePoints;
   while(globalID < size && currentTimePoint < numTimePoints - 1){
-    firingRate = 0.0f;
+    firingRate = 0.0;
     caConc = frMatrix[globalID];
     nextCaConc =   frMatrix[globalID + 1];
-    if(nextCaConc != 0.0f) firingRate = ((nextCaConc*expf(deltaT/tau))-caConc)/(expm1f(deltaT/tau)*tau*alpha);
-    frMatrix[globalID] = firingRate;
-    //if(currentTimePoint == numTimePoints - 2){//not sure this is what we want to do
-    //  frMatrix[globalID + 1] = firingRate;
-    //  return;
-    //}
+    //commented out portion is suppose to work as in the paper but does not
+    //if(nextCaConc != 0.0f && isfinite(firingRate)) firingRate = ((nextCaConc*expf(deltaT/tau))-caConc)/(expm1f(deltaT/tau)*tau*alpha);
+    firingRate = (1/tau)*log(1-(250*exp((-1*deltaT)/tau)*(1-exp(deltaT/tau)))/(nextCaConc - caConc*exp((-1*deltaT)/tau)));
+
+    if(isfinite(firingRate)) frMatrix[globalID] = firingRate;
+    else{//should not need this
+      frMatrix[globalID] = 0.0f;
+      //printf("NON FINITE = %f\n", firingRate);
+    }
+    if(currentTimePoint == numTimePoints - 2){//not sure this is what we want to do
+      frMatrix[globalID + 1] = firingRate;
+      return;
+    }
     globalID += stride;
   }
 }

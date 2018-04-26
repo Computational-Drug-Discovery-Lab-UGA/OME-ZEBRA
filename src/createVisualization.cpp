@@ -132,10 +132,8 @@ int main(int argc, char *argv[]) {
                     else if(k == 2){
                       ss>>isNot;
                       ss>>seizure;
-                      if(seizure > isNot) data[col] += (max - min)/2;
-                      //if(seizure > isNot) data[col] = max;
-
-
+                      //if(seizure > isNot) data[col] += (max - min)/2;
+                      if(seizure > isNot) data[col] = max;
                     }
                     test<<data[col];
                     if(col != width - 1) test<<",";

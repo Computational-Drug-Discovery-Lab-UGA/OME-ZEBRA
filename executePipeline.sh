@@ -1,5 +1,6 @@
 #!/bin/bash
-
+make clean
+make
 for dir in data/registeredOMEs/*
 do
   mkdir data/out

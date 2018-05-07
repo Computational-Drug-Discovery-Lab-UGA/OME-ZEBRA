@@ -57,8 +57,6 @@ inline void __cudaCheckError(const char *file, const int line) {
 
 
 
-
-
 void printDeviceProperties();
 string createFourCharInt(int i);
 void printArray(uint32 * array, uint32 width);
@@ -68,8 +66,8 @@ vector<uint32> flattenMatrix(vector<uint32*> matrix, int cols, int rows);
 uint32** hostTranspose(uint32** matrix, int rows, int cols);
 __global__ void transposeuint32Matrix(uint32* flatOrigin, uint32* flatTransposed, long Nrows, long Ncols);
 uint32 findMin(uint32* flatMatrix, int size);
-__global__ void calcCa(uint32* flatMatrix, float* calcium, uint32 min, uint32 max, long size);
-__global__ void calcFiringRate(float* frMatrix, long size, int numTimePoints);
+__global__ void calcCa(uint32* flatMatrix, double* calcium, uint32 min, long size);
+__global__ void calcFiringRate(double* frMatrix, long size, int numTimePoints);
 __global__ void fillTestMatrix(uint32* flatMatrix, long size);
 void transposeArray(vector<uint32*> inputArray, int n, int m, uint32 * outputArray, uint32 & min, uint32 & max);
 
@@ -134,7 +132,7 @@ int main(int argc, char *argv[]) {
           cout<<"flattening"<<endl;
 
           uint32 min = UINT32_MAX;
-          uint32 max = (uint32) 0;
+          uint32 max = 0;
           uint32* temp = new uint32[MNormal*NNormal];
           int indexOfTemp = 0;
           int nonZeroCounter = 0;
@@ -145,18 +143,14 @@ int main(int argc, char *argv[]) {
             nonZeroCounter = 0;
             rowArrayIndex = 0;
             for(unsigned j=0; j < NNormal; j++) {
-
               if (flattenedTimePoints[j][i] != 0){
-
                 nonZeroCounter++;
                 if(flattenedTimePoints[j][i] < min) min = flattenedTimePoints[j][i];
                 if(flattenedTimePoints[j][i] > max) max = flattenedTimePoints[j][i];
-
               }
 
               rowArray[rowArrayIndex] = flattenedTimePoints[j][i];
               rowArrayIndex++;
-
             }
             for (int k = 0; k < NNormal; k++) {
 
@@ -170,7 +164,7 @@ int main(int argc, char *argv[]) {
           delete[] rowArray;
 
           uint32* actualArray = new uint32[MNormal*NNormal];
-          float* firingRateArray = new float[MNormal*NNormal];
+          double* firingRateArray = new double[MNormal*NNormal];
           cout << "loading arrays" << endl;
 
           for (long i = 0; i < MNormal*NNormal; i++) {
@@ -200,35 +194,48 @@ int main(int argc, char *argv[]) {
             }
           }
           cout<<"prepare for calcCa cuda kernel with min = "<<min<<",max = "<<max<<endl;
-          float* firingRateArrayDevice;
+          double* firingRateArrayDevice;
           uint32* actualArrayDevice;
           CudaSafeCall(cudaMalloc((void**)&actualArrayDevice,MNormal*NNormal*sizeof(uint32)));
-          CudaSafeCall(cudaMalloc((void**)&firingRateArrayDevice,MNormal*NNormal*sizeof(float)));
+          CudaSafeCall(cudaMalloc((void**)&firingRateArrayDevice,MNormal*NNormal*sizeof(double)));
           CudaSafeCall(cudaMemcpy(actualArrayDevice,actualArray, MNormal*NNormal*sizeof(uint32), cudaMemcpyHostToDevice));
-          CudaSafeCall(cudaMemcpy(firingRateArrayDevice,firingRateArray, MNormal*NNormal*sizeof(float), cudaMemcpyHostToDevice));
-          calcCa<<<grid,block>>>(actualArrayDevice, firingRateArrayDevice, min, max, MNormal*NNormal);
+          CudaSafeCall(cudaMemcpy(firingRateArrayDevice,firingRateArray, MNormal*NNormal*sizeof(double), cudaMemcpyHostToDevice));
+          calcCa<<<grid,block>>>(actualArrayDevice, firingRateArrayDevice, min,MNormal*NNormal);
           CudaCheckError();
+          CudaSafeCall(cudaMemcpy(firingRateArray,firingRateArrayDevice, MNormal*NNormal*sizeof(double), cudaMemcpyDeviceToHost));
+          for(int i = 0; i < MNormal*NNormal; ++i){
+            if(!isfinite(firingRateArray[i])){
+              cout<<"ERROR NON FINITE CALCIUM CONCENTRATION "<<firingRateArray[i]<<endl;
+              exit(-1);
+            }
+            if(firingRateArray[i] < 0.0f){
+              cout<<"ERROR NEGATIVE CALCIUM CONCENTRATION "<<firingRateArray[i]<<endl;
+              exit(-1);
+            }
+
+          }
           cout<<"Executing firing rate cuda kernel"<<endl;
           calcFiringRate<<<grid,block>>>(firingRateArrayDevice, MNormal*NNormal, numTimePoints);
-          CudaSafeCall(cudaMemcpy(firingRateArray,firingRateArrayDevice, MNormal*NNormal*sizeof(float), cudaMemcpyDeviceToHost));
+          CudaSafeCall(cudaMemcpy(firingRateArray,firingRateArrayDevice, MNormal*NNormal*sizeof(double), cudaMemcpyDeviceToHost));
           CudaSafeCall(cudaFree(actualArrayDevice));
           CudaSafeCall(cudaFree(firingRateArrayDevice));
           delete[] actualArray;
           cout<<"calcCa has completed applying offset"<<endl;
 
-          float* tempCalc = new float[MNormal*NNormal];
+          double* tempCalc = new double[MNormal*NNormal];
           indexOfTemp = 0;
           int lastGoodIndex = 0;
 
-          float *newRowArray = new float[NNormal];
-          float calcMin = FLT_MAX;
-          float calcMax = FLT_MIN;
+          double *newRowArray = new double[NNormal];
+          double calcMin = DBL_MAX;
+          double calcMax = 0;
           cout<<"Creating key"<<endl;
 
           bool* key = new bool[MNormal];
           for (int i = 0; i < MNormal; i++) {
 
             key[i] = false;
+
 
           }
 
@@ -237,8 +244,12 @@ int main(int argc, char *argv[]) {
             nonZeroCounter = 0;
             for(unsigned j=0; j < NNormal; j++) {
 
-              if (isfinite(firingRateArray[(NNormal*i) + j]) && firingRateArray[(NNormal*i) + j] != 0.0f){
+              if (firingRateArray[(NNormal*i) + j] != 0.0f){
                 nonZeroCounter++;
+              }
+              if(!isfinite(firingRateArray[(NNormal*i) + j])){
+                cout<<"ERROR NON FINITE NUMBER "<<firingRateArray[(NNormal*i) + j]<<endl;
+                exit(-1);
               }
               if(firingRateArray[(NNormal*i) + j] < 0.0f){
                 cout<<"ERROR NEGATIVE FIRIING RATE"<<endl;
@@ -266,12 +277,12 @@ int main(int argc, char *argv[]) {
             }
 
           }
-
           cout << lastGoodIndex << endl;
           if(lastGoodIndex == NNormal - 1){
             cout<<"KEY CREATED BUT ALL PIXELS HAVE ATLEAST 1 NONZERO VALUE"<<endl;
           }
           cout << "MAX = "<<calcMax<<" AND MIN = "<<calcMin<<endl;
+
           delete[] firingRateArray;
           cout << "Dumping to File" << endl;
 
@@ -347,6 +358,7 @@ void printDeviceProperties(){
         printf(" -Max number of blocks: %dx%dx%d\n\n",
                prop.maxGridSize[0], prop.maxGridSize[1], prop.maxGridSize[2]);
         printf(" -Total number of multiprocessors: %d\n\n",
+
                prop.multiProcessorCount);
 
 
@@ -430,6 +442,7 @@ uint32* extractMartrices(TIFF* tif){
 
   uint32 height,width;
   tdata_t buf;
+
   vector<uint32*> currentPlane;
   tsize_t scanLineSize;
 
@@ -507,43 +520,50 @@ uint32 findMin(uint32* flatMatrix, int size){
   return currentMin;
 }
 
-__global__ void calcCa(uint32* flatMatrix, float* calcium, uint32 min, uint32 max, long size){
+__global__ void calcCa(uint32* flatMatrix, double* calcium, uint32 min, long size){
   int blockID = blockIdx.y * gridDim.x + blockIdx.x;
   long globalID = blockID * blockDim.x + threadIdx.x;
   int stride = gridDim.x * gridDim.y * blockDim.x;
-  float caConc = 0;
-  float currentIntensity = 0;
+  double caConc = 0;
+  double numerator = 0;
+  double denominator = 0;
+  double currentValue = 0;
+  double dmin =  static_cast<double>(min);
   while(globalID < size){
-    currentIntensity = (float) flatMatrix[globalID];
-    caConc = (float) (currentIntensity - min)/(max - currentIntensity);
-    calcium[globalID] = pow(10,-6.5)*caConc;
-    //calcium[globalID] = caConc;
+    if(flatMatrix[globalID] != 0){
+      currentValue = static_cast<double>(flatMatrix[globalID]) - dmin;
+      numerator = 460*currentValue;
+      denominator = (5.5*dmin) - currentValue;
+      caConc = numerator/denominator;
+    }
+    calcium[globalID] = caConc;
     globalID += stride;
   }
 }
 
-__global__ void calcFiringRate(float* frMatrix, long size, int numTimePoints){
+__global__ void calcFiringRate(double* frMatrix, long size, int numTimePoints){
   int blockID = blockIdx.y * gridDim.x + blockIdx.x;
   long globalID = blockID * blockDim.x + threadIdx.x;
   int stride = gridDim.x * gridDim.y * blockDim.x;
-  float caConc = 0.0;
-  float nextCaConc = 0.0;
-  float firingRate = 0.0;
-  float tau = 0.15;
-  float deltaT = 0.0416777;
-  float alpha = 250.0;
-  long numPixels = size/numTimePoints;
+  double caConc = 0.0f;
+  double nextCaConc = 0.0f;
+  double firingRate = 0.0f;
+  double expValue = exp(0.0416777/0.15);
+  double expValuem1 = expm1(0.0416777/0.15);
+  double multiplier = 1/(0.15*250.0f);//250 is in nm
+  double numerator = 0.0f;
   int currentTimePoint = globalID % numTimePoints;
+  int currentPixel = globalID/numTimePoints;
   while(globalID < size && currentTimePoint < numTimePoints - 1){
-    firingRate = 0.0;
+    firingRate = 0.0f;
     caConc = frMatrix[globalID];
-    nextCaConc =   frMatrix[globalID + 1];
-    //commented out portion is suppose to work as in the paper but does not
-    //if(nextCaConc != 0.0f && isfinite(firingRate)) firingRate = ((nextCaConc*expf(deltaT/tau))-caConc)/(expm1f(deltaT/tau)*tau*alpha);
-    firingRate = (1/tau)*log(1-(250*exp((-1*deltaT)/tau)*(1-exp(deltaT/tau)))/(nextCaConc - caConc*exp((-1*deltaT)/tau)));
-
+    nextCaConc = frMatrix[globalID + 1];
+    numerator = (nextCaConc*expValue) - caConc;
+    if(numerator < 0){
+      printf("ERROR resulting in negative number %.9f => %.9f, %.9f, TP %d, P %d \n",numerator,caConc, nextCaConc, currentTimePoint, currentPixel);
+    }
+    firingRate = multiplier*numerator/expValuem1;
     frMatrix[globalID] = firingRate;
-  
     if(currentTimePoint == numTimePoints - 2){//not sure this is what we want to do
       frMatrix[globalID + 1] = firingRate;
       return;

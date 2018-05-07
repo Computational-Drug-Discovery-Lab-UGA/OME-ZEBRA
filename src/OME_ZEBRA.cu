@@ -558,11 +558,13 @@ __global__ void calcFiringRate(double* frMatrix, long size, int numTimePoints){
     firingRate = 0.0f;
     caConc = frMatrix[globalID];
     nextCaConc = frMatrix[globalID + 1];
-    numerator = (nextCaConc*expValue) - caConc;
-    if(numerator < 0){
-      printf("ERROR resulting in negative number %.9f => %.9f, %.9f, TP %d, P %d \n",numerator,caConc, nextCaConc, currentTimePoint, currentPixel);
+    if(nextCaConc != 0.0f){//this will cause firing rate to be 0
+      numerator = (nextCaConc*expValue) - caConc;
+      if(numerator < 0){
+        printf("ERROR resulting in negative number %.9f => %.9f, %.9f, TP %d, P %d \n",numerator,caConc, nextCaConc, currentTimePoint, currentPixel);
+      }
+      firingRate = multiplier*numerator/expValuem1;
     }
-    firingRate = multiplier*numerator/expValuem1;
     frMatrix[globalID] = firingRate;
     if(currentTimePoint == numTimePoints - 2){//not sure this is what we want to do
       frMatrix[globalID + 1] = firingRate;

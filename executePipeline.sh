@@ -6,7 +6,7 @@ do
   mkdir data/out
   justDirname=$(basename $dir)
   ./bin/ZEBRA.exe "${justDirname%%.*}" 512
-  ./bin/NMF_GPU  data/NNMF.nmf  -k 2  -j 10  -t 40  -i 20000
+  ./bin/NMF_GPU  data/NNMF.nmf  -k 2  -j 10  -t 40  -i 2000
 
 
   mkdir data/out/"${justDirname%%.*}"

@@ -55,7 +55,9 @@ inline void __cudaCheckError(const char *file, const int line) {
     return;
 }
 
-
+/*
+METHOD DECLARATIONS
+*/
 
 void printDeviceProperties();
 string createFourCharInt(int i);
@@ -68,9 +70,13 @@ __global__ void transposeuint32Matrix(uint32* flatOrigin, uint32* flatTransposed
 uint32 findMin(uint32* flatMatrix, int size);
 __global__ void calcCa(uint32* flatMatrix, double* calcium, uint32 min, long size);
 __global__ void calcFiringRate(double* frMatrix, long size, int numTimePoints);
+__global__ void calcFiringRateExpanded(double* frMatrix, long size, int numTimePoints);
 __global__ void fillTestMatrix(uint32* flatMatrix, long size);
 void transposeArray(vector<uint32*> inputArray, int n, int m, uint32 * outputArray, uint32 & min, uint32 & max);
 
+/*
+MAIN
+*/
 
 int main(int argc, char *argv[]) {
 
@@ -288,7 +294,7 @@ int main(int argc, char *argv[]) {
 
           ofstream myfile ("data/NNMF.nmf");
           if (myfile.is_open()) {
-            for(int i = 0; i < (lastGoodIndex+1)*NNormal; i++){
+            for(int i = 0; i < (lastGoodIndex)*NNormal; i++){
 
               if ((i + 1) % 512 == 0) {
 
@@ -333,10 +339,9 @@ int main(int argc, char *argv[]) {
 
     }
 
-
-
-//method implementations
-
+/*
+METHOD IMPLEMENTATIONS
+*/
 
 void printDeviceProperties(){
     int nDevices;
@@ -364,6 +369,7 @@ void printDeviceProperties(){
 
     }
 }
+
 string createFourCharInt(int i){
   string strInt;
   if(i < 10){
@@ -380,6 +386,7 @@ string createFourCharInt(int i){
   }
   return strInt;
 }
+
 void printArray(uint32 * array, uint32 width){
     uint32 i;
     for (i=0;i<width;i++){
@@ -438,6 +445,7 @@ uint32* extractMartrices(TIFF* tif, string fileName){
     exit(-1);
   }
 }
+
 uint32* extractMartrices(TIFF* tif){
 
   uint32 height,width;
@@ -490,7 +498,6 @@ __global__ void transposeuint32Matrix(uint32* flatOrigin, uint32* flatTransposed
   long flatLength = Nrows * Ncols;
   long row = 0;
   long col = 0;
-  uint32 currentPixelIntensity = 0;
   while(pixel < flatLength){
     row = pixel/Ncols;
     col = pixel - Ncols*row;
@@ -510,6 +517,7 @@ vector<uint32> flattenMatrix(vector<uint32*> matrix, int cols, int rows){
   //cout<<"Matrix is flattened."<<endl;
   return flat;
 }
+
 uint32 findMin(uint32* flatMatrix, int size){
   uint32 currentMin = 0;
   for(int i = 0; i < size; ++i){
@@ -548,9 +556,10 @@ __global__ void calcFiringRate(double* frMatrix, long size, int numTimePoints){
   double caConc = 0.0f;
   double nextCaConc = 0.0f;
   double firingRate = 0.0f;
-  double expValue = exp(0.0416777/0.15);
-  double expValuem1 = expm1(0.0416777/0.15);
-  double multiplier = 1/(0.15*250.0f);//250 is in nm
+  double tau = 0.15;
+  double expValue = exp(0.0416777/tau);
+  double expValuem1 = expm1(0.0416777/tau);
+  double multiplier = 1/(tau*250.0f);//250 is in nm
   double numerator = 0.0f;
   int currentTimePoint = globalID % numTimePoints;
   int currentPixel = globalID/numTimePoints;
@@ -560,10 +569,12 @@ __global__ void calcFiringRate(double* frMatrix, long size, int numTimePoints){
     nextCaConc = frMatrix[globalID + 1];
     if(nextCaConc != 0.0f){//this will cause firing rate to be 0
       numerator = (nextCaConc*expValue) - caConc;
-      if(numerator < 0){
+      if(numerator < 0){//currently these values will be set to 0
         printf("ERROR resulting in negative number %.9f => %.9f, %.9f, TP %d, P %d \n",numerator,caConc, nextCaConc, currentTimePoint, currentPixel);
       }
-      firingRate = multiplier*numerator/expValuem1;
+      else{
+        firingRate = multiplier*numerator/expValuem1;
+      }
     }
     frMatrix[globalID] = firingRate;
     if(currentTimePoint == numTimePoints - 2){//not sure this is what we want to do
@@ -572,6 +583,11 @@ __global__ void calcFiringRate(double* frMatrix, long size, int numTimePoints){
     }
     globalID += stride;
   }
+}
+
+//not implemented
+__global__ void calcFiringRateExpanded(double* frMatrix, long size, int numTimePoints){
+
 }
 
 __global__ void fillTestMatrix(uint32* flatMatrix, long size){

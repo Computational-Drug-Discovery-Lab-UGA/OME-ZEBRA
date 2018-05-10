@@ -68,9 +68,9 @@ vector<uint32> flattenMatrix(vector<uint32*> matrix, int cols, int rows);
 uint32** hostTranspose(uint32** matrix, int rows, int cols);
 __global__ void transposeuint32Matrix(uint32* flatOrigin, uint32* flatTransposed, long Nrows, long Ncols);
 uint32 findMin(uint32* flatMatrix, int size);
-__global__ void calcCa(uint32* flatMatrix, double* calcium, uint32 min, long size);
-__global__ void calcFiringRate(double* frMatrix, long size, int numTimePoints);
-__global__ void calcFiringRateExpanded(double* frMatrix, long size, int numTimePoints);
+__global__ void calcCa(uint32* flatMatrix, float* calcium, uint32 min, long size);
+__global__ void calcFiringRate(float* frMatrix, long size, int numTimePoints);
+__global__ void calcFiringRateExpanded(float* frMatrix, long size, int numTimePoints);
 __global__ void fillTestMatrix(uint32* flatMatrix, long size);
 void transposeArray(vector<uint32*> inputArray, int n, int m, uint32 * outputArray, uint32 & min, uint32 & max);
 
@@ -170,7 +170,7 @@ int main(int argc, char *argv[]) {
           delete[] rowArray;
 
           uint32* actualArray = new uint32[MNormal*NNormal];
-          double* firingRateArray = new double[MNormal*NNormal];
+          float* firingRateArray = new float[MNormal*NNormal];
           cout << "loading arrays" << endl;
 
           for (long i = 0; i < MNormal*NNormal; i++) {
@@ -200,15 +200,15 @@ int main(int argc, char *argv[]) {
             }
           }
           cout<<"prepare for calcCa cuda kernel with min = "<<min<<",max = "<<max<<endl;
-          double* firingRateArrayDevice;
+          float* firingRateArrayDevice;
           uint32* actualArrayDevice;
           CudaSafeCall(cudaMalloc((void**)&actualArrayDevice,MNormal*NNormal*sizeof(uint32)));
-          CudaSafeCall(cudaMalloc((void**)&firingRateArrayDevice,MNormal*NNormal*sizeof(double)));
+          CudaSafeCall(cudaMalloc((void**)&firingRateArrayDevice,MNormal*NNormal*sizeof(float)));
           CudaSafeCall(cudaMemcpy(actualArrayDevice,actualArray, MNormal*NNormal*sizeof(uint32), cudaMemcpyHostToDevice));
-          CudaSafeCall(cudaMemcpy(firingRateArrayDevice,firingRateArray, MNormal*NNormal*sizeof(double), cudaMemcpyHostToDevice));
+          CudaSafeCall(cudaMemcpy(firingRateArrayDevice,firingRateArray, MNormal*NNormal*sizeof(float), cudaMemcpyHostToDevice));
           calcCa<<<grid,block>>>(actualArrayDevice, firingRateArrayDevice, min,MNormal*NNormal);
           CudaCheckError();
-          CudaSafeCall(cudaMemcpy(firingRateArray,firingRateArrayDevice, MNormal*NNormal*sizeof(double), cudaMemcpyDeviceToHost));
+          CudaSafeCall(cudaMemcpy(firingRateArray,firingRateArrayDevice, MNormal*NNormal*sizeof(float), cudaMemcpyDeviceToHost));
           for(int i = 0; i < MNormal*NNormal; ++i){
             if(!isfinite(firingRateArray[i])){
               cout<<"ERROR NON FINITE CALCIUM CONCENTRATION "<<firingRateArray[i]<<endl;
@@ -222,19 +222,19 @@ int main(int argc, char *argv[]) {
           }
           cout<<"Executing firing rate cuda kernel"<<endl;
           calcFiringRate<<<grid,block>>>(firingRateArrayDevice, MNormal*NNormal, numTimePoints);
-          CudaSafeCall(cudaMemcpy(firingRateArray,firingRateArrayDevice, MNormal*NNormal*sizeof(double), cudaMemcpyDeviceToHost));
+          CudaSafeCall(cudaMemcpy(firingRateArray,firingRateArrayDevice, MNormal*NNormal*sizeof(float), cudaMemcpyDeviceToHost));
           CudaSafeCall(cudaFree(actualArrayDevice));
           CudaSafeCall(cudaFree(firingRateArrayDevice));
           delete[] actualArray;
           cout<<"calcCa has completed applying offset"<<endl;
 
-          double* tempCalc = new double[MNormal*NNormal];
+          float* tempCalc = new float[MNormal*NNormal];
           indexOfTemp = 0;
           int lastGoodIndex = 0;
 
-          double *newRowArray = new double[NNormal];
-          double calcMin = DBL_MAX;
-          double calcMax = 0;
+          float *newRowArray = new float[NNormal];
+          float calcMin = FLT_MAX;
+          float calcMax = 0;
           cout<<"Creating key"<<endl;
 
           bool* key = new bool[MNormal];
@@ -528,18 +528,18 @@ uint32 findMin(uint32* flatMatrix, int size){
   return currentMin;
 }
 
-__global__ void calcCa(uint32* flatMatrix, double* calcium, uint32 min, long size){
+__global__ void calcCa(uint32* flatMatrix, float* calcium, uint32 min, long size){
   int blockID = blockIdx.y * gridDim.x + blockIdx.x;
   long globalID = blockID * blockDim.x + threadIdx.x;
   int stride = gridDim.x * gridDim.y * blockDim.x;
-  double caConc = 0;
-  double numerator = 0;
-  double denominator = 0;
-  double currentValue = 0;
-  double dmin =  static_cast<double>(min);
+  float caConc = 0;
+  float numerator = 0;
+  float denominator = 0;
+  float currentValue = 0;
+  float dmin =  static_cast<float>(min);
   while(globalID < size){
     if(flatMatrix[globalID] != 0){
-      currentValue = static_cast<double>(flatMatrix[globalID]) - dmin;
+      currentValue = static_cast<float>(flatMatrix[globalID]) - dmin;
       numerator = 460*currentValue;
       denominator = (5.5*dmin) - currentValue;
       caConc = numerator/denominator;
@@ -549,18 +549,18 @@ __global__ void calcCa(uint32* flatMatrix, double* calcium, uint32 min, long siz
   }
 }
 
-__global__ void calcFiringRate(double* frMatrix, long size, int numTimePoints){
+__global__ void calcFiringRate(float* frMatrix, long size, int numTimePoints){
   int blockID = blockIdx.y * gridDim.x + blockIdx.x;
   long globalID = blockID * blockDim.x + threadIdx.x;
   int stride = gridDim.x * gridDim.y * blockDim.x;
-  double caConc = 0.0f;
-  double nextCaConc = 0.0f;
-  double firingRate = 0.0f;
-  double tau = 0.15;
-  double expValue = exp(0.0416777/tau);
-  double expValuem1 = expm1(0.0416777/tau);
-  double multiplier = 1/(tau*250.0f);//250 is in nm
-  double numerator = 0.0f;
+  float caConc = 0.0f;
+  float nextCaConc = 0.0f;
+  float firingRate = 0.0f;
+  float tau = 0.15;
+  float expValue = exp(0.0416777/tau);
+  float expValuem1 = expm1(0.0416777/tau);
+  float multiplier = 1/(tau*250.0f);//250 is in nm
+  float numerator = 0.0f;
   int currentTimePoint = globalID % numTimePoints;
   int currentPixel = globalID/numTimePoints;
   while(globalID < size && currentTimePoint < numTimePoints - 1){
@@ -586,7 +586,7 @@ __global__ void calcFiringRate(double* frMatrix, long size, int numTimePoints){
 }
 
 //not implemented
-__global__ void calcFiringRateExpanded(double* frMatrix, long size, int numTimePoints){
+__global__ void calcFiringRateExpanded(float* frMatrix, long size, int numTimePoints){
 
 }
 

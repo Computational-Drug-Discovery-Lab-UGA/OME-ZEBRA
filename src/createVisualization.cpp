@@ -89,7 +89,6 @@ int main(int argc, char *argv[]) {
           ifstream wFile(wFileLocation);
           ifstream keyFile(keyFileLocation);
           ifstream nmfTest(nmfChecker);
-          uint32 currentPixelValue;
           float seizure, isNot;
           float k1,k2,k3;
           string currentLine;
@@ -130,8 +129,8 @@ int main(int argc, char *argv[]) {
                       if(k3 > k1 && k3 > k2) data[col] += (max - min)/2;
                     }
                     else if(k == 2){
-                      ss>>isNot;
                       ss>>seizure;
+                      ss>>isNot;
                       if(seizure > isNot) data[col] += (max - min)/2;
                       //if(seizure > isNot) data[col] = max;
                     }

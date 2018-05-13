@@ -210,7 +210,7 @@ int main(int argc, char *argv[]) {
           CudaCheckError();
           CudaSafeCall(cudaMemcpy(firingRateArray,firingRateArrayDevice, MNormal*NNormal*sizeof(float), cudaMemcpyDeviceToHost));
           for(int i = 0; i < MNormal*NNormal; ++i){
-            if(!isfinite(firingRateArray[i])){
+            if(!std::isfinite(firingRateArray[i])){
               cout<<"ERROR NON FINITE CALCIUM CONCENTRATION "<<firingRateArray[i]<<endl;
               exit(-1);
             }
@@ -253,7 +253,7 @@ int main(int argc, char *argv[]) {
               if (firingRateArray[(NNormal*i) + j] != 0.0f){
                 nonZeroCounter++;
               }
-              if(!isfinite(firingRateArray[(NNormal*i) + j])){
+              if(!std::isfinite(firingRateArray[(NNormal*i) + j])){
                 cout<<"ERROR NON FINITE NUMBER "<<firingRateArray[(NNormal*i) + j]<<endl;
                 exit(-1);
               }

@@ -2,23 +2,51 @@
 #include <cuda.h>
 #include "magma_v2.h"
 #include "magma_lapack.h"
+#include <fstream>
+#include <iostream>
+#include <vector>
+
 #define min(a,b) (((a)<(b))?(a):(b))
+
+using namespace std;
+
 int main(int argc , char ** argv) {
 
   magma_init(); // initialize Magma
   real_Double_t gpu_time, cpu_time;
 
 
-  /*
-   *
-   *  Import Matrix Here
-   *  Adjust m and n accordingly
-   *
-   */
+  std::vector<float> numbers;
+  ifstream inputFile("c.txt");        // Input file stream object
+
+  // Check if exists and then open the file.
+  if (inputFile.good()) {
+     // Push items into a vector
+     int current_number = 0;
+     while (inputFile >> current_number){
+         numbers.push_back(current_number);
+     }
+
+     // Close the file.
+     inputFile.close();
+
+     // Display the numbers read:
+     cout << "The numbers are: ";
+     for (int count = 0; count < numbers.size(); count++){
+         cout << numbers[count] << " ";
+     }
+
+     cout << endl;
+  }
+  else {
+     cout << "Error!";
+     _exit(0);
+  }
+
 
 
   // Matrix size
-  magma_int_t m=8192 , n =8192 , n2=m*n, min_mn = min(m,n);
+  magma_int_t m=numbers.size()/512 , n=512 , n2=m*n, min_mn = min(m,n);
   float *a, *r; // a,r - mxn matrices
   float *u, *vt;// u - mxm matrix , vt - nxn matrix on the host
   float *s1 , *s2; // vectors of singular values
@@ -40,8 +68,12 @@ int main(int argc , char ** argv) {
   lwork = min_mn * min_mn +2* min_mn +2* min_mn *nb;
   magma_smalloc_pinned(& h_work , lwork ); // host mem . for h_work
 
-  // Randomize the matrix a
-  lapackf77_slarnv(& ione ,ISEED ,&n2 ,a);
+  // Loads a with vector
+  for(std::vector<float>::size_type i = 0; i != v.size(); i++) {
+
+    a[i] = numbers[i];
+
+  }
   lapackf77_slacpy( MagmaFullStr ,&m ,&n,a ,&m,r ,&m); //a->r
 
   // MAGMA
@@ -57,21 +89,6 @@ int main(int argc , char ** argv) {
   lwork,&info );
   gpu_time = magma_wtime() - gpu_time ;
   printf(" sgesvd gpu time: %7.5f\n", gpu_time); // Magma time
-
-  // LAPACK
-  cpu_time = magma_wtime();
-  lapackf77_sgesvd ("N","N" ,&m ,&n,a ,&m,s2 ,u ,&m,vt ,&n,h_work,
-  &lwork ,& info );
-  cpu_time = magma_wtime() - cpu_time;
-  printf(" sgesvd cpu time : %7.5f\n", cpu_time); // Lapack time
-
-  // difference
-  error = lapackf77_slange("f" ,&min_mn ,& ione ,s1 ,& min_mn , work);
-  blasf77_saxpy(& min_mn ,& mone ,s1 ,& ione ,s2 ,& ione);
-  error = lapackf77_slange("f" ,&min_mn ,& ione ,s2 ,& min_mn , work);
-
-  // error ;
-  printf (" difference : %e\n", error ); // difference in singul.
 
   // values
   // Free memory

@@ -5,7 +5,7 @@ LINK := /usr/bin/g++-6
 NVCC := nvcc
 
 # Includes
-INCLUDES = -I/usr/local/cuda/include -I/usr/local/include
+INCLUDES = -I/usr/local/cuda/include -I/usr/local/include -I/usr/local/magma/include
 
 # Common flags
 COMMONFLAGS += ${INCLUDES}
@@ -16,6 +16,8 @@ CXXFLAGS += -Wall -g -std=c++11 -Iinclude -lcublas
 
 LIB_CUDA := -L/usr/local/cuda/lib64 -lcudart -lcublas
 LIB_TIFF := -L/usr/local/lib -ltiff
+LIB_MAGMA := -L/usr/local/magma/lib -lm -lmagma
+LIB_OPENBLAS := -L/usr/lib -L/opt/openblas/lib -lopenblas
 
 SRCDIR = ./src
 OBJDIR = ./obj
@@ -27,10 +29,15 @@ OBJS1 = ${patsubst %, ${OBJDIR}/%, ${_OBJS1}}
 _OBJS2 = createVisualization.cpp.o
 OBJS2 = ${patsubst %, ${OBJDIR}/%, ${_OBJS2}}
 
+_OBJS3 = svd.cpp.o
+OBJS3 = ${patsubst %, ${OBJDIR}/%, ${_OBJS3}}
+
 TARGET1 = ZEBRA.exe
 TARGET2 = NNMF_VISUALIZE.exe
+TARGET3 = svd.exe
 LINKLINE1 = ${LINK} -o ${BINDIR}/${TARGET1} ${OBJS1} ${LIB_CUDA} ${LIB_TIFF} ${INCLUDES}
 LINKLINE2 = ${LINK} -o ${BINDIR}/${TARGET2} ${OBJS2} ${LIB_CUDA} ${LIB_TIFF} ${INCLUDES}
+LINKLINE2 = ${LINK} -fopenmp -o ${BINDIR}/${TARGET3} ${OBJS3} ${LIB_MAGMA} ${LIB_OPENBLAS} ${LIB_CUDA}
 
 
 .SUFFIXES: .cpp .cu .o

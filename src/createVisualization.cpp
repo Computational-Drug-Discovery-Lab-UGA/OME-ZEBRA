@@ -129,7 +129,7 @@ int main(int argc, char *argv[]) {
                     bool isLargest = true;
                     for (int kIterator = 0; kIterator < (k - 1); kIterator++) {
 
-                      if (kArray[k-1] < kArray[kIterator]) {
+                      if (kArray[0] < kArray[kIterator]) {
 
                         isLargest = false;
 

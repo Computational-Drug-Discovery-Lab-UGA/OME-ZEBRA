@@ -4,3 +4,7 @@ data/*
 bin/ZEBRA\.exe
 bin/NNMF_VISUALIZE\.exe
 *.tif
+
+tiff-4\.0\.9/
+
+bin/

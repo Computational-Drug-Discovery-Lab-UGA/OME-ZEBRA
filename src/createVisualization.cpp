@@ -89,8 +89,7 @@ int main(int argc, char *argv[]) {
           ifstream wFile(wFileLocation);
           ifstream keyFile(keyFileLocation);
           ifstream nmfTest(nmfChecker);
-          float seizure, isNot;
-          float k1,k2,k3;
+          float* kArray = new float[k];
           string currentLine;
           string currentKey;
           //printf("Height,Width = %u,%u -> scanLineSize = %d bytes\n", height, width,TIFFScanlineSize(tif));
@@ -121,19 +120,42 @@ int main(int argc, char *argv[]) {
                     data[col] -= min;
                     stringstream ss;
                     ss<<currentLine;
-                    if(k == 3){
-                      ss>>k1;
-                      ss>>k2;
-                      ss>>k3;
-                      //needs to be further configured
-                      if(k3 > k1 && k3 > k2) data[col] += (max - min)/2;
+
+                    for (int kIterator = 0; kIterator < k; kIterator++) {
+
+                      ss>>kArray[kIterator];
+
                     }
-                    else if(k == 2){
-                      ss>>seizure;
-                      ss>>isNot;
-                      if(seizure > isNot) data[col] += (max - min)/2;
-                      //if(seizure > isNot) data[col] = max;
+                    bool isLargest = true;
+                    for (int kIterator = 0; kIterator < (k - 1); kIterator++) {
+
+                      if (kArray[k-1] < kArray[kIterator]) {
+
+                        isLargest = false;
+
+                      }
+
                     }
+
+                    if (isLargest) {
+
+                      data[col] += (max - min)/2;
+
+                    }
+
+                    // if(k == 3){
+                    //   ss>>k1;
+                    //   ss>>k2;
+                    //   ss>>k3;
+                    //   //needs to be further configured
+                    //   if(k3 > k1 && k3 > k2) data[col] += (max - min)/2;
+                    // }
+                    // else if(k == 2){
+                    //   ss>>seizure;
+                    //   ss>>isNot;
+                    //   if(seizure > isNot) data[col] += (max - min)/2;
+                    //   //if(seizure > isNot) data[col] = max;
+                    // }
                     test<<data[col];
                     if(col != width - 1) test<<",";
                   }

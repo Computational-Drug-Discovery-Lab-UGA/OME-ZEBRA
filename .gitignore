@@ -1,16 +1,6 @@
 *~
 *.o
 data/*
-tiff-4.0.9/
-
 bin/ZEBRA\.exe
-
 bin/NNMF_VISUALIZE\.exe
-
 *.tif
-
-bin/
-
-*.tif
-
-20170629_

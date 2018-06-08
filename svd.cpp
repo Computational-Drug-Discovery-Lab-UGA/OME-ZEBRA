@@ -2,6 +2,8 @@
 #include <cuda.h>
 #include "magma_v2.h"
 #include "magma_lapack.h"
+#include <iostream>
+#include <fstream>
 
 #define min(a,b) (((a)<(b))?(a):(b))
 
@@ -34,6 +36,21 @@ int main(int argc , char ** argv) {
   magma_int_t nb = magma_get_sgesvd_nb(m,n); // optim . block size
   lwork = min_mn * min_mn +2* min_mn +2* min_mn *nb;
   magma_smalloc_pinned(& h_work , lwork ); // host mem . for h_work
+
+  std::cout << "Loading matrix" << '\n';
+
+  std::fstream firingMatrix("data/NNMF.nmf", std::ios_base::in);
+
+  float nextFire;
+  int indexOfA = 0;
+  while (myfile >> nextFire) {
+
+      a[indexOfA] = nextFire;
+      indexOfA++;
+
+  }
+
+  std::cout << "Done Loading" << '\n';
 
   lapackf77_slarnv(&ione, ISEED, &n2, a);
   lapackf77_slacpy(MagmaFullStr, &m, &n, a, &m, r, &m);

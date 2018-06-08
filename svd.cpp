@@ -43,7 +43,7 @@ int main(int argc , char ** argv) {
 
   float nextFire;
   int indexOfA = 0;
-  while (myfile >> nextFire) {
+  while (firingMatrix >> nextFire) {
 
       a[indexOfA] = nextFire;
       indexOfA++;

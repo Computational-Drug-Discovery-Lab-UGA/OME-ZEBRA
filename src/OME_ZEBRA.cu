@@ -263,24 +263,36 @@ int main(int argc, char *argv[]) {
               }
               newRowArray[j] = firingRateArray[(NNormal*i) + j];
             }
-            if (nonZeroCounter != 0) {
+            // if (nonZeroCounter != 0) {
+            //
+            //   for (int k = 0; k < NNormal; k++) {
+            //     if(newRowArray[k] < calcMin) calcMin = newRowArray[k];
+            //     if(newRowArray[k] > calcMax) calcMax = newRowArray[k];
+            //     tempCalc[indexOfTemp] = newRowArray[k];
+            //     newRowArray[k] = 0.0f;
+            //     indexOfTemp++;
+            //     key[i] = true;
+            //
+            //   }
+            //
+            //   lastGoodIndex++;
+            //
+            // }
+            // else{
+            //   cout<<"EMPTY ROW FOR PIXEL "<<i<<endl;
+            // }
 
-              for (int k = 0; k < NNormal; k++) {
-                if(newRowArray[k] < calcMin) calcMin = newRowArray[k];
-                if(newRowArray[k] > calcMax) calcMax = newRowArray[k];
-                tempCalc[indexOfTemp] = newRowArray[k];
-                newRowArray[k] = 0.0f;
-                indexOfTemp++;
-                key[i] = true;
-
-              }
-
-              lastGoodIndex++;
+            for (int k = 0; k < NNormal; k++) {
+              if(newRowArray[k] < calcMin) calcMin = newRowArray[k];
+              if(newRowArray[k] > calcMax) calcMax = newRowArray[k];
+              tempCalc[indexOfTemp] = newRowArray[k];
+              newRowArray[k] = 0.0f;
+              indexOfTemp++;
+              key[i] = true;
 
             }
-            else{
-              cout<<"EMPTY ROW FOR PIXEL "<<i<<endl;
-            }
+
+            lastGoodIndex++;
 
           }
           cout << lastGoodIndex << endl;

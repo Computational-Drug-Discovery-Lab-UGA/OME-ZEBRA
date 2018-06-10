@@ -2,9 +2,8 @@
 #include <cuda.h>
 #include "magma_v2.h"
 #include "magma_lapack.h"
-#include <fstream>
 #include <iostream>
-#include <vector>
+#include <fstream>
 
 #define min(a,b) (((a)<(b))?(a):(b))
 
@@ -15,38 +14,8 @@ int main(int argc , char ** argv) {
   magma_init(); // initialize Magma
   real_Double_t gpu_time, cpu_time;
 
-
-  std::vector<float> numbers;
-  ifstream inputFile("c.txt");        // Input file stream object
-
-  // Check if exists and then open the file.
-  if (inputFile.good()) {
-     // Push items into a vector
-     int current_number = 0;
-     while (inputFile >> current_number){
-         numbers.push_back(current_number);
-     }
-
-     // Close the file.
-     inputFile.close();
-
-     // Display the numbers read:
-     cout << "The numbers are: ";
-     for (int count = 0; count < numbers.size(); count++){
-         cout << numbers[count] << " ";
-     }
-
-     cout << endl;
-  }
-  else {
-     cout << "Error!";
-     _exit(0);
-  }
-
-
-
   // Matrix size
-  magma_int_t m=numbers.size()/512 , n=512 , n2=m*n, min_mn = min(m,n);
+  magma_int_t m=524288, n=512, n2=m*n, min_mn = min(m,n);
   float *a, *r; // a,r - mxn matrices
   float *u, *vt;// u - mxm matrix , vt - nxn matrix on the host
   float *s1 , *s2; // vectors of singular values
@@ -68,13 +37,29 @@ int main(int argc , char ** argv) {
   lwork = min_mn * min_mn +2* min_mn +2* min_mn *nb;
   magma_smalloc_pinned(& h_work , lwork ); // host mem . for h_work
 
-  // Loads a with vector
-  for(std::vector<float>::size_type i = 0; i != v.size(); i++) {
+  std::cout << "Loading matrix" << '\n';
 
-    a[i] = numbers[i];
+  std::fstream firingMatrix("data/test.nmf", std::ios_base::in);
+
+  float nextFire;
+  int indexOfA = 0;
+  while (firingMatrix >> nextFire) {
+
+      a[indexOfA] = nextFire;
+      indexOfA++;
+
+      if (indexOfA % 1000000 == 0) {
+
+        std::cout << indexOfA << endl;
+
+      }
 
   }
-  lapackf77_slacpy( MagmaFullStr ,&m ,&n,a ,&m,r ,&m); //a->r
+
+  std::cout << "Done Loading" << '\n';
+
+  // lapackf77_slarnv(&ione, ISEED, &n2, a);
+  lapackf77_slacpy(MagmaFullStr, &m, &n, a, &m, r, &m);
 
   // MAGMA
   gpu_time = magma_wtime();
@@ -87,6 +72,9 @@ int main(int argc , char ** argv) {
   // the first min (m,n) columns of vt contain the right sing .vec .
   magma_sgesvd(MagmaNoVec,MagmaNoVec,m,n,r,m,s1,u,m,vt,n,h_work,
   lwork,&info );
+
+  std::cout << info << std::endl;
+
   gpu_time = magma_wtime() - gpu_time ;
   printf(" sgesvd gpu time: %7.5f\n", gpu_time); // Magma time
 

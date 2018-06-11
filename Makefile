@@ -65,3 +65,8 @@ clean:
 	rm -f *.o
 	rm -f data/*.csv
 	rm -f data/NNMF.nmf
+
+config:
+	mkdir obj
+	mkdir bin
+	mkdir data

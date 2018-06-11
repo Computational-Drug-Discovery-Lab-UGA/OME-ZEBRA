@@ -34,7 +34,6 @@ int main(int argc, char *argv[]) {
       string nmfChecker = "data/out/" + tifName + "/NNMF.nmf";
       string keyFileLocation = "data/out/" + tifName + "/" + "key.csv";
       TIFF* tif = TIFFOpen(tifFile.c_str(), "r");
-      string fileName = "data/out/" + tifName + "/" + tifName  + "_RESULT.tif";
       if(argc == 3){
         istringstream argK(argv[2]);
         argK >> k;
@@ -48,6 +47,7 @@ int main(int argc, char *argv[]) {
         argK >> k;
         wFileLocation = "data/test.nmf_W.txt";
       }
+      string fileName = "data/out/" + tifName + "/" + tifName + to_string(k) + "_RESULT.tif";
       cout<<wFileLocation<<endl;
       cout<<tifFile<<endl;
       cout<<keyFileLocation<<endl;
@@ -89,8 +89,7 @@ int main(int argc, char *argv[]) {
           ifstream wFile(wFileLocation);
           ifstream keyFile(keyFileLocation);
           ifstream nmfTest(nmfChecker);
-          float seizure, isNot;
-          float k1,k2,k3;
+          float* kArray = new float[k];
           string currentLine;
           string currentKey;
           //printf("Height,Width = %u,%u -> scanLineSize = %d bytes\n", height, width,TIFFScanlineSize(tif));
@@ -121,18 +120,27 @@ int main(int argc, char *argv[]) {
                     data[col] -= min;
                     stringstream ss;
                     ss<<currentLine;
-                    if(k == 3){
-                      ss>>k1;
-                      ss>>k2;
-                      ss>>k3;
-                      //needs to be further configured
-                      if(k3 > k1 && k3 > k2) data[col] += (max - min)/2;
+
+                    for (int kIterator = 0; kIterator < k; kIterator++) {
+
+                      ss>>kArray[kIterator];
+
                     }
-                    else if(k == 2){
-                      ss>>seizure;
-                      ss>>isNot;
-                      if(seizure > isNot) data[col] += (max - min)/2;
-                      //if(seizure > isNot) data[col] = max;
+                    bool isLargest = true;
+                    for (int kIterator = 0; kIterator < k ; kIterator++) {
+
+                      if (kArray[0] < kArray[kIterator]) {
+
+                        isLargest = false;
+
+                      }
+
+                    }
+
+                    if (isLargest) {
+
+                      data[col] += (max - min)/2;
+
                     }
                     test<<data[col];
                     if(col != width - 1) test<<",";

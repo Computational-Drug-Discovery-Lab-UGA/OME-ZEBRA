@@ -644,3 +644,178 @@ void transposeArray(vector<uint32*> inputArray, int n, int m, uint32 * outputArr
   }
 
 }
+
+void updateHeightMatrix(float* heightMatrix, float* widthMatrix,
+  float* uMatrix, float* sMatrix, float* vtMatrix, float* newHeightMatrix,
+  int numPixels, int numTime, int numSingularValues) {
+
+    float* widthMatrixTransposedDevice;
+    float* uMatrixDevice;
+    float* tempSquareMatrixDevice;
+
+    CudaSafeCall(cudaMalloc((void**)&widthMatrixTransposedDevice, numPixels * numSingularValues
+      * sizeof(float)));
+    CudaSafeCall(cudaMalloc((void**)&uMatrixDevice, numPixels * numSingularValues
+      * sizeof(float)));
+    CudaSafeCall(cudaMalloc((void**)&tempSquareMatrixDevice, numSingularValues
+      * numSingularValues * sizeof(float)));
+
+    float* widthMatrixTransposed = new float[numPixels * numSingularValues];
+
+    for (int i = 0; i < numPixels; i++) {
+
+      for (int j = 0; j < numSingularValues; j++) {
+
+        widthMatrixTransposed[j * numPixels + i] = widthMatrix[i * numSingularValues + j]
+
+      }
+
+    }
+
+    CudaSafeCall(cudaMemcpy(widthMatrixTransposedDevice, widthMatrixTransposed, numPixels
+      * numSingularValues * sizeof(float), cudaMemcpyHostToDevice));
+    CudaSafeCall(cudaMemcpy(uMatrixDevice, uMatrix, numPixels * numSingularValues
+      * sizeof(float), cudaMemcpyHostToDevice));
+
+    multiplyMatrices<<<grid,block>>>(widthMatrixDevice, uMatrixDevice, tempSquareMatrixDevice, //TODO setup grid and block size
+      numSingularValues, numPixels, numSingularValues);
+
+    CudaCheckError();
+
+    CudaSafeCall(cudaFree(uMatrixDevice));
+
+    float* sMatrixDevice;
+    float* tempSquareMatrix2Device;
+
+    CudaSafeCall(cudaMalloc((void**)&sMatrixDevice, numSingularValues
+      * numSingularValues * sizeof(float)));
+    CudaSafeCall(cudaMalloc((void**)&tempSquareMatrix2Device, numSingularValues
+      * numSingularValues * sizeof(float)));
+
+    CudaSafeCall(cudaMemcpy(sMatrixDevice, sMatrix, numSingularValues * numSingularValues
+      * sizeof(float), cudaMemcpyHostToDevice));
+
+    multiplyMatrices<<<grid,block>>>(tempSquareMatrixDevice, sMatrixDevice, tempSquareMatrix2Device, //TODO setup grid and block size
+      numSingularValues, numSingularValues, numSingularValues);
+
+    CudaCheckError();
+
+    CudaSafeCall(cudaFree(sMatrixDevice));
+
+    float* vtMatrixDevice;
+    float* numeratorDevice;
+
+    CudaSafeCall(cudaMalloc((void**)&vtMatrixDevice, numSingularValues
+      * numTime * sizeof(float)));
+    CudaSafeCall(cudaMalloc((void**)&numeratorDevice, numSingularValues
+      * numTime * sizeof(float)));
+
+    CudaSafeCall(cudaMemcpy(vtMatrixDevice, vtMatrix, numSingularValues * numTime
+      * sizeof(float), cudaMemcpyHostToDevice));
+
+    multiplyMatrices<<<grid,block>>>(tempSquareMatrix2Device, vtMatrixDevice, numeratorDevice, //TODO setup grid and block size
+      numSingularValues, numSingularValues, numTime);
+
+    CudaCheckError();
+
+    CudaSafeCall(cudaFree(tempSquareMatrix2Device));
+    CudaSafeCall(cudaFree(vtMatrixDevice));
+
+    float* widthMatrixDevice;
+
+    CudaSafeCall(cudaMalloc((void**)&widthMatrixDevice, numPixels
+      * numSingularValues * sizeof(float)));
+
+    CudaSafeCall(cudaMemcpy(widthMatrixDevice, widthMatrix, numPixels * numSingularValues
+      * sizeof(float), cudaMemcpyHostToDevice));
+
+    multiplyMatrices<<<grid,block>>>(widthMatrixTransposedDevice, widthMatrixDevice, tempSquareMatrixDevice, //TODO setup grid and block size
+      numSingularValues, numPixels, numSingularValues);
+
+    CudaCheckError();
+
+    CudaSafeCall(cudaFree(widthMatrixTransposed));
+    CudaSafeCall(cudaFree(widthMatrixDevice));
+
+    float* heightMatrixDevice;
+    float* denominatorDevice;
+
+    CudaSafeCall(cudaMalloc((void**)&heightMatrixDevice, numSingularValues
+      * numTime * sizeof(float)));
+    CudaSafeCall(cudaMalloc((void**)&newHeightMatrixDevice, numSingularValues
+      * numTime * sizeof(float)));
+
+    CudaSafeCall(cudaMemcpy(heightMatrixDevice, heightMatrix, numSingularValues *
+      numTime * sizeof(float), cudaMemcpyHostToDevice));
+
+    multiplyMatrices<<<grid,block>>>(tempSquareMatrixDevice, heightMatrixDevice, //TODO setup grid and block size
+      denominatorDevice, numSingularValues, numSingularValues, numTime);
+
+    CudaCheckError();
+
+    CudaSafeCall(cudaFree(tempSquareMatrixDevice));
+
+    applyScalar<<<grid,block>>>(heightMatrixDevice, numeratorDevice, //TODO setup grid and block size
+      denominatorDevice, numSingularValues, numTime);
+
+    CudaCheckError();
+
+    CudaSafeCall(cudaMemcpy(heightMatrix, heightMatrixDevice, numSingularValues*
+      * numTime * sizeof(float), cudaMemcpyDeviceToHost));
+
+    CudaCheckError();
+
+    CudaSafeCall(cudaFree(heightMatrixDevice));
+    CudaSafeCall(cudaFree(numeratorDevice));
+    CudaSafeCall(cudaFree(denominatorDevice));
+
+  }
+
+void updateWidthMatrix(float* heightMatrix, float* widthMatrix,
+  float* uMatrix, float* sMatrix, float* vtMatrix, float* newHeightMatrix,
+  int numPixels, int numTime, int numSingularValues) {
+
+__global__ void multiplyMatrices(float* matrixA, float* matrixB, float* matrixC, int diffDimA,
+   int comDim, int diffDimB) {
+
+     int blockID = blockIdx.y * gridDim.x + blockIdx.x;
+     int globalID = blockID * blockDim.x + threadIdx.x;
+     long currentIndex = globalID;
+
+     if (currentIndex < (diffDimA * diffDimB)) {
+
+       int iIndex = currentIndex / diffDimB;
+       int jIndex = currentIndex % diffDimB;
+
+       int sum = 0;
+
+       for (int k = 0; k < comDim; k++) {
+
+         sum = sum + (matrixA[iIndex * comDim + k] * matrixB[k * diffDimB + jIndex])
+
+       }
+
+       matrixC[iIndex * diffDimB + jIndex] = sum;
+
+     }
+
+   }
+
+__global__ void applyScalar(float* targetMatrix, float* numerator, float* denominator,
+    int numRows, int numCols) {
+
+    int blockID = blockIdx.y * gridDim.x + blockIdx.x;
+    int globalID = blockID * blockDim.x + threadIdx.x;
+    long currentIndex = globalID;
+
+    if (currentIndex < (diffDimA * diffDimB)) {
+
+      int iIndex = currentIndex / diffDimB;
+      int jIndex = currentIndex % diffDimB;
+
+      targetMatrix[iIndex * numCols + jIndex] = targetMatrix[iIndex * numCols + jIndex]
+        * (numerator[iIndex * numCols + jIndex] / denominator[iIndex * numCols + jIndex]);
+
+    }
+
+  }

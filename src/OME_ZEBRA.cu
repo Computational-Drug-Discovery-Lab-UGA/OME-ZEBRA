@@ -220,9 +220,9 @@ int main(int argc, char *argv[]) {
             }
 
           }
-          cout<<"Executing firing rate cuda kernel"<<endl;
-          calcFiringRate<<<grid,block>>>(firingRateArrayDevice, MNormal*NNormal, numTimePoints);
-          CudaSafeCall(cudaMemcpy(firingRateArray,firingRateArrayDevice, MNormal*NNormal*sizeof(float), cudaMemcpyDeviceToHost));
+          // cout<<"Executing firing rate cuda kernel"<<endl;
+          // calcFiringRate<<<grid,block>>>(firingRateArrayDevice, MNormal*NNormal, numTimePoints);
+          // CudaSafeCall(cudaMemcpy(firingRateArray,firingRateArrayDevice, MNormal*NNormal*sizeof(float), cudaMemcpyDeviceToHost));
           CudaSafeCall(cudaFree(actualArrayDevice));
           CudaSafeCall(cudaFree(firingRateArrayDevice));
           delete[] actualArray;

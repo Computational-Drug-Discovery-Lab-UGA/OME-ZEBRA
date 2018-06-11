@@ -649,6 +649,11 @@ void updateHeightMatrix(float* heightMatrix, float* widthMatrix,
   float* uMatrix, float* sMatrix, float* vtMatrix, float* newHeightMatrix,
   int numPixels, int numTime, int numSingularValues) {
 
+    dim3 grid = {1,1,1};
+    dim3 block = {1,1,1};
+    long a = 1;
+    long b = 1;
+
     float* widthMatrixTransposedDevice;
     float* uMatrixDevice;
     float* tempSquareMatrixDevice;
@@ -677,7 +682,28 @@ void updateHeightMatrix(float* heightMatrix, float* widthMatrix,
     CudaSafeCall(cudaMemcpy(uMatrixDevice, uMatrix, numPixels * numSingularValues
       * sizeof(float), cudaMemcpyHostToDevice));
 
-    multiplyMatrices<<<grid,block>>>(widthMatrixDevice, uMatrixDevice, tempSquareMatrixDevice, //TODO setup grid and block size
+    a = numSingularValues;
+    b = numSingularValues;
+
+    if(65535 > a*b){
+      grid.x = a*b;
+    }
+    else if(65535*1024 > a*b){
+      grid.x = 65535;
+      block.x = 1024;
+      while(block.x*grid.x > a*b){
+        block.x--;
+      }
+    }
+    else{
+      grid.x = 65535;
+      block.x = 1024;
+      while(grid.x*grid.y*block.x < a*b){
+        grid.y++;
+      }
+    }
+
+    multiplyMatrices<<<grid,block>>>(widthMatrixDevice, uMatrixDevice, tempSquareMatrixDevice, 
       numSingularValues, numPixels, numSingularValues);
 
     CudaCheckError();
@@ -695,7 +721,7 @@ void updateHeightMatrix(float* heightMatrix, float* widthMatrix,
     CudaSafeCall(cudaMemcpy(sMatrixDevice, sMatrix, numSingularValues * numSingularValues
       * sizeof(float), cudaMemcpyHostToDevice));
 
-    multiplyMatrices<<<grid,block>>>(tempSquareMatrixDevice, sMatrixDevice, tempSquareMatrix2Device, //TODO setup grid and block size
+    multiplyMatrices<<<grid,block>>>(tempSquareMatrixDevice, sMatrixDevice, tempSquareMatrix2Device,
       numSingularValues, numSingularValues, numSingularValues);
 
     CudaCheckError();
@@ -713,7 +739,28 @@ void updateHeightMatrix(float* heightMatrix, float* widthMatrix,
     CudaSafeCall(cudaMemcpy(vtMatrixDevice, vtMatrix, numSingularValues * numTime
       * sizeof(float), cudaMemcpyHostToDevice));
 
-    multiplyMatrices<<<grid,block>>>(tempSquareMatrix2Device, vtMatrixDevice, numeratorDevice, //TODO setup grid and block size
+    a = numSingularValues;
+    b = numTime;
+
+    if(65535 > a*b){
+      grid.x = a*b;
+    }
+    else if(65535*1024 > a*b){
+      grid.x = 65535;
+      block.x = 1024;
+      while(block.x*grid.x > a*b){
+        block.x--;
+      }
+    }
+    else{
+      grid.x = 65535;
+      block.x = 1024;
+      while(grid.x*grid.y*block.x < a*b){
+        grid.y++;
+      }
+    }
+
+    multiplyMatrices<<<grid,block>>>(tempSquareMatrix2Device, vtMatrixDevice, numeratorDevice,
       numSingularValues, numSingularValues, numTime);
 
     CudaCheckError();
@@ -729,7 +776,28 @@ void updateHeightMatrix(float* heightMatrix, float* widthMatrix,
     CudaSafeCall(cudaMemcpy(widthMatrixDevice, widthMatrix, numPixels * numSingularValues
       * sizeof(float), cudaMemcpyHostToDevice));
 
-    multiplyMatrices<<<grid,block>>>(widthMatrixTransposedDevice, widthMatrixDevice, tempSquareMatrixDevice, //TODO setup grid and block size
+    a = numSingularValues;
+    b = numSingularValues;
+
+    if(65535 > a*b){
+      grid.x = a*b;
+    }
+    else if(65535*1024 > a*b){
+      grid.x = 65535;
+      block.x = 1024;
+      while(block.x*grid.x > a*b){
+        block.x--;
+      }
+    }
+    else{
+      grid.x = 65535;
+      block.x = 1024;
+      while(grid.x*grid.y*block.x < a*b){
+        grid.y++;
+      }
+    }
+
+    multiplyMatrices<<<grid,block>>>(widthMatrixTransposedDevice, widthMatrixDevice, tempSquareMatrixDevice,
       numSingularValues, numPixels, numSingularValues);
 
     CudaCheckError();
@@ -748,14 +816,35 @@ void updateHeightMatrix(float* heightMatrix, float* widthMatrix,
     CudaSafeCall(cudaMemcpy(heightMatrixDevice, heightMatrix, numSingularValues *
       numTime * sizeof(float), cudaMemcpyHostToDevice));
 
-    multiplyMatrices<<<grid,block>>>(tempSquareMatrixDevice, heightMatrixDevice, //TODO setup grid and block size
+    a = numSingularValues;
+    b = numTime;
+
+    if(65535 > a*b){
+      grid.x = a*b;
+    }
+    else if(65535*1024 > a*b){
+      grid.x = 65535;
+      block.x = 1024;
+      while(block.x*grid.x > a*b){
+        block.x--;
+      }
+    }
+    else{
+      grid.x = 65535;
+      block.x = 1024;
+      while(grid.x*grid.y*block.x < a*b){
+        grid.y++;
+      }
+    }
+
+    multiplyMatrices<<<grid,block>>>(tempSquareMatrixDevice, heightMatrixDevice,
       denominatorDevice, numSingularValues, numSingularValues, numTime);
 
     CudaCheckError();
 
     CudaSafeCall(cudaFree(tempSquareMatrixDevice));
 
-    applyScalar<<<grid,block>>>(heightMatrixDevice, numeratorDevice, //TODO setup grid and block size
+    applyScalar<<<grid,block>>>(heightMatrixDevice, numeratorDevice,
       denominatorDevice, numSingularValues, numTime);
 
     CudaCheckError();
@@ -776,6 +865,11 @@ void updateHeightMatrix(float* heightMatrix, float* widthMatrix,
 void updateWidthMatrix(float* heightMatrix, float* widthMatrix,
   float* uMatrix, float* sMatrix, float* vtMatrix, float* newHeightMatrix,
   int numPixels, int numTime, int numSingularValues) {
+
+    dim3 grid = {1,1,1};
+    dim3 block = {1,1,1};
+    long a = 1;
+    long b = 1;
 
     float* heightMatrixTransposedDevice;
     float* vtMatrixDevice;
@@ -805,6 +899,27 @@ void updateWidthMatrix(float* heightMatrix, float* widthMatrix,
     CudaSafeCall(cudaMemcpy(vtMatrixDevice, vtMatrix, numSingularValues * numTime
       * sizeof(float), cudaMemcpyHostToDevice));
 
+    a = numSingularValues;
+    b = numSingularValues;
+
+    if(65535 > a*b){
+      grid.x = a*b;
+    }
+    else if(65535*1024 > a*b){
+      grid.x = 65535;
+      block.x = 1024;
+      while(block.x*grid.x > a*b){
+        block.x--;
+      }
+    }
+    else{
+      grid.x = 65535;
+      block.x = 1024;
+      while(grid.x*grid.y*block.x < a*b){
+        grid.y++;
+      }
+    }
+
     multiplyMatrices<<<grid,block>>>(vtMatrixDevice, heightMatrixTransposedDevice,
       tempSquareMatrixDevice, numSingularValues, numTime, numSingularValues);
 
@@ -824,7 +939,7 @@ void updateWidthMatrix(float* heightMatrix, float* widthMatrix,
       * numSingularValues * sizeof(float), cudaMemcpyHostToDevice));
 
     multiplyMatrices<<<grid,block>>>(sMatrixDevice, tempSquareMatrixDevice,
-      tempSquareMatrix2Device, numPixels, numSingularValues, numSingularValues);
+      tempSquareMatrix2Device, numSingularValues, numSingularValues, numSingularValues);
 
     CudaCheckError();
 
@@ -841,6 +956,27 @@ void updateWidthMatrix(float* heightMatrix, float* widthMatrix,
     CudaSafeCall(cudaMemcpy(uMatrixDevice, uMatrix, numPixels * numSingularValues
       * sizeof(float), cudaMemcpyHostToDevice));
 
+    a = numPixels;
+    b = numSingularValues;
+
+    if(65535 > a*b){
+      grid.x = a*b;
+    }
+    else if(65535*1024 > a*b){
+      grid.x = 65535;
+      block.x = 1024;
+      while(block.x*grid.x > a*b){
+        block.x--;
+      }
+    }
+    else{
+      grid.x = 65535;
+      block.x = 1024;
+      while(grid.x*grid.y*block.x < a*b){
+        grid.y++;
+      }
+    }
+
     multiplyMatrices<<<grid,block>>>(uMatrixDevice, tempSquareMatrix2Device,
       numeratorDevice, numPixels, numSingularValues, numSingularValues);
 
@@ -856,6 +992,27 @@ void updateWidthMatrix(float* heightMatrix, float* widthMatrix,
 
     CudaSafeCall(cudaMemcpy(heightMatrixDevice, heightMatrix, numSingularValues
       * numTime * sizeof(float), cudaMemcpyHostToDevice));
+
+    a = numSingularValues;
+    b = numSingularValues;
+
+    if(65535 > a*b){
+      grid.x = a*b;
+    }
+    else if(65535*1024 > a*b){
+      grid.x = 65535;
+      block.x = 1024;
+      while(block.x*grid.x > a*b){
+        block.x--;
+      }
+    }
+    else{
+      grid.x = 65535;
+      block.x = 1024;
+      while(grid.x*grid.y*block.x < a*b){
+        grid.y++;
+      }
+    }
 
     multiplyMatrices<<<grid,block>>>(heightMatrixDevice, heightMatrixTransposedDevice,
       tempSquareMatrixDevice, numSingularValues, numTime, numSingularValues);
@@ -876,6 +1033,27 @@ void updateWidthMatrix(float* heightMatrix, float* widthMatrix,
     CudaSafeCall(cudaMemcpy(widthMatrixDevice, widthMatrix, numPixels * numSingularValues
       * sizeof(float), cudaMemcpyHostToDevice));
 
+    a = numPixels;
+    b = numSingularValues;
+
+    if(65535 > a*b){
+      grid.x = a*b;
+    }
+    else if(65535*1024 > a*b){
+      grid.x = 65535;
+      block.x = 1024;
+      while(block.x*grid.x > a*b){
+        block.x--;
+      }
+    }
+    else{
+      grid.x = 65535;
+      block.x = 1024;
+      while(grid.x*grid.y*block.x < a*b){
+        grid.y++;
+      }
+    }
+
     multiplyMatrices<<<grid,block>>>(widthMatrixDevice, tempSquareMatrixDevice,
       denominatorDevice, numPixels, numSingularValues, numSingularValues);
 
@@ -883,7 +1061,7 @@ void updateWidthMatrix(float* heightMatrix, float* widthMatrix,
 
     CudaSafeCall(cudaFree(tempSquareMatrixDevice));
 
-    applyScalar<<<grid,block>>>(widthMatrixDevice, numeratorDevice, //TODO setup grid and block size
+    applyScalar<<<grid,block>>>(widthMatrixDevice, numeratorDevice,
       denominatorDevice, numPixels, numSingularValues);
 
     CudaCheckError();

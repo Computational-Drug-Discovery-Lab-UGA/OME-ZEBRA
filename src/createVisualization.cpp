@@ -34,7 +34,6 @@ int main(int argc, char *argv[]) {
       string nmfChecker = "data/out/" + tifName + "/NNMF.nmf";
       string keyFileLocation = "data/out/" + tifName + "/" + "key.csv";
       TIFF* tif = TIFFOpen(tifFile.c_str(), "r");
-      string fileName = "data/out/" + tifName + "/" + tifName  + "_RESULT.tif";
       if(argc == 3){
         istringstream argK(argv[2]);
         argK >> k;
@@ -48,6 +47,7 @@ int main(int argc, char *argv[]) {
         argK >> k;
         wFileLocation = "data/test.nmf_W.txt";
       }
+      string fileName = "data/out/" + tifName + "/" + tifName + to_string(k) + "_RESULT.tif";
       cout<<wFileLocation<<endl;
       cout<<tifFile<<endl;
       cout<<keyFileLocation<<endl;
@@ -127,7 +127,7 @@ int main(int argc, char *argv[]) {
 
                     }
                     bool isLargest = true;
-                    for (int kIterator = 0; kIterator < (k - 1); kIterator++) {
+                    for (int kIterator = 0; kIterator < k ; kIterator++) {
 
                       if (kArray[0] < kArray[kIterator]) {
 
@@ -142,20 +142,6 @@ int main(int argc, char *argv[]) {
                       data[col] += (max - min)/2;
 
                     }
-
-                    // if(k == 3){
-                    //   ss>>k1;
-                    //   ss>>k2;
-                    //   ss>>k3;
-                    //   //needs to be further configured
-                    //   if(k3 > k1 && k3 > k2) data[col] += (max - min)/2;
-                    // }
-                    // else if(k == 2){
-                    //   ss>>seizure;
-                    //   ss>>isNot;
-                    //   if(seizure > isNot) data[col] += (max - min)/2;
-                    //   //if(seizure > isNot) data[col] = max;
-                    // }
                     test<<data[col];
                     if(col != width - 1) test<<",";
                   }

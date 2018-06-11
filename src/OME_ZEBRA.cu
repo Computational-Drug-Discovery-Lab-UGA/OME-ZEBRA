@@ -73,6 +73,17 @@ __global__ void calcFiringRate(float* frMatrix, long size, int numTimePoints);
 __global__ void calcFiringRateExpanded(float* frMatrix, long size, int numTimePoints);
 __global__ void fillTestMatrix(uint32* flatMatrix, long size);
 void transposeArray(vector<uint32*> inputArray, int n, int m, uint32 * outputArray, uint32 & min, uint32 & max);
+void updateHeightMatrix(float* heightMatrix, float* widthMatrix,
+  float* uMatrix, float* sMatrix, float* vtMatrix, float* newHeightMatrix,
+  int numPixels, int numTime, int numSingularValues);
+void updateWidthMatrix(float* heightMatrix, float* widthMatrix,
+  float* uMatrix, float* sMatrix, float* vtMatrix, float* newHeightMatrix,
+  int numPixels, int numTime, int numSingularValues);
+__global__ void multiplyMatrices(float* matrixA, float* matrixB, float* matrixC, int diffDimA,
+   int comDim, int diffDimB);
+ __global__ void applyScalar(float* targetMatrix, float* numerator, float* denominator,
+     int numRows, int numCols);
+
 
 /*
 MAIN
@@ -703,7 +714,7 @@ void updateHeightMatrix(float* heightMatrix, float* widthMatrix,
       }
     }
 
-    multiplyMatrices<<<grid,block>>>(widthMatrixDevice, uMatrixDevice, tempSquareMatrixDevice, 
+    multiplyMatrices<<<grid,block>>>(widthMatrixDevice, uMatrixDevice, tempSquareMatrixDevice,
       numSingularValues, numPixels, numSingularValues);
 
     CudaCheckError();

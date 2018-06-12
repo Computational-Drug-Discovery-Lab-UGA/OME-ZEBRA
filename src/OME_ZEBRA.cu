@@ -13,6 +13,8 @@
 #include <curand_kernel.h>
 #include <cstdlib>
 #include <cfloat>
+#include <limits>
+
 using namespace std;
 
 // Define this to turn on error checking
@@ -656,9 +658,22 @@ void transposeArray(vector<uint32*> inputArray, int n, int m, uint32 * outputArr
 
 }
 
+void executeNNMF(float* heightMatrix, float* widthMatrix, float* uMatrix,
+  float* sMatrix, float* vtMatrix, long numPixels, long numTime, long numSingularValues,
+  float targetLoss) {
+
+    float* newWidthMatrix = new float[numPixels * numSingularValues];
+    float* newHeightMatrix = new float[numSingularValues * numTime];
+
+    float loss = numeric_limits<float>::max();
+
+    while()
+
+  }
+
 void updateHeightMatrix(float* heightMatrix, float* widthMatrix,
   float* uMatrix, float* sMatrix, float* vtMatrix, float* newHeightMatrix,
-  int numPixels, int numTime, int numSingularValues) {
+  long numPixels, long numTime, long numSingularValues) {
 
     dim3 grid = {1,1,1};
     dim3 block = {1,1,1};
@@ -678,9 +693,9 @@ void updateHeightMatrix(float* heightMatrix, float* widthMatrix,
 
     float* widthMatrixTransposed = new float[numPixels * numSingularValues];
 
-    for (int i = 0; i < numPixels; i++) {
+    for (long i = 0; i < numPixels; i++) {
 
-      for (int j = 0; j < numSingularValues; j++) {
+      for (long j = 0; j < numSingularValues; j++) {
 
         widthMatrixTransposed[j * numPixels + i] = widthMatrix[i * numSingularValues + j]
 
@@ -860,7 +875,7 @@ void updateHeightMatrix(float* heightMatrix, float* widthMatrix,
 
     CudaCheckError();
 
-    CudaSafeCall(cudaMemcpy(heightMatrix, heightMatrixDevice, numSingularValues*
+    CudaSafeCall(cudaMemcpy(newHeightMatrix, heightMatrixDevice, numSingularValues*
       * numTime * sizeof(float), cudaMemcpyDeviceToHost));
 
     CudaCheckError();
@@ -874,8 +889,8 @@ void updateHeightMatrix(float* heightMatrix, float* widthMatrix,
   }
 
 void updateWidthMatrix(float* heightMatrix, float* widthMatrix,
-  float* uMatrix, float* sMatrix, float* vtMatrix, float* newHeightMatrix,
-  int numPixels, int numTime, int numSingularValues) {
+  float* uMatrix, float* sMatrix, float* vtMatrix, float* newWidthMatrix,
+  long numPixels, long numTime, long numSingularValues) {
 
     dim3 grid = {1,1,1};
     dim3 block = {1,1,1};
@@ -895,9 +910,9 @@ void updateWidthMatrix(float* heightMatrix, float* widthMatrix,
 
     float* heightMatrixTransposed = new float[numSingularValues * numTime];
 
-    for (int i = 0; i < numSingularValues; i++) {
+    for (long i = 0; i < numSingularValues; i++) {
 
-      for (int j = 0; j < numTime; j++) {
+      for (long j = 0; j < numTime; j++) {
 
         heightMatrixTransposed[j * numSingularValues + i] = widthMatrix[i * numTime + j]
 
@@ -1077,7 +1092,7 @@ void updateWidthMatrix(float* heightMatrix, float* widthMatrix,
 
     CudaCheckError();
 
-    CudaSafeCall(cudaMemcpy(widthMatrix, widthMatrixDevice, numPixels *
+    CudaSafeCall(cudaMemcpy(newWidthMatrix, widthMatrixDevice, numPixels *
       * numSingularValues * sizeof(float), cudaMemcpyDeviceToHost));
 
     CudaCheckError();
@@ -1090,19 +1105,19 @@ void updateWidthMatrix(float* heightMatrix, float* widthMatrix,
 
 }
 
-__global__ void multiplyMatrices(float* matrixA, float* matrixB, float* matrixC, int diffDimA,
-   int comDim, int diffDimB) {
+__global__ void multiplyMatrices(float* matrixA, float* matrixB, float* matrixC, long diffDimA,
+   long comDim, long diffDimB) {
 
-     int blockID = blockIdx.y * gridDim.x + blockIdx.x;
-     int globalID = blockID * blockDim.x + threadIdx.x;
+     long blockID = blockIdx.y * gridDim.x + blockIdx.x;
+     long globalID = blockID * blockDim.x + threadIdx.x;
      long currentIndex = globalID;
 
      if (currentIndex < (diffDimA * diffDimB)) {
 
-       int iIndex = currentIndex / diffDimB;
-       int jIndex = currentIndex % diffDimB;
+       long iIndex = currentIndex / diffDimB;
+       long jIndex = currentIndex % diffDimB;
 
-       int sum = 0;
+       float sum = 0;
 
        for (int k = 0; k < comDim; k++) {
 
@@ -1117,16 +1132,16 @@ __global__ void multiplyMatrices(float* matrixA, float* matrixB, float* matrixC,
    }
 
 __global__ void applyScalar(float* targetMatrix, float* numerator, float* denominator,
-    int numRows, int numCols) {
+    long numRows, long numCols) {
 
-    int blockID = blockIdx.y * gridDim.x + blockIdx.x;
-    int globalID = blockID * blockDim.x + threadIdx.x;
+    long blockID = blockIdx.y * gridDim.x + blockIdx.x;
+    long globalID = blockID * blockDim.x + threadIdx.x;
     long currentIndex = globalID;
 
     if (currentIndex < (diffDimA * diffDimB)) {
 
-      int iIndex = currentIndex / diffDimB;
-      int jIndex = currentIndex % diffDimB;
+      long iIndex = currentIndex / diffDimB;
+      long jIndex = currentIndex % diffDimB;
 
       targetMatrix[iIndex * numCols + jIndex] = targetMatrix[iIndex * numCols + jIndex]
         * (numerator[iIndex * numCols + jIndex] / denominator[iIndex * numCols + jIndex]);

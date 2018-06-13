@@ -83,8 +83,12 @@ void updateWidthMatrix(float* heightMatrix, float* widthMatrix,
   int numPixels, int numTime, int numSingularValues);
 __global__ void multiplyMatrices(float* matrixA, float* matrixB, float* matrixC, int diffDimA,
    int comDim, int diffDimB);
- __global__ void applyScalar(float* targetMatrix, float* numerator, float* denominator,
-     int numRows, int numCols);
+__global__ void applyScalar(float* targetMatrix, float* numerator, float* denominator,
+   int numRows, int numCols);
+__global__ void calculateLoss(float* originalMatrix, float* newMatrix, long numRows, long numCols, float* loss);
+void executeNNMF(float* heightMatrix, float* widthMatrix, float* uMatrix,
+  float* sMatrix, float* vtMatrix, long numPixels, long numTime, long numSingularValues,
+  float targetLoss);
 
 
 /*
@@ -667,7 +671,84 @@ void executeNNMF(float* heightMatrix, float* widthMatrix, float* uMatrix,
 
     float loss = numeric_limits<float>::max();
 
-    while()
+    while(loss > targetLoss) {
+
+      updateHeightMatrix(float* heightMatrix, float* widthMatrix,
+        float* uMatrix, float* sMatrix, float* vtMatrix, float* newHeightMatrix,
+        long numPixels, long numTime, long numSingularValues);
+
+      updateWidthMatrix(float* heightMatrix, float* widthMatrix,
+        float* uMatrix, float* sMatrix, float* vtMatrix, float* newWidthMatrix,
+        long numPixels, long numTime, long numSingularValues);
+
+      float* newWidthMatrixDevice;
+      float* newHeightMatrixDevice;
+      float* testMatrixDevice;
+
+      CudaSafeCall(cudaMalloc((void**)&newWidthMatrixDevice, numPixels * numSingularValues
+        * sizeof(float)));
+      CudaSafeCall(cudaMalloc((void**)&newHeightMatrixDevice, numSingularValues * numTime
+        * sizeof(float)));
+      CudaSafeCall(cudaMalloc((void**)&testMatrixDevice, numPixels * numTime
+        * sizeof(float)));
+
+      CudaSafeCall(cudaMemcpy(newWidthMatrixDevice, newWidthMatrix, numPixels
+        * numSingularValues * sizeof(float), cudaMemcpyHostToDevice));
+      CudaSafeCall(cudaMemcpy(newHeightMatrixDevice, newHeightMatrix, numSingularValues
+        * numTime * sizeof(float), cudaMemcpyHostToDevice));
+
+      dim3 grid = {1,1,1};
+      dim3 block = {1,1,1};
+
+      long a = numPixels;
+      long b = numTime;
+
+      if(65535 > a*b){
+        grid.x = a*b;
+      }
+      else if(65535*1024 > a*b){
+        grid.x = 65535;
+        block.x = 1024;
+        while(block.x*grid.x > a*b){
+          block.x--;
+        }
+      }
+      else{
+        grid.x = 65535;
+        block.x = 1024;
+        while(grid.x*grid.y*block.x < a*b){
+          grid.y++;
+        }
+      }
+
+      multiplyMatrices<<<grid,block>>>(newWidthMatrix, newHeightMatrixDevice, testMatrixDevice,
+        numPixels, numSingularValues, numTime);
+
+      CudaCheckError();
+
+      CudaSafeCall(cudaFree(newWidthMatrixDevice));
+      CudaSafeCall(cudaFree(newHeightMatrixDevice));
+
+      float* originalMatrixDevice;
+
+      CudaSafeCall(cudaMalloc((void**)&originalMatrixDevice, numPixels * numTime
+        * sizeof(float)));
+
+      CudaSafeCall(cudaMemcpy(originalMatrixDevice, originalMatrix, numPixels
+        * numTime * sizeof(float), cudaMemcpyHostToDevice));
+
+      dim3 grid = {50,1,1};
+      dim3 block = {192,1,1};
+
+      float* calculatedLoss = new float[1];
+      calculatedLoss[0] = 10000.0;
+
+      calculateLoss<<<grid,block>>>(originalMatrixDevice, testMatrixDevice, numPixels,
+        numTime, calculatedLoss);
+
+      loss = calculatedLoss[0];
+
+    }
 
   }
 
@@ -1149,3 +1230,27 @@ __global__ void applyScalar(float* targetMatrix, float* numerator, float* denomi
     }
 
   }
+
+__global__ void calculateLoss(float* originalMatrix, float* newMatrix, long numRows, long numCols, float* loss) {
+
+  long blockID = blockIdx.y * gridDim.x + blockIdx.x;
+  long globalID = blockID * blockDim.x + threadIdx.x;
+  long currentIndex = globalID;
+  long numThreads = blockDim.x * gridDim.x * gridDim.y;
+
+  if ((currentIndex * numThreads) < (numRows * numCols)) {
+
+    float localLoss;
+
+    for (int i = 0; i < ((numRows * numCols)/numThreads); i++) {
+
+      localLoss = originalMatrix[i * numThreads + currentIndex] - newMatrix[i * numThreads + currentIndex];
+      localLoss = localLoss * localLoss;
+
+    }
+
+    atomicAdd(loss, localLoss);
+
+  }
+
+}

@@ -1242,6 +1242,8 @@ __global__ void calculateLoss(float* originalMatrix, float* newMatrix, long numR
 
     float localLoss;
 
+    __shared__ float blockLoss[blockDim.x];
+
     for (int i = 0; i < ((numRows * numCols)/numThreads); i++) {
 
       localLoss = originalMatrix[i * numThreads + currentIndex] - newMatrix[i * numThreads + currentIndex];
@@ -1249,7 +1251,23 @@ __global__ void calculateLoss(float* originalMatrix, float* newMatrix, long numR
 
     }
 
-    atomicAdd(loss, localLoss);
+    blockLoss[threadIdx.x] = localLoss;
+
+    __syncthreads();
+
+    if (threadIdx.x == 1) {
+
+      localLoss = 0;
+
+      for (int i = 0; i < blockDim.x; i++) {
+
+        localLoss = localLoss + blockLoss[i];
+
+      }
+
+      atomicAdd(loss, localLoss);
+      
+    }
 
   }
 

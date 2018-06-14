@@ -46,7 +46,7 @@ inline void __cudaCheckError(const char *file, const int line) {
 
     // More careful checking. However, this will affect performance.
     // Comment away if needed.
-    //err = cudaDeviceSynchronize();
+    err = cudaDeviceSynchronize();
     if (cudaSuccess != err) {
         fprintf(stderr, "cudaCheckError() with sync failed at %s:%i : %s\n",
                 file, line, cudaGetErrorString(err));
@@ -339,8 +339,8 @@ int main(int argc, char *argv[]) {
           //   }
           //   myfile.close();
           // }
-
-          cout << "done" << endl;
+          //
+          // cout << "done" << endl;
 
           ofstream mykeyfile ("data/key.csv");
           if (mykeyfile.is_open()) {
@@ -875,14 +875,18 @@ void executeNNMF(float* heightMatrix, float* widthMatrix, float* uMatrix,
       grid = {50,1,1};
       block = {192,1,1};
 
-      float* calculatedLoss = new float[1];
-      calculatedLoss[0] = 10000.0;
+      float* calculatedLoss;
+      float temp = 0.0f;
+      CudaSafeCall(cudaMalloc((void**)&calculatedLoss,sizeof(float)));
+      CudaSafeCall(cudaMemcpy(calculatedLoss, &temp, sizeof(float), cudaMemcpyHostToDevice));;
 
       calculateLoss<<<grid,block>>>(originalMatrixDevice, testMatrixDevice, numPixels,
         numTime, calculatedLoss);
+      CudaCheckError();
 
-      loss = calculatedLoss[0];
-
+      CudaSafeCall(cudaMemcpy(&loss, calculatedLoss, sizeof(float), cudaMemcpyDeviceToHost));
+      CudaSafeCall(cudaFree(originalMatrixDevice));
+      CudaSafeCall(cudaFree(testMatrixDevice));
     }
 
   }
@@ -1393,31 +1397,20 @@ __global__ void calculateLoss(float* originalMatrix, float* newMatrix, long numR
   long globalID = blockID * blockDim.x + threadIdx.x;
   long currentIndex = globalID;
   long numThreads = blockDim.x * gridDim.x * gridDim.y;
+  float localLoss = 0.0f;
+  float tempLoss = 0.0f;
+  __shared__ float blockLoss;
+  blockLoss = 0;
+  __syncthreads();
 
-  if ((currentIndex * numThreads) < (numRows * numCols)) {
-
-    float localLoss;
-
-    __shared__ float blockLoss;
-    blockLoss = 0;
-
-    for (int i = 0; i < ((numRows * numCols)/numThreads); i++) {
-
-      localLoss = originalMatrix[i * numThreads + currentIndex] - newMatrix[i * numThreads + currentIndex];
-      localLoss = localLoss * localLoss;
-
-    }
-
+  while (currentIndex  < (numRows * numCols)) {
+    tempLoss = originalMatrix[currentIndex] - newMatrix[currentIndex];
+    localLoss += tempLoss * tempLoss;
     atomicAdd(&blockLoss, localLoss);
-
-    __syncthreads();
-
-    if (threadIdx.x == 1) {
-
-      atomicAdd(loss, blockLoss);
-
-    }
-
+    currentIndex += numThreads;
   }
-
+  __syncthreads();
+  if (threadIdx.x == 0) {
+    atomicAdd(loss, blockLoss);
+  }
 }

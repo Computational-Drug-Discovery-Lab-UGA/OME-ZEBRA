@@ -663,7 +663,7 @@ void transposeArray(vector<uint32*> inputArray, int n, int m, uint32 * outputArr
 }
 
 void executeNNMF(float* heightMatrix, float* widthMatrix, float* uMatrix,
-  float* sMatrix, float* vtMatrix, long numPixels, long numTime, long numSingularValues,
+  float* sMatrix, float* vtMatrix, float* originalMatrix, long numPixels, long numTime, long numSingularValues,
   float targetLoss) {
 
     float* newWidthMatrix = new float[numPixels * numSingularValues];
@@ -673,13 +673,11 @@ void executeNNMF(float* heightMatrix, float* widthMatrix, float* uMatrix,
 
     while(loss > targetLoss) {
 
-      updateHeightMatrix(float* heightMatrix, float* widthMatrix,
-        float* uMatrix, float* sMatrix, float* vtMatrix, float* newHeightMatrix,
-        long numPixels, long numTime, long numSingularValues);
+      updateHeightMatrix(heightMatrix, widthMatrix, uMatrix, sMatrix, vtMatrix,
+        newHeightMatrix, numPixels, numTime, numSingularValues);
 
-      updateWidthMatrix(float* heightMatrix, float* widthMatrix,
-        float* uMatrix, float* sMatrix, float* vtMatrix, float* newWidthMatrix,
-        long numPixels, long numTime, long numSingularValues);
+      updateWidthMatrix(heightMatrix, widthMatrix, uMatrix, sMatrix, vtMatrix,
+        newWidthMatrix, numPixels, numTime, numSingularValues);
 
       float* newWidthMatrixDevice;
       float* newHeightMatrixDevice;
@@ -737,8 +735,8 @@ void executeNNMF(float* heightMatrix, float* widthMatrix, float* uMatrix,
       CudaSafeCall(cudaMemcpy(originalMatrixDevice, originalMatrix, numPixels
         * numTime * sizeof(float), cudaMemcpyHostToDevice));
 
-      dim3 grid = {50,1,1};
-      dim3 block = {192,1,1};
+      grid = {50,1,1};
+      block = {192,1,1};
 
       float* calculatedLoss = new float[1];
       calculatedLoss[0] = 10000.0;
@@ -956,7 +954,7 @@ void updateHeightMatrix(float* heightMatrix, float* widthMatrix,
 
     CudaCheckError();
 
-    CudaSafeCall(cudaMemcpy(newHeightMatrix, heightMatrixDevice, numSingularValues*
+    CudaSafeCall(cudaMemcpy(newHeightMatrix, heightMatrixDevice, numSingularValues
       * numTime * sizeof(float), cudaMemcpyDeviceToHost));
 
     CudaCheckError();
@@ -1173,7 +1171,7 @@ void updateWidthMatrix(float* heightMatrix, float* widthMatrix,
 
     CudaCheckError();
 
-    CudaSafeCall(cudaMemcpy(newWidthMatrix, widthMatrixDevice, numPixels *
+    CudaSafeCall(cudaMemcpy(newWidthMatrix, widthMatrixDevice, numPixels
       * numSingularValues * sizeof(float), cudaMemcpyDeviceToHost));
 
     CudaCheckError();
@@ -1266,7 +1264,7 @@ __global__ void calculateLoss(float* originalMatrix, float* newMatrix, long numR
       }
 
       atomicAdd(loss, localLoss);
-      
+
     }
 
   }

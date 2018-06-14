@@ -778,7 +778,7 @@ void updateHeightMatrix(float* heightMatrix, float* widthMatrix,
 
       for (long j = 0; j < numSingularValues; j++) {
 
-        widthMatrixTransposed[j * numPixels + i] = widthMatrix[i * numSingularValues + j]
+        widthMatrixTransposed[j * numPixels + i] = widthMatrix[i * numSingularValues + j];
 
       }
 
@@ -810,7 +810,7 @@ void updateHeightMatrix(float* heightMatrix, float* widthMatrix,
       }
     }
 
-    multiplyMatrices<<<grid,block>>>(widthMatrixDevice, uMatrixDevice, tempSquareMatrixDevice,
+    multiplyMatrices<<<grid,block>>>(widthMatrixTransposedDevice, uMatrixDevice, tempSquareMatrixDevice,
       numSingularValues, numPixels, numSingularValues);
 
     CudaCheckError();
@@ -917,7 +917,7 @@ void updateHeightMatrix(float* heightMatrix, float* widthMatrix,
 
     CudaSafeCall(cudaMalloc((void**)&heightMatrixDevice, numSingularValues
       * numTime * sizeof(float)));
-    CudaSafeCall(cudaMalloc((void**)&newHeightMatrixDevice, numSingularValues
+    CudaSafeCall(cudaMalloc((void**)&denominatorDevice, numSingularValues
       * numTime * sizeof(float)));
 
     CudaSafeCall(cudaMemcpy(heightMatrixDevice, heightMatrix, numSingularValues *
@@ -995,13 +995,13 @@ void updateWidthMatrix(float* heightMatrix, float* widthMatrix,
 
       for (long j = 0; j < numTime; j++) {
 
-        heightMatrixTransposed[j * numSingularValues + i] = widthMatrix[i * numTime + j]
+        heightMatrixTransposed[j * numSingularValues + i] = widthMatrix[i * numTime + j];
 
       }
 
     }
 
-    CudaSafeCall(cudaMemcpy(heightMatrixTransposedDevice, heighMatrixTransposed,
+    CudaSafeCall(cudaMemcpy(heightMatrixTransposedDevice, heightMatrixTransposed,
       numSingularValues * numTime * sizeof(float), cudaMemcpyHostToDevice));
     CudaSafeCall(cudaMemcpy(vtMatrixDevice, vtMatrix, numSingularValues * numTime
       * sizeof(float), cudaMemcpyHostToDevice));
@@ -1094,7 +1094,7 @@ void updateWidthMatrix(float* heightMatrix, float* widthMatrix,
 
     float* heightMatrixDevice;
 
-    CudaSafeCall(cudaMalloc((void**)&heightMatrix, numSingularValues * numTime
+    CudaSafeCall(cudaMalloc((void**)&heightMatrixDevice, numSingularValues * numTime
       * sizeof(float)));
 
     CudaSafeCall(cudaMemcpy(heightMatrixDevice, heightMatrix, numSingularValues
@@ -1202,7 +1202,7 @@ __global__ void multiplyMatrices(float* matrixA, float* matrixB, float* matrixC,
 
        for (int k = 0; k < comDim; k++) {
 
-         sum = sum + (matrixA[iIndex * comDim + k] * matrixB[k * diffDimB + jIndex])
+         sum = sum + (matrixA[iIndex * comDim + k] * matrixB[k * diffDimB + jIndex]);
 
        }
 
@@ -1219,10 +1219,10 @@ __global__ void applyScalar(float* targetMatrix, float* numerator, float* denomi
     long globalID = blockID * blockDim.x + threadIdx.x;
     long currentIndex = globalID;
 
-    if (currentIndex < (diffDimA * diffDimB)) {
+    if (currentIndex < (numRows * numCols)) {
 
-      long iIndex = currentIndex / diffDimB;
-      long jIndex = currentIndex % diffDimB;
+      int iIndex = currentIndex / numCols;
+      int jIndex = currentIndex % numCols;
 
       targetMatrix[iIndex * numCols + jIndex] = targetMatrix[iIndex * numCols + jIndex]
         * (numerator[iIndex * numCols + jIndex] / denominator[iIndex * numCols + jIndex]);

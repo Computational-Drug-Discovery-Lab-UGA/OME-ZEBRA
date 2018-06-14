@@ -887,6 +887,9 @@ void executeNNMF(float* heightMatrix, float* widthMatrix, float* uMatrix,
       CudaSafeCall(cudaMemcpy(&loss, calculatedLoss, sizeof(float), cudaMemcpyDeviceToHost));
       CudaSafeCall(cudaFree(originalMatrixDevice));
       CudaSafeCall(cudaFree(testMatrixDevice));
+
+      cout << "Current Loss = " << loss << endl;
+
     }
 
   }
@@ -1398,17 +1401,14 @@ __global__ void calculateLoss(float* originalMatrix, float* newMatrix, long numR
   long currentIndex = globalID;
   long numThreads = blockDim.x * gridDim.x * gridDim.y;
   float localLoss = 0.0f;
-  float tempLoss = 0.0f;
   __shared__ float blockLoss;
   blockLoss = 0;
   __syncthreads();
-
   while (currentIndex  < (numRows * numCols)) {
-    tempLoss = originalMatrix[currentIndex] - newMatrix[currentIndex];
-    localLoss += tempLoss * tempLoss;
-    atomicAdd(&blockLoss, localLoss);
+    localLoss += originalMatrix[currentIndex] - newMatrix[currentIndex];
     currentIndex += numThreads;
   }
+  atomicAdd(&blockLoss, localLoss);
   __syncthreads();
   if (threadIdx.x == 0) {
     atomicAdd(loss, blockLoss);

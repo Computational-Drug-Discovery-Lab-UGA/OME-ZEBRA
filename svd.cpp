@@ -84,26 +84,67 @@ int main(int argc , char ** argv) {
   gpu_time = magma_wtime() - gpu_time ;
   printf(" sgesvd gpu time: %7.5f\n", gpu_time); // Magma time
 
+  int numSigFig = 128;
+
+  ofstream sMatrixFile("data/sMatrix.txt");
+  if (sMatrixFile.is_open()) {
+    for(long i = 0; i < numSigFig; i++){
+
+       sMatrixFile << s1[i] << "\n" ;
+
+     }
+
+   }
+   sMatrixFile.close();
+   cout<<"sMatrix dumped"<<endl;
+
+
+  ofstream uMatrixFile("data/uMatrix.txt");
+  if (uMatrixFile.is_open()) {
+    for(long i = 0; i < m; i++){
+
+      for(int j = 0; j < n; j++) {
+
+        if (j < numSigFig) {
+
+          uMatrixFile << u[i * (n+1) + j] << "\n";
+
+        }
+
+      }
+
+     }
+
+   }
+   uMatrixFile.close();
+   cout<<"uMatrix dumped"<<endl;
+
+   ofstream vtMatrixFile("data/vtMatrix.txt");
+   if (vtMatrixFile.is_open()) {
+     for(long i = 0; i < n; i++){
+
+       for(int j = 0; j < n; j++) {
+
+         if (j < numSigFig) {
+
+           vtMatrixFile << vt[i * (n+1) + j] << "\n";
+
+         }
+
+       }
+
+      }
+
+    }
+    vtMatrixFile.close();
+    cout<<"vtMatrix dumped"<<endl;
+
+
   // values
   // Free memory
   free(a); // free host memory
   free(vt); // free host memory
-
-
-  for (magma_int_t sRowIndex = 0; sRowIndex < 512; sRowIndex++) {
-
-    std::cout << s1[sRowIndex] << std::endl;
-
-  }
-
-  std::cout << "Done" << endl;
-
-  for (magma_int_t sRowIndex = 0; sRowIndex < 512; sRowIndex++) {
-
-    std::cout << u[sRowIndex] << std::endl;
-
-  }
-  free(s1);
+  free(s1); //free host memory
   free(s2); // free host memory
   free(u); // free host memory
   magma_free_pinned( h_work ); // free host memory

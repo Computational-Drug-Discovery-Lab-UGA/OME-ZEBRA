@@ -75,21 +75,20 @@ __global__ void calcFiringRate(float* frMatrix, long size, int numTimePoints);
 __global__ void calcFiringRateExpanded(float* frMatrix, long size, int numTimePoints);
 __global__ void fillTestMatrix(uint32* flatMatrix, long size);
 void transposeArray(vector<uint32*> inputArray, int n, int m, uint32 * outputArray, uint32 & min, uint32 & max);
+__global__ void multiplyMatrices(float* matrixA, float* matrixB, float* matrixC, long diffDimA,
+   long comDim, long diffDimB);
+__global__ void applyScalar(float* targetMatrix, float* numerator, float* denominator,
+    long numRows, long numCols);
+__global__ void calculateLoss(float* originalMatrix, float* newMatrix, long numRows, long numCols, float* loss);
+void updateWidthMatrix(float* heightMatrix, float* widthMatrix,
+  float* uMatrix, float* sMatrix, float* vtMatrix, float* newWidthMatrix,
+  long numPixels, long numTime, long numSingularValues);
 void updateHeightMatrix(float* heightMatrix, float* widthMatrix,
   float* uMatrix, float* sMatrix, float* vtMatrix, float* newHeightMatrix,
-  int numPixels, int numTime, int numSingularValues);
-void updateWidthMatrix(float* heightMatrix, float* widthMatrix,
-  float* uMatrix, float* sMatrix, float* vtMatrix, float* newHeightMatrix,
-  int numPixels, int numTime, int numSingularValues);
-__global__ void multiplyMatrices(float* matrixA, float* matrixB, float* matrixC, int diffDimA,
-   int comDim, int diffDimB);
-__global__ void applyScalar(float* targetMatrix, float* numerator, float* denominator,
-   int numRows, int numCols);
-__global__ void calculateLoss(float* originalMatrix, float* newMatrix, long numRows, long numCols, float* loss);
+  long numPixels, long numTime, long numSingularValues);
 void executeNNMF(float* heightMatrix, float* widthMatrix, float* uMatrix,
-  float* sMatrix, float* vtMatrix, long numPixels, long numTime, long numSingularValues,
-  float targetLoss);
-
+  float* sMatrix, float* vtMatrix, float* originalMatrix, long numPixels, long numTime,
+  long numSingularValues, float targetLoss);
 
 /*
 MAIN
@@ -321,25 +320,25 @@ int main(int argc, char *argv[]) {
           delete[] firingRateArray;
           cout << "Dumping to File" << endl;
 
-          ofstream myfile ("data/NNMF.nmf");
-          if (myfile.is_open()) {
-            for(int i = 0; i < (lastGoodIndex)*NNormal; i++){
-
-              if ((i + 1) % 512 == 0) {
-
-                myfile << tempCalc[i] << "\n" ;
-                //myfile << (tempCalc[i] + calcMin*-1)/calcMax << "\n" ;
-
-              }
-              else {
-
-                myfile << tempCalc[i] << " " ;
-                //myfile << (tempCalc[i] + calcMin*-1)/calcMax << " " ;
-
-              }
-            }
-            myfile.close();
-          }
+          // ofstream myfile ("data/NNMF.nmf");
+          // if (myfile.is_open()) {
+          //   for(int i = 0; i < (lastGoodIndex)*NNormal; i++){
+          //
+          //     if ((i + 1) % 512 == 0) {
+          //
+          //       myfile << tempCalc[i] << "\n" ;
+          //       //myfile << (tempCalc[i] + calcMin*-1)/calcMax << "\n" ;
+          //
+          //     }
+          //     else {
+          //
+          //       myfile << tempCalc[i] << " " ;
+          //       //myfile << (tempCalc[i] + calcMin*-1)/calcMax << " " ;
+          //
+          //     }
+          //   }
+          //   myfile.close();
+          // }
 
           cout << "done" << endl;
 
@@ -354,6 +353,138 @@ int main(int argc, char *argv[]) {
            }
             mykeyfile.close();
             cout<<"NNMF.nmf created successfuly"<<endl;
+
+
+            long numSingularValues = 128;
+            long numPixels = 524288;
+            long numTime = 512;
+
+            std::cout << "Loading sMatrix" << '\n';
+
+            float* sMatrix = new float[numSingularValues * numSingularValues];
+
+            std::fstream sMatrixFile("data/sMatrix.txt", std::ios_base::in);
+
+            float singularValue;
+            int indexOfSingularValue = 0;
+            int colCount = 0;
+            long rowCount = 0;
+
+            while (sMatrixFile >> singularValue) {
+
+                if (indexOfSingularValue == colCount) {
+
+                  sMatrix[rowCount * numSingularValues + indexOfSingularValue] = singularValue;
+                  indexOfSingularValue++;
+                  colCount++;
+
+                }
+                else if (colCount < indexOfSingularValue) {
+
+                  for (int i = colCount; i < indexOfSingularValue; i++) {
+
+                    sMatrix[rowCount * numSingularValues + colCount] = 0;
+                    colCount++;
+
+                  }
+
+                }
+                else if (colCount < numSingularValues) {
+
+                  for (int i = colCount; i < numSingularValues; i++) {
+
+                    sMatrix[rowCount * numSingularValues + colCount] = 0;
+                    colCount++;
+
+                  }
+
+                  rowCount++;
+                  colCount = 0;
+
+                }
+
+            }
+
+            std::cout << "Loading uMatrix" << '\n';
+
+            std::fstream uMatrixFile("data/uMatrix.txt", std::ios_base::in);
+
+            float* uMatrix = new float[numPixels * numSingularValues];
+
+            float uValue;
+            int indexOfuMatrix = 0;
+            while (uMatrixFile >> uValue) {
+
+                uMatrix[indexOfuMatrix] = uValue;
+                indexOfuMatrix++;
+
+            }
+
+            std::cout << "Loading vtMatrix" << '\n';
+
+            std::fstream vtMatrixFile("data/vtMatrix.txt", std::ios_base::in);
+
+            float* vtMatrix = new float[numSingularValues * numTime];
+
+            float vtValue;
+            int indexOfvtMatrix = 0;
+            while (vtMatrixFile >> vtValue) {
+
+                vtMatrix[indexOfvtMatrix] = vtValue;
+                indexOfvtMatrix++;
+
+            }
+
+            float* heightMatrix = new float[numSingularValues * numTime];
+
+            for (long i = 0; i < (numSingularValues * numTime); i++) {
+
+              heightMatrix[i] = 1;
+
+            }
+
+            float* widthMatrix = new float[numPixels * numSingularValues];
+
+            for (long i = 0; i < (numPixels * numSingularValues); i++) {
+
+              widthMatrix[i] = 1;
+
+            }
+
+            float targetLoss = 1;
+
+            cout << "Executing NNMF" << endl;
+
+            executeNNMF(heightMatrix, widthMatrix, uMatrix, sMatrix, vtMatrix, tempCalc,
+              numPixels, numTime, numSingularValues, targetLoss);
+
+            cout << "executeNNMF is done" << endl;
+
+            ofstream heightMatrixFile("data/test.nmf_H");
+            if (heightMatrixFile.is_open()) {
+
+              for(long i = 0; i < (numSingularValues * numTime); i++){
+
+                    heightMatrixFile << heightMatrix[i] << "\n";
+
+               }
+
+             }
+             heightMatrixFile.close();
+             cout<<"heightMatrix dumped"<<endl;
+
+             ofstream widthMatrixFile("data/test.nmf_W");
+             if (widthMatrixFile.is_open()) {
+
+               for(long i = 0; i < (numPixels * numSingularValues); i++){
+
+                     widthMatrixFile << widthMatrix[i] << "\n";
+
+                }
+
+              }
+              widthMatrixFile.close();
+              cout<<"widthMatrix dumped"<<endl;
 
           }
           else{
@@ -663,18 +794,24 @@ void transposeArray(vector<uint32*> inputArray, int n, int m, uint32 * outputArr
 }
 
 void executeNNMF(float* heightMatrix, float* widthMatrix, float* uMatrix,
-  float* sMatrix, float* vtMatrix, float* originalMatrix, long numPixels, long numTime, long numSingularValues,
-  float targetLoss) {
+  float* sMatrix, float* vtMatrix, float* originalMatrix, long numPixels, long numTime,
+  long numSingularValues, float targetLoss) {
 
     float* newWidthMatrix = new float[numPixels * numSingularValues];
     float* newHeightMatrix = new float[numSingularValues * numTime];
+
+    cout << "New versions allocated" << endl;
 
     float loss = numeric_limits<float>::max();
 
     while(loss > targetLoss) {
 
+      cout << "Updating Height Matrix" << endl;
+
       updateHeightMatrix(heightMatrix, widthMatrix, uMatrix, sMatrix, vtMatrix,
         newHeightMatrix, numPixels, numTime, numSingularValues);
+
+      cout << "Updating Width Matrix" << endl;
 
       updateWidthMatrix(heightMatrix, widthMatrix, uMatrix, sMatrix, vtMatrix,
         newWidthMatrix, numPixels, numTime, numSingularValues);
@@ -719,7 +856,7 @@ void executeNNMF(float* heightMatrix, float* widthMatrix, float* uMatrix,
         }
       }
 
-      multiplyMatrices<<<grid,block>>>(newWidthMatrix, newHeightMatrixDevice, testMatrixDevice,
+      multiplyMatrices<<<grid,block>>>(newWidthMatrixDevice, newHeightMatrixDevice, testMatrixDevice,
         numPixels, numSingularValues, numTime);
 
       CudaCheckError();
@@ -770,17 +907,26 @@ void updateHeightMatrix(float* heightMatrix, float* widthMatrix,
     CudaSafeCall(cudaMalloc((void**)&tempSquareMatrixDevice, numSingularValues
       * numSingularValues * sizeof(float)));
 
+    cout << "Starting to transpose matrix" << endl;
+
     float* widthMatrixTransposed = new float[numPixels * numSingularValues];
+
+    cout << numPixels << endl;
+    cout << numSingularValues << endl;
 
     for (long i = 0; i < numPixels; i++) {
 
       for (long j = 0; j < numSingularValues; j++) {
+
+        //cout << "i = " << i << " j = " << j << " index = " << widthMatrix[i * numSingularValues + j] << endl;
 
         widthMatrixTransposed[j * numPixels + i] = widthMatrix[i * numSingularValues + j];
 
       }
 
     }
+
+    cout << "Matrix transposed" << endl;
 
     CudaSafeCall(cudaMemcpy(widthMatrixTransposedDevice, widthMatrixTransposed, numPixels
       * numSingularValues * sizeof(float), cudaMemcpyHostToDevice));
@@ -808,6 +954,8 @@ void updateHeightMatrix(float* heightMatrix, float* widthMatrix,
       }
     }
 
+    cout << "First multiplication kernel" << endl;
+
     multiplyMatrices<<<grid,block>>>(widthMatrixTransposedDevice, uMatrixDevice, tempSquareMatrixDevice,
       numSingularValues, numPixels, numSingularValues);
 
@@ -825,6 +973,8 @@ void updateHeightMatrix(float* heightMatrix, float* widthMatrix,
 
     CudaSafeCall(cudaMemcpy(sMatrixDevice, sMatrix, numSingularValues * numSingularValues
       * sizeof(float), cudaMemcpyHostToDevice));
+
+    cout << "Second multiplication kernel" << endl;
 
     multiplyMatrices<<<grid,block>>>(tempSquareMatrixDevice, sMatrixDevice, tempSquareMatrix2Device,
       numSingularValues, numSingularValues, numSingularValues);
@@ -865,6 +1015,8 @@ void updateHeightMatrix(float* heightMatrix, float* widthMatrix,
       }
     }
 
+    cout << "Third multiplication kernel" << endl;
+
     multiplyMatrices<<<grid,block>>>(tempSquareMatrix2Device, vtMatrixDevice, numeratorDevice,
       numSingularValues, numSingularValues, numTime);
 
@@ -902,12 +1054,14 @@ void updateHeightMatrix(float* heightMatrix, float* widthMatrix,
       }
     }
 
+    cout << "Fourth multiplication kernel" << endl;
+
     multiplyMatrices<<<grid,block>>>(widthMatrixTransposedDevice, widthMatrixDevice, tempSquareMatrixDevice,
       numSingularValues, numPixels, numSingularValues);
 
     CudaCheckError();
 
-    CudaSafeCall(cudaFree(widthMatrixTransposed));
+    CudaSafeCall(cudaFree(widthMatrixTransposedDevice));
     CudaSafeCall(cudaFree(widthMatrixDevice));
 
     float* heightMatrixDevice;
@@ -942,12 +1096,16 @@ void updateHeightMatrix(float* heightMatrix, float* widthMatrix,
       }
     }
 
+    cout << "Fifth multiplication kernel" << endl;
+
     multiplyMatrices<<<grid,block>>>(tempSquareMatrixDevice, heightMatrixDevice,
       denominatorDevice, numSingularValues, numSingularValues, numTime);
 
     CudaCheckError();
 
     CudaSafeCall(cudaFree(tempSquareMatrixDevice));
+
+    cout << "Scalar kernel" << endl;
 
     applyScalar<<<grid,block>>>(heightMatrixDevice, numeratorDevice,
       denominatorDevice, numSingularValues, numTime);

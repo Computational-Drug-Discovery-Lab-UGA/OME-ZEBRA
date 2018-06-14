@@ -1,5 +1,5 @@
 #!/bin/bash
-make clean
+#make clean
 make
 for dir in data/registeredOMEs/*
 do

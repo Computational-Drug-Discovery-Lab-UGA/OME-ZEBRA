@@ -1405,7 +1405,7 @@ __global__ void calculateLoss(float* originalMatrix, float* newMatrix, long numR
   blockLoss = 0;
   __syncthreads();
   while (currentIndex  < (numRows * numCols)) {
-    localLoss += originalMatrix[currentIndex] - newMatrix[currentIndex];
+    localLoss += abs(originalMatrix[currentIndex] - newMatrix[currentIndex]);
     currentIndex += numThreads;
   }
   atomicAdd(&blockLoss, localLoss);

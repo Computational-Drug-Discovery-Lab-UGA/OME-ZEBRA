@@ -45,7 +45,7 @@ int main(int argc , char ** argv) {
 
   std::cout << "Loading matrix" << '\n';
 
-  std::fstream firingMatrix("data/test.nmf", std::ios_base::in);
+  std::fstream firingMatrix("data/NNMF.nmf", std::ios_base::in);
 
   float nextFire;
   int indexOfA = 0;

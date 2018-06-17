@@ -86,7 +86,7 @@ void updateWidthMatrix(float* heightMatrix, float* widthMatrix,
 void updateHeightMatrix(float* heightMatrix, float* widthMatrix,
   float* uMatrix, float* sMatrix, float* vtMatrix, float* newHeightMatrix,
   long numPixels, long numTime, long numSingularValues);
-void executeNNMF(float* heightMatrix, float* widthMatrix, float* uMatrix,
+void NMF(float* heightMatrix, float* widthMatrix, float* uMatrix,
   float* sMatrix, float* vtMatrix, float* originalMatrix, long numPixels, long numTime,
   long numSingularValues, float targetLoss);
 
@@ -318,41 +318,36 @@ int main(int argc, char *argv[]) {
           cout << "MAX = "<<calcMax<<" AND MIN = "<<calcMin<<endl;
 
           delete[] firingRateArray;
-          cout << "Dumping to File" << endl;
-
+          // cout << "Dumping to File" << endl;
+          //
           // ofstream myfile ("data/NNMF.nmf");
           // if (myfile.is_open()) {
           //   for(int i = 0; i < (lastGoodIndex)*NNormal; i++){
           //
           //     if ((i + 1) % 512 == 0) {
-          //
           //       myfile << tempCalc[i] << "\n" ;
-          //       //myfile << (tempCalc[i] + calcMin*-1)/calcMax << "\n" ;
-          //
           //     }
           //     else {
-          //
           //       myfile << tempCalc[i] << " " ;
-          //       //myfile << (tempCalc[i] + calcMin*-1)/calcMax << " " ;
-          //
           //     }
           //   }
           //   myfile.close();
           // }
           //
           // cout << "done" << endl;
-
-          ofstream mykeyfile ("data/key.csv");
-          if (mykeyfile.is_open()) {
-            for(long i = 0; i < MNormal; i++){
-
-               mykeyfile << key[i] << "\n" ;
-
-             }
-
-           }
-            mykeyfile.close();
-            cout<<"NNMF.nmf created successfuly"<<endl;
+          // exit(0);
+          //
+          // ofstream mykeyfile ("data/key.csv");
+          // if (mykeyfile.is_open()) {
+          //   for(long i = 0; i < MNormal; i++){
+          //
+          //      mykeyfile << key[i] << "\n" ;
+          //
+          //    }
+          //
+          // }
+          //  mykeyfile.close();
+          //  cout<<"NNMF.nmf created successfuly"<<endl;
 
 
             long numSingularValues = 128;
@@ -455,12 +450,12 @@ int main(int argc, char *argv[]) {
 
             cout << "Executing NNMF" << endl;
 
-            executeNNMF(heightMatrix, widthMatrix, uMatrix, sMatrix, vtMatrix, tempCalc,
+            NMF(heightMatrix, widthMatrix, uMatrix, sMatrix, vtMatrix, tempCalc,
               numPixels, numTime, numSingularValues, targetLoss);
 
-            cout << "executeNNMF is done" << endl;
+            cout << "NMF is done" << endl;
 
-            ofstream heightMatrixFile("data/test.nmf_H");
+            ofstream heightMatrixFile("data/" + baseName + ".nmf_H");
             if (heightMatrixFile.is_open()) {
 
               for(long i = 0; i < (numSingularValues * numTime); i++){
@@ -473,7 +468,7 @@ int main(int argc, char *argv[]) {
              heightMatrixFile.close();
              cout<<"heightMatrix dumped"<<endl;
 
-             ofstream widthMatrixFile("data/test.nmf_W");
+             ofstream widthMatrixFile("data/" + baseName + ".nmf_W");
              if (widthMatrixFile.is_open()) {
 
                for(long i = 0; i < (numPixels * numSingularValues); i++){
@@ -793,7 +788,7 @@ void transposeArray(vector<uint32*> inputArray, int n, int m, uint32 * outputArr
 
 }
 
-void executeNNMF(float* heightMatrix, float* widthMatrix, float* uMatrix,
+void NMF(float* heightMatrix, float* widthMatrix, float* uMatrix,
   float* sMatrix, float* vtMatrix, float* originalMatrix, long numPixels, long numTime,
   long numSingularValues, float targetLoss) {
 
@@ -860,10 +855,12 @@ void executeNNMF(float* heightMatrix, float* widthMatrix, float* uMatrix,
         numPixels, numSingularValues, numTime);
 
       CudaCheckError();
+      CudaSafeCall(cudaMemcpy(heightMatrix, newHeightMatrixDevice, numTime*numSingularValues*sizeof(float), cudaMemcpyDeviceToHost));
+      CudaSafeCall(cudaMemcpy(widthMatrix, newWidthMatrixDevice, numPixels*numSingularValues*sizeof(float), cudaMemcpyDeviceToHost));
+
 
       CudaSafeCall(cudaFree(newWidthMatrixDevice));
       CudaSafeCall(cudaFree(newHeightMatrixDevice));
-
       float* originalMatrixDevice;
 
       CudaSafeCall(cudaMalloc((void**)&originalMatrixDevice, numPixels * numTime
@@ -1122,7 +1119,9 @@ void updateHeightMatrix(float* heightMatrix, float* widthMatrix,
     CudaSafeCall(cudaMemcpy(newHeightMatrix, heightMatrixDevice, numSingularValues
       * numTime * sizeof(float), cudaMemcpyDeviceToHost));
 
-    CudaCheckError();
+    for(int i = 0; i < numTime*numSingularValues; ++i){
+      printf("%f became %f\n",heightMatrix[i],newHeightMatrix[i]);
+    }
 
     CudaSafeCall(cudaFree(heightMatrixDevice));
     CudaSafeCall(cudaFree(numeratorDevice));
@@ -1365,7 +1364,7 @@ __global__ void multiplyMatrices(float* matrixA, float* matrixB, float* matrixC,
 
        for (int k = 0; k < comDim; k++) {
 
-         sum = sum + (matrixA[iIndex * comDim + k] * matrixB[k * diffDimB + jIndex]);
+         sum += (matrixA[iIndex * comDim + k] * matrixB[k * diffDimB + jIndex]);
 
        }
 
@@ -1406,6 +1405,9 @@ __global__ void calculateLoss(float* originalMatrix, float* newMatrix, long numR
   __syncthreads();
   while (currentIndex  < (numRows * numCols)) {
     localLoss += abs(originalMatrix[currentIndex] - newMatrix[currentIndex]);
+    // if(threadIdx.x == 0){
+    //   printf("%f - %f\n",originalMatrix[currentIndex], newMatrix[currentIndex]);
+    // }
     currentIndex += numThreads;
   }
   atomicAdd(&blockLoss, localLoss);

@@ -350,7 +350,7 @@ int main(int argc, char *argv[]) {
           //  cout<<"NNMF.nmf created successfuly"<<endl;
 
 
-            long numSingularValues = 128;
+            long numSingularValues = 50;
             long numPixels = 524288;
             long numTime = 512;
 
@@ -1120,7 +1120,11 @@ void updateHeightMatrix(float* heightMatrix, float* widthMatrix,
       * numTime * sizeof(float), cudaMemcpyDeviceToHost));
 
     for(int i = 0; i < numTime*numSingularValues; ++i){
-      printf("%f became %f\n",heightMatrix[i],newHeightMatrix[i]);
+      if(newHeightMatrix[i] < 0.0f){
+        cout<<"ERROR HEIGHT MATRIX VALUE BECAME NEGATIVE"<<endl;
+        exit(-1);
+      }
+      //printf("%f became %f\n",heightMatrix[i],newHeightMatrix[i]);
     }
 
     CudaSafeCall(cudaFree(heightMatrixDevice));
@@ -1338,8 +1342,13 @@ void updateWidthMatrix(float* heightMatrix, float* widthMatrix,
     CudaSafeCall(cudaMemcpy(newWidthMatrix, widthMatrixDevice, numPixels
       * numSingularValues * sizeof(float), cudaMemcpyDeviceToHost));
 
-    CudaCheckError();
-
+    for(int i = 0; i < numTime*numSingularValues; ++i){
+      if(newWidthMatrix[i] < 0.0f){
+        cout<<"ERROR WIDTH MATRIX VALUE BECAME NEGATIVE"<<endl;
+        exit(-1);
+      }
+      //printf("%f became %f\n",widthMatrix[i],newWidthMatrix[i]);
+    }
     CudaSafeCall(cudaFree(widthMatrixDevice));
     CudaSafeCall(cudaFree(numeratorDevice));
     CudaSafeCall(cudaFree(denominatorDevice));

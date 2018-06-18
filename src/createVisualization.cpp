@@ -34,26 +34,30 @@ int main(int argc, char *argv[]) {
       string nmfChecker = "data/out/" + tifName + "/NNMF.nmf";
       string keyFileLocation = "data/out/" + tifName + "/" + "key.csv";
       TIFF* tif = TIFFOpen(tifFile.c_str(), "r");
+      wFileLocation = "data/out/" + tifName + "/" + tifName + "_W.txt";
+      int kFocus = 0;
       if(argc == 3){
         istringstream argK(argv[2]);
         argK >> k;
-        wFileLocation = "data/out/" + tifName + "/" + tifName + "_W.txt";
       }
       else if(argc == 4){//needs to have a better check
-        string testCheck = argv[3];
-        if(testCheck != "test"){cout<<"incorrect test flag"<<endl; exit(-1);}
-        cout<<"test initiating"<<endl;
         istringstream argK(argv[2]);
         argK >> k;
-        wFileLocation = "data/test.nmf_W.txt";
+        istringstream argKFocus(argv[3]);
+        argKFocus >> kFocus;
+
       }
-      string fileName = "data/out/" + tifName + "/" + tifName + to_string(k) + "_RESULT.tif";
+      string fileName = "data/out/" + tifName + "/" + tifName + "_" + to_string(k) + "_" + to_string(kFocus) + "_RESULT.tif";
       cout<<wFileLocation<<endl;
       cout<<tifFile<<endl;
       cout<<keyFileLocation<<endl;
       cout<<fileName<<endl;
       cout<<"k = "<<k<<endl;
-
+      cout<<"kFocus = "<<kFocus<<endl;
+      if(k <= kFocus){
+        cout<<"ERROR this condition must be met kFocus < k"<<endl;
+        exit(-1);
+      }
       if (tif) {
         TIFF* resultTif = TIFFOpen(fileName.c_str(), "w");
 
@@ -109,7 +113,6 @@ int main(int argc, char *argv[]) {
           currentLine = "";
           if(wFile.is_open() && keyFile.is_open()){
             cout<<"key and W nmf file are open"<<endl;
-            ofstream test("data/out/" + tifName + "/RESULT.csv");
             for (row = 0; row < height; ++row){
               if(TIFFReadScanline(tif, buf, row, 0) != -1){
                 memcpy(data, buf, scanLineSize);
@@ -124,12 +127,14 @@ int main(int argc, char *argv[]) {
                     for (int kIterator = 0; kIterator < k; kIterator++) {
 
                       ss>>kArray[kIterator];
+                      //cout<<kArray[kIterator]<<" ";
 
                     }
+                    //cout<<endl;
                     bool isLargest = true;
                     for (int kIterator = 0; kIterator < k ; kIterator++) {
 
-                      if (kArray[0] < kArray[kIterator]) {
+                      if (kArray[kFocus] < kArray[kIterator]) {
 
                         isLargest = false;
 
@@ -142,10 +147,7 @@ int main(int argc, char *argv[]) {
                       data[col] += (max - min)/2;
 
                     }
-                    test<<data[col];
-                    if(col != width - 1) test<<",";
                   }
-                  test<<"\n"<<endl;
                 }
                 memcpy(buf, data, scanLineSize);
                 if(TIFFWriteScanline(resultTif, data, row, 0) != 1){
@@ -159,7 +161,6 @@ int main(int argc, char *argv[]) {
                 exit(-1);
               }
             }
-            test.close();
             cout<<"pipeline visualization file has been created"<<endl;
             wFile.close();
             keyFile.close();

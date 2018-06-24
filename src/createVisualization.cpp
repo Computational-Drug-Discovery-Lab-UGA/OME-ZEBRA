@@ -169,8 +169,6 @@ int main(int argc, char *argv[]) {
           _TIFFfree(buf);
           TIFFClose(tif);
         }
-
-
       }
       else{
         cout<<"COULD NOT OPEN "<<argv[1]<<endl;

@@ -15,7 +15,7 @@ do
   mv data/key.csv data/out/"${justDirname%%.*}"/key.csv
 
   #separate TIMEPOINTS
-  ./bin/TEMPORAL_SEPARATION.exe "${justDirname%%.*}"
+  ./bin/TEMPORAL_SEPARATION.exe "${justDirname%%.*}" 10 512 524288
 
   #NNMF on each timepoint
   for((i = 0; i < 10; ++i));
@@ -27,7 +27,7 @@ do
   #visualize each
   for((tg = 0; tg < 10; ++tg));
   do
-    for((i = 0; i < k; ++i));
+    for((i = 0; i < 3; ++i));
     do
       ./bin/NNMF_VISUALIZE.exe "${justDirname%%.*}" $tg 3 $i
     done

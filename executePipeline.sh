@@ -1,26 +1,35 @@
 #!/bin/bash
 make clean
 make
-for((i = 2; i <= 10; ++i));
+mkdir data/out
+
+for dir in data/registeredOMEs/*
 do
-  for dir in data/registeredOMEs/*
+  justDirname=$(basename $dir)
+  mkdir data/out/"${justDirname%%.*}"
+
+  ./bin/ZEBRA.exe "${justDirname%%.*}" 512
+  mv data/NNMF.nmf data/out/"${justDirname%%.*}"/NNMF.nmf
+  ./bin/NMF_GPU  data/out/"${justDirname%%.*}"/NNMF.nmf  -k 10 -j 5  -t 40  -i 20000
+  cp data/registeredOMEs/"${justDirname%%.*}"/"${justDirname%%.*}".ome0000.tif data/out/"${justDirname%%.*}"/
+  mv data/key.csv data/out/"${justDirname%%.*}"/key.csv
+
+  #separate TIMEPOINTS
+  ./bin/TEMPORAL_SEPARATION.exe "${justDirname%%.*}"
+
+  #NNMF on each timepoint
+  for((i = 0; i < 10; ++i));
   do
-    mkdir data/out
-    justDirname=$(basename $dir)
-    ./bin/ZEBRA.exe "${justDirname%%.*}" 512
-    ./bin/NMF_GPU  data/NNMF.nmf  -k $i -j 5  -t 20  -i 20000
+    ./bin/NMF_GPU  data/out/"${justDirname%%.*}"/NNMF_"$i".nmf  -k 3 -j 5  -t 40  -i 20000
+  done
 
 
-    mkdir data/out/"${justDirname%%.*}"
-    mv data/NNMF.nmf_H.txt data/out/"${justDirname%%.*}"/"${justDirname%%.*}"_H.txt
-    mv data/NNMF.nmf_W.txt data/out/"${justDirname%%.*}"/"${justDirname%%.*}"_W.txt
-    cp data/registeredOMEs/"${justDirname%%.*}"/"${justDirname%%.*}".ome0000.tif data/out/"${justDirname%%.*}"/
-    mv data/key.csv data/out/"${justDirname%%.*}"/key.csv
-    mv data/NNMF.nmf data/out/"${justDirname%%.*}"/NNMF.nmf
-
-    for((ii = 0; ii < i; ++ii));
+  #visualize each
+  for((tg = 0; tg < 10; ++tg));
+  do
+    for((i = 0; i < k; ++i));
     do
-    ./bin/NNMF_VISUALIZE.exe "${justDirname%%.*}" $i $ii
+      ./bin/NNMF_VISUALIZE.exe "${justDirname%%.*}" $tg 3 $i
     done
   done
 done

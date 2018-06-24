@@ -21,37 +21,34 @@ using namespace std;
 
 
 int main(int argc, char *argv[]) {
-
-    if(argc<2) {
-      cout << "Usage: ./exe <file>";
+    if(argc < 4) {
+      cout << "Usage: ./exe <file> <timeGroup> <k> <kFocus(optional will = 0 if not set)>";
       return 1;
     }
     else {
       int k = 2;
+      int tG = 0;
+      int kFocus = 0;
       string wFileLocation;
       string tifName = argv[1];
       string tifFile = "data/out/" + tifName + "/" + tifName + ".ome0000.tif";
-      string nmfChecker = "data/out/" + tifName + "/NNMF.nmf";
       string keyFileLocation = "data/out/" + tifName + "/" + "key.csv";
       TIFF* tif = TIFFOpen(tifFile.c_str(), "r");
-      wFileLocation = "data/out/" + tifName + "/" + tifName + "_W.txt";
-      int kFocus = 0;
-      if(argc == 3){
-        istringstream argK(argv[2]);
-        argK >> k;
-      }
-      else if(argc == 4){//needs to have a better check
-        istringstream argK(argv[2]);
-        argK >> k;
-        istringstream argKFocus(argv[3]);
+      istringstream argT(argv[2]);
+      argT >> tG;
+      wFileLocation = "data/out/" + tifName + "/NNMF_" + to_string(tG)  + ".nmf_W.txt";
+      istringstream argK(argv[3]);
+      argK >> k;
+      if(argc == 5){
+        istringstream argKFocus(argv[4]);
         argKFocus >> kFocus;
-
       }
-      string fileName = "data/out/" + tifName + "/" + tifName + "_" + to_string(k) + "_" + to_string(kFocus) + "_RESULT.tif";
+      string fileName = "data/out/" + tifName + "/" + tifName + "_" + to_string(tG) + "_" + to_string(k) + "_" + to_string(kFocus) + "_RESULT.tif";
       cout<<wFileLocation<<endl;
       cout<<tifFile<<endl;
       cout<<keyFileLocation<<endl;
       cout<<fileName<<endl;
+      cout<<"Time group = "<<tG<<endl;
       cout<<"k = "<<k<<endl;
       cout<<"kFocus = "<<kFocus<<endl;
       if(k <= kFocus){
@@ -92,7 +89,6 @@ int main(int argc, char *argv[]) {
           int currentPixel = 0;
           ifstream wFile(wFileLocation);
           ifstream keyFile(keyFileLocation);
-          ifstream nmfTest(nmfChecker);
           float* kArray = new float[k];
           string currentLine;
           string currentKey;

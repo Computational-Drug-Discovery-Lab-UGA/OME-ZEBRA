@@ -27,15 +27,20 @@ OBJS1 = ${patsubst %, ${OBJDIR}/%, ${_OBJS1}}
 _OBJS2 = createVisualization.cpp.o
 OBJS2 = ${patsubst %, ${OBJDIR}/%, ${_OBJS2}}
 
+_OBJS3 = temporalSeparation.cpp.o
+OBJS3 = ${patsubst %, ${OBJDIR}/%, ${_OBJS3}}
+
 TARGET1 = ZEBRA.exe
 TARGET2 = NNMF_VISUALIZE.exe
+TARGET3 = TEMPORAL_SEPARATION.exe
 LINKLINE1 = ${LINK} -o ${BINDIR}/${TARGET1} ${OBJS1} ${LIB_CUDA} ${LIB_TIFF} ${INCLUDES}
-LINKLINE2 = ${LINK} -o ${BINDIR}/${TARGET2} ${OBJS2} ${LIB_CUDA} ${LIB_TIFF} ${INCLUDES}
+LINKLINE2 = ${LINK} -o ${BINDIR}/${TARGET2} ${OBJS2} ${LIB_TIFF} ${INCLUDES}
+LINKLINE3 = ${LINK} -o ${BINDIR}/${TARGET3} ${OBJS3} ${INCLUDES}
 
 
 .SUFFIXES: .cpp .cu .o
 
-all: ${BINDIR}/${TARGET1} ${BINDIR}/${TARGET2}
+all: ${BINDIR}/${TARGET1} ${BINDIR}/${TARGET2} ${BINDIR}/${TARGET3}
 
 ${OBJDIR}/%.cu.o: ${SRCDIR}/%.cu
 	${NVCC} ${NVCCFLAGS} ${INCLUDES} -c $< -o $@
@@ -49,6 +54,9 @@ ${BINDIR}/${TARGET1}: ${OBJS1} Makefile
 ${BINDIR}/${TARGET2}: ${OBJS2} Makefile
 	${LINKLINE2}
 
+${BINDIR}/${TARGET3}: ${OBJS3} Makefile
+	${LINKLINE3}
+
 clean:
 	rm -f bin/*.exe
 	rm -f obj/*
@@ -56,7 +64,7 @@ clean:
 	rm -f data/registeredOMEs/*TP*.tif
 	rm -f *.o
 	rm -f data/*.csv
-	rm -f data/NNMF.nmf
+	rm -f data/*.nmf
 
 config:
 	mkdir obj

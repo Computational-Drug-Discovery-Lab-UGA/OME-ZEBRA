@@ -32,11 +32,12 @@ int main(int argc, char *argv[]) {
       string wFileLocation;
       string tifName = argv[1];
       string tifFile = "data/out/" + tifName + "/" + tifName + ".ome0000.tif";
-      string keyFileLocation = "data/out/" + tifName + "/" + "key.csv";
       TIFF* tif = TIFFOpen(tifFile.c_str(), "r");
       istringstream argT(argv[2]);
       argT >> tG;
       wFileLocation = "data/out/" + tifName + "/NNMF_" + to_string(tG)  + ".nmf_W.txt";
+      string keyFileLocation = "data/out/" + tifName + "/" + "key_" + to_string(tG) + ".csv";
+
       istringstream argK(argv[3]);
       argK >> k;
       if(argc == 5){
@@ -86,12 +87,10 @@ int main(int argc, char *argv[]) {
           uint32 min = 4294967295;
           uint32* data = new uint32[width];
           cout<<"starting visualization prep"<<endl;
-          int currentPixel = 0;
           ifstream wFile(wFileLocation);
           ifstream keyFile(keyFileLocation);
           float* kArray = new float[k];
           string currentLine;
-          string currentKey;
           //printf("Height,Width = %u,%u -> scanLineSize = %d bytes\n", height, width,TIFFScanlineSize(tif));
           for (row = 0; row < height; ++row){
             if(TIFFReadScanline(tif, buf, row, 0) != -1){
@@ -107,24 +106,25 @@ int main(int argc, char *argv[]) {
             }
           }
           currentLine = "";
+          string temp  = "";
+          bool currentKey = true;
           if(wFile.is_open() && keyFile.is_open()){
             cout<<"key and W nmf file are open"<<endl;
             for (row = 0; row < height; ++row){
               if(TIFFReadScanline(tif, buf, row, 0) != -1){
                 memcpy(data, buf, scanLineSize);
-                getline(keyFile, currentKey);
-                if(currentKey == "1"){
-                  for(int col = 0; col < width; ++col){
+                for(int col = 0; col < width; ++col){
+                  getline(keyFile, temp);
+                  istringstream keyss(temp);
+                  keyss >> currentKey;
+                  data[col] -= min;
+                  if(currentKey){
                     getline(wFile, currentLine);
-                    data[col] -= min;
-                    stringstream ss;
-                    ss<<currentLine;
-
+                    istringstream ss(currentLine);
                     for (int kIterator = 0; kIterator < k; kIterator++) {
 
                       ss>>kArray[kIterator];
                       //cout<<kArray[kIterator]<<" ";
-
                     }
                     //cout<<endl;
                     bool isLargest = true;
@@ -145,12 +145,11 @@ int main(int argc, char *argv[]) {
                     }
                   }
                 }
-                memcpy(buf, data, scanLineSize);
-                if(TIFFWriteScanline(resultTif, data, row, 0) != 1){
-                  cout<<"ERROR WRITING FIRST TIMEPOINT"<<endl;
+                if(TIFFWriteScanline(resultTif, data, row, 0) != -1){}
+                else{
+                  cout<<"ERROR WRITING RESULT LINE"<<endl;
                   exit(-1);
                 }
-                currentPixel++;
               }
               else{
                 cout<<"ERROR READING SCANLINE"<<endl;

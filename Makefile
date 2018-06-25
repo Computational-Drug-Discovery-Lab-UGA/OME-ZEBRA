@@ -58,13 +58,13 @@ ${BINDIR}/${TARGET3}: ${OBJS3} Makefile
 	${LINKLINE3}
 
 clean:
-	rm -f bin/*.exe
-	rm -f obj/*
-	rm -f -r data/out/
-	rm -f data/registeredOMEs/*TP*.tif
-	rm -f *.o
-	rm -f data/*.csv
-	rm -f data/*.nmf
+	rm -rf bin/*.exe
+	rm -rf obj/*
+	rm -rf data/out/
+	rm -rf obj/*.o
+	rm -rf data/*.csv
+	rm -rf data/*.nmf
+	rm -rf data/*.txt
 
 config:
 	mkdir obj

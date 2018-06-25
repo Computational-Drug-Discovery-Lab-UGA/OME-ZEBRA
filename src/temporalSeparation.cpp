@@ -10,22 +10,22 @@
 using namespace std;
 
 int main(int argc, char *argv[]) {
-  if(argc != 5){
-    cout<<"Usage: ./exe <fileName> <k> <numTimePoints> <numPixels>"<<endl;
+  if(argc != 4){
+    cout<<"Usage: ./exe <k> <numTimePoints> <numPixels>"<<endl;
     return 1;
   }
-  string tifName = argv[1];
-  string nnmfFileLocation =  "data/out/" + tifName + "/NNMF.nmf";
-  string hFileLocation = "data/out/" + tifName + "/NNMF.nmf_H.txt";
+  string nnmfFileLocation =  "data/NNMF.nmf";
+  string hFileLocation = "data/NNMF.nmf_H.txt";
   int k = 2;
   int numTimePoints = 512;
   int numPixels = 0;
-  istringstream argK(argv[2]);
-  istringstream argTP(argv[3]);
-  istringstream argP(argv[4]);
+  istringstream argK(argv[1]);
+  istringstream argTP(argv[2]);
+  istringstream argP(argv[3]);
   argK >> k;
   argTP >> numTimePoints;
   argP >> numPixels;
+  cout<<"k = "<<k<<" numTimePoints = "<<numTimePoints<<" numPixels = "<<numPixels<<endl;
   float** heightMatrix = new float*[k];
   for(int i = 0; i < k; ++i){
     heightMatrix[i] = new float[numTimePoints];
@@ -33,14 +33,15 @@ int main(int argc, char *argv[]) {
   ifstream height(hFileLocation);
   string currentLine;
   if(height.is_open()){
-    int row = 0;
-    while(getline(height, currentLine)){
+    cout<<"PARSING H FILE"<<endl;
+    getline(height, currentLine);
+    for(int row = 0; row < k; ++row){
       istringstream(currentLine);
       for(int col = 0; col < numTimePoints; ++col){
         currentLine>>heightMatrix[row][col];
       }
-      ++row;
     }
+    cout<<"DONE PARSING H FILE"<<endl;
   }
   else{
     cout<<"CANNOT OPEN "<<hFileLocation<<endl;
@@ -48,16 +49,23 @@ int main(int argc, char *argv[]) {
   }
   height.close();
   vector<vector<int>> tGroups;
+  for(int i = 0; i < k; ++i){
+    vector<int> kVector;
+    tGroups.push_back(kVector);
+  }
   for(int col = 0; col < numTimePoints; ++col){
     int greatestIndex = 0;
     float greatest = 0;
-    int row = 0;
-    for(; row < k; ++row){
+    for(int row = 0; row < k; ++row){
       if(greatest < heightMatrix[row][col]){
         greatestIndex = row;
+        greatest = heightMatrix[row][col];
       }
     }
-    tGroups[row].push_back(col);
+    tGroups[greatestIndex].push_back(col);
+  }
+  for(int i = 0; i < k; ++i){
+    cout<<i<<" - "<<tGroups[i].size();
   }
   float** nnmfMatrix = new float*[numPixels];
   for(int i = 0; i < numPixels; ++i){
@@ -65,14 +73,15 @@ int main(int argc, char *argv[]) {
   }
   ifstream nnmf(nnmfFileLocation);
   if(nnmf.is_open()){
-    int row = 0;
-    while(getline(nnmf, currentLine)){
-      istringstream(currentLine);
+    cout<<"PARSING NNMF.nmf"<<endl;
+    getline(nnmf, currentLine);
+    istringstream ss(currentLine);
+    for(int row = 0; row < numPixels; ++row){
       for(int col = 0; col < numTimePoints; ++col){
-        currentLine>>nnmfMatrix[row][col];
+        ss >> nnmfMatrix[row][col];
       }
-      ++row;
     }
+    cout<<"DONE PARSING NNMF.nmf"<<endl;
   }
   else{
     cout<<"CANNOT OPEN "<<nnmfFileLocation<<endl;
@@ -80,18 +89,21 @@ int main(int argc, char *argv[]) {
   }
   nnmf.close();
   currentLine = "";
+
   for(int row = 0; row < k; ++row){
     if(tGroups[row].size() == 0) continue;
-    string newNNMFLocation =  "data/out/" + tifName + "/NNMF_" + to_string(row) + ".nmf";
+    string newNNMFLocation =  "data/NNMF_" + to_string(row) + ".nmf";
     ofstream newNNMF(newNNMFLocation);
     if(newNNMF.is_open()){
+      cout<<"CREATING "<<newNNMFLocation<<endl;
       for(int pixel = 0; pixel < numPixels; ++pixel){
         ostringstream pixelString;
         for(int col = 0; col < tGroups[row].size(); ++col){
           pixelString << nnmfMatrix[pixel][tGroups[row][col]];
         }
-        newNNMF << pixelString.str();
+        newNNMF << pixelString.str() + "\n";
       }
+      cout<<"DONE WRITING "<<newNNMFLocation<<endl;
     }
     else{
       cout<<"CANNOT OPEN "<<newNNMFLocation<<endl;

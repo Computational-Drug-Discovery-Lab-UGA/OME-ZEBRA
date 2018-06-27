@@ -34,26 +34,30 @@ int main(int argc, char *argv[]) {
       string nmfChecker = "data/out/" + tifName + "/NNMF.nmf";
       string keyFileLocation = "data/out/" + tifName + "/" + "key.csv";
       TIFF* tif = TIFFOpen(tifFile.c_str(), "r");
-      string fileName = "data/out/" + tifName + "/" + tifName  + "_RESULT.tif";
+      wFileLocation = "data/out/" + tifName + "/" + tifName + "_W.txt";
+      int kFocus = 0;
       if(argc == 3){
         istringstream argK(argv[2]);
         argK >> k;
-        wFileLocation = "data/out/" + tifName + "/" + tifName + "_W.txt";
       }
       else if(argc == 4){//needs to have a better check
-        string testCheck = argv[3];
-        if(testCheck != "test"){cout<<"incorrect test flag"<<endl; exit(-1);}
-        cout<<"test initiating"<<endl;
         istringstream argK(argv[2]);
         argK >> k;
-        wFileLocation = "data/test.nmf_W.txt";
+        istringstream argKFocus(argv[3]);
+        argKFocus >> kFocus;
+
       }
+      string fileName = "data/out/" + tifName + "/" + tifName + "_" + to_string(k) + "_" + to_string(kFocus) + "_RESULT.tif";
       cout<<wFileLocation<<endl;
       cout<<tifFile<<endl;
       cout<<keyFileLocation<<endl;
       cout<<fileName<<endl;
       cout<<"k = "<<k<<endl;
-
+      cout<<"kFocus = "<<kFocus<<endl;
+      if(k <= kFocus){
+        cout<<"ERROR this condition must be met kFocus < k"<<endl;
+        exit(-1);
+      }
       if (tif) {
         TIFF* resultTif = TIFFOpen(fileName.c_str(), "w");
 
@@ -89,8 +93,7 @@ int main(int argc, char *argv[]) {
           ifstream wFile(wFileLocation);
           ifstream keyFile(keyFileLocation);
           ifstream nmfTest(nmfChecker);
-          float seizure, isNot;
-          float k1,k2,k3;
+          float* kArray = new float[k];
           string currentLine;
           string currentKey;
           //printf("Height,Width = %u,%u -> scanLineSize = %d bytes\n", height, width,TIFFScanlineSize(tif));
@@ -110,7 +113,6 @@ int main(int argc, char *argv[]) {
           currentLine = "";
           if(wFile.is_open() && keyFile.is_open()){
             cout<<"key and W nmf file are open"<<endl;
-            ofstream test("data/out/" + tifName + "/RESULT.csv");
             for (row = 0; row < height; ++row){
               if(TIFFReadScanline(tif, buf, row, 0) != -1){
                 memcpy(data, buf, scanLineSize);
@@ -121,23 +123,31 @@ int main(int argc, char *argv[]) {
                     data[col] -= min;
                     stringstream ss;
                     ss<<currentLine;
-                    if(k == 3){
-                      ss>>k1;
-                      ss>>k2;
-                      ss>>k3;
-                      //needs to be further configured
-                      if(k3 > k1 && k3 > k2) data[col] += (max - min)/2;
+
+                    for (int kIterator = 0; kIterator < k; kIterator++) {
+
+                      ss>>kArray[kIterator];
+                      //cout<<kArray[kIterator]<<" ";
+
                     }
-                    else if(k == 2){
-                      ss>>seizure;
-                      ss>>isNot;
-                      if(seizure > isNot) data[col] += (max - min)/2;
-                      //if(seizure > isNot) data[col] = max;
+                    //cout<<endl;
+                    bool isLargest = true;
+                    for (int kIterator = 0; kIterator < k ; kIterator++) {
+
+                      if (kArray[kFocus] < kArray[kIterator]) {
+
+                        isLargest = false;
+
+                      }
+
                     }
-                    test<<data[col];
-                    if(col != width - 1) test<<",";
+
+                    if (isLargest) {
+
+                      data[col] += (max - min)/2;
+
+                    }
                   }
-                  test<<"\n"<<endl;
                 }
                 memcpy(buf, data, scanLineSize);
                 if(TIFFWriteScanline(resultTif, data, row, 0) != 1){
@@ -151,7 +161,6 @@ int main(int argc, char *argv[]) {
                 exit(-1);
               }
             }
-            test.close();
             cout<<"pipeline visualization file has been created"<<endl;
             wFile.close();
             keyFile.close();

@@ -537,13 +537,13 @@ int main(int argc, char *argv[]) {
             cout << "Executing NNMF" << endl;
 
             float A = findA(uMatrix, sMatrix, vtMatrix,
-              long numPixels, long numTime, long numSingularValues);
+              numPixels, numTime, numSingularValues);
 
             numSingularValues++;
 
             float* newSMatrix = new float[numSingularValues * numSingularValues];
 
-            for (long i = 0; i < numSingularValues); i++) {
+            for (long i = 0; i < numSingularValues; i++) {
 
               if (i < (numSingularValues - 1)) {
 
@@ -1078,9 +1078,9 @@ float findA(float* uMatrix, float* sMatrix, float* vtMatrix,
     float* sMatrixDevice;
     float* tempMatrixDevice;
 
-    CudaSafeCall(cudaMalloc((void**)&uMatrix, numPixels * numSingularValues
+    CudaSafeCall(cudaMalloc((void**)&uMatrixDevice, numPixels * numSingularValues
       * sizeof(float)));
-    CudaSafeCall(cudaMalloc((void**)&sMatrix, numSingularValues * numSingularValues
+    CudaSafeCall(cudaMalloc((void**)&sMatrixDevice, numSingularValues * numSingularValues
       * sizeof(float)));
     CudaSafeCall(cudaMalloc((void**)&tempMatrixDevice, numPixels
       * numSingularValues * sizeof(float)));

@@ -89,6 +89,8 @@ void updateHeightMatrix(float* heightMatrix, float* widthMatrix,
 void NMF(float* heightMatrix, float* widthMatrix, float* uMatrix,
   float* sMatrix, float* vtMatrix, float* originalMatrix, long numPixels, long numTime,
   long numSingularValues, float targetLoss);
+float findA(float* uMatrix, float* sMatrix, float* vtMatrix,
+  long numPixels, long numTime, long numSingularValues);
 
 /*
 MAIN
@@ -430,22 +432,6 @@ int main(int argc, char *argv[]) {
 
             }
 
-            float* heightMatrix = new float[numSingularValues * numTime];
-
-            for (long i = 0; i < (numSingularValues * numTime); i++) {
-
-              heightMatrix[i] = 1;
-
-            }
-
-            float* widthMatrix = new float[numPixels * numSingularValues];
-
-            for (long i = 0; i < (numPixels * numSingularValues); i++) {
-
-              widthMatrix[i] = 1;
-
-            }
-
             float targetLoss = 1;
 
             cout << "getting original matrix U*S*Vt" << endl;
@@ -550,7 +536,96 @@ int main(int argc, char *argv[]) {
 
             cout << "Executing NNMF" << endl;
 
-            NMF(heightMatrix, widthMatrix, uMatrix, sMatrix, vtMatrix, originalMatrix,
+            float A = findA(uMatrix, sMatrix, vtMatrix,
+              long numPixels, long numTime, long numSingularValues);
+
+            numSingularValues++;
+
+            float* newSMatrix = new float[numSingularValues * numSingularValues];
+
+            for (long i = 0; i < numSingularValues); i++) {
+
+              if (i < (numSingularValues - 1)) {
+
+                for (long j = 0; j < numSingularValues; j++) {
+
+                  if (j < (numSingularValues - 1)) {
+
+                    newSMatrix[numSingularValues * i + j] = sMatrix[(numSingularValues-1) * i + j];
+
+                  }
+                  else {
+
+                    newSMatrix[numSingularValues * i + j] = 0.0;
+
+                  }
+
+                }
+
+              }
+              else {
+
+                for (long j = 0; j < (numSingularValues - 1); j++) {
+
+                  newSMatrix[numSingularValues * i + j] = 0.0;
+
+                }
+
+                newSMatrix[numSingularValues * numSingularValues - 1] = A;
+
+              }
+
+            }
+
+            float* newUMatrix = new float[numPixels * numSingularValues];
+
+            for (long i = 0; i < numPixels; i++) {
+
+              for (long j = 0; j < (numSingularValues - 1); j++) {
+
+                newUMatrix[numSingularValues * i + j] = uMatrix[(numSingularValues - 1) * i + j];
+
+              }
+
+              newUMatrix[numSingularValues * i + (numSingularValues - 1)] = 1.0;
+
+            }
+
+            float* newVTMatrix = new float[numSingularValues * numTime];
+
+            for (long i = 0; i < (numSingularValues - 1); i++) {
+
+              for (long j = 0; j < numTime; j++) {
+
+                newVTMatrix[numTime * i + j] = vtMatrix[numTime * i + j];
+
+              }
+
+            }
+
+            for (long j = 0; j < numTime; j++) {
+
+              newVTMatrix[numTime * (numSingularValues - 1) + j] = 1.0;
+
+            }
+
+            float* heightMatrix = new float[numSingularValues * numTime];
+
+            for (long i = 0; i < (numSingularValues * numTime); i++) {
+
+              heightMatrix[i] = 1;
+
+            }
+
+            float* widthMatrix = new float[numPixels * numSingularValues];
+
+            for (long i = 0; i < (numPixels * numSingularValues); i++) {
+
+              widthMatrix[i] = 1;
+
+            }
+
+            NMF(heightMatrix, widthMatrix, newUMatrix, newSMatrix, newVTMatrix, originalMatrix,
               numPixels, numTime, numSingularValues, targetLoss);
 
             cout << "NMF is done" << endl;
@@ -990,6 +1065,120 @@ void NMF(float* heightMatrix, float* widthMatrix, float* uMatrix,
     }
 
   }
+
+float findA(float* uMatrix, float* sMatrix, float* vtMatrix,
+  long numPixels, long numTime, long numSingularValues) {
+
+    dim3 grid = {1,1,1};
+    dim3 block = {1,1,1};
+    long a = 1;
+    long b = 1;
+
+    float* uMatrixDevice;
+    float* sMatrixDevice;
+    float* tempMatrixDevice;
+
+    CudaSafeCall(cudaMalloc((void**)&uMatrix, numPixels * numSingularValues
+      * sizeof(float)));
+    CudaSafeCall(cudaMalloc((void**)&sMatrix, numSingularValues * numSingularValues
+      * sizeof(float)));
+    CudaSafeCall(cudaMalloc((void**)&tempMatrixDevice, numPixels
+      * numSingularValues * sizeof(float)));
+
+    CudaSafeCall(cudaMemcpy(uMatrixDevice, uMatrix, numPixels
+      * numSingularValues * sizeof(float), cudaMemcpyHostToDevice));
+    CudaSafeCall(cudaMemcpy(sMatrixDevice, sMatrix, numSingularValues * numSingularValues
+      * sizeof(float), cudaMemcpyHostToDevice));
+
+    a = numPixels;
+    b = numSingularValues;
+
+    if(65535 > a*b){
+      grid.x = a*b;
+    }
+    else if(65535*1024 > a*b){
+      grid.x = 65535;
+      block.x = 1024;
+      while(block.x*grid.x > a*b){
+        block.x--;
+      }
+    }
+    else{
+      grid.x = 65535;
+      block.x = 1024;
+      while(grid.x*grid.y*block.x < a*b){
+        grid.y++;
+      }
+    }
+
+    multiplyMatrices<<<grid,block>>>(uMatrixDevice, sMatrixDevice, tempMatrixDevice,
+      numPixels, numSingularValues, numSingularValues);
+
+    CudaCheckError();
+
+    CudaSafeCall(cudaFree(uMatrixDevice));
+    CudaSafeCall(cudaFree(sMatrixDevice));
+
+    float* vtMatrixDevice;
+    float* finalMatrixDevice;
+
+    CudaSafeCall(cudaMalloc((void**)&vtMatrixDevice, numSingularValues * numTime
+      * sizeof(float)));
+    CudaSafeCall(cudaMalloc((void**)&finalMatrixDevice, numPixels * numTime
+      * sizeof(float)));
+
+    CudaSafeCall(cudaMemcpy(vtMatrixDevice, vtMatrix, numSingularValues
+      * numTime * sizeof(float), cudaMemcpyHostToDevice));
+
+    a = numPixels;
+    b = numTime;
+
+    if(65535 > a*b){
+      grid.x = a*b;
+    }
+    else if(65535*1024 > a*b){
+      grid.x = 65535;
+      block.x = 1024;
+      while(block.x*grid.x > a*b){
+        block.x--;
+      }
+    }
+    else{
+      grid.x = 65535;
+      block.x = 1024;
+      while(grid.x*grid.y*block.x < a*b){
+        grid.y++;
+      }
+    }
+
+    multiplyMatrices<<<grid,block>>>(tempMatrixDevice, vtMatrixDevice, finalMatrixDevice,
+      numPixels, numSingularValues, numTime);
+
+    CudaCheckError();
+
+    CudaSafeCall(cudaFree(vtMatrixDevice));
+    CudaSafeCall(cudaFree(tempMatrixDevice));
+
+    float* finalMatrix = new float[numPixels*numTime];
+
+    CudaSafeCall(cudaMemcpy(finalMatrix, finalMatrixDevice, numPixels
+      * numTime * sizeof(float), cudaMemcpyDeviceToHost));
+
+    float lowestValue = 0.0;
+
+    for (long i = 0; i < (numPixels * numTime); i++) {
+
+      if (finalMatrix[i] < lowestValue) {
+
+        lowestValue = finalMatrix[i];
+
+      }
+
+    }
+
+    return lowestValue;
+
+}
 
 void updateHeightMatrix(float* heightMatrix, float* widthMatrix,
   float* uMatrix, float* sMatrix, float* vtMatrix, float* newHeightMatrix,

@@ -432,107 +432,6 @@ int main(int argc, char *argv[]) {
 
             }
 
-            float targetLoss = 1;
-
-            cout << "getting original matrix U*S*Vt" << endl;
-
-            long a = 0;
-            long b = 0;
-            dim3 grid = {1,1,1};
-            dim3 block = {1,1,1};
-
-            float* uMatrixDevice;
-            float* sMatrixDevice;
-            float* tempMatrixDevice;
-
-            CudaSafeCall(cudaMalloc((void**)&uMatrixDevice, numPixels
-              * numSingularValues * sizeof(float)));
-            CudaSafeCall(cudaMalloc((void**)&sMatrixDevice, numSingularValues
-              * numSingularValues * sizeof(float)));
-            CudaSafeCall(cudaMalloc((void**)&tempMatrixDevice, numPixels
-              * numSingularValues * sizeof(float)));
-
-            CudaSafeCall(cudaMemcpy(uMatrixDevice, uMatrix, numPixels
-              * numSingularValues * sizeof(float), cudaMemcpyHostToDevice));
-            CudaSafeCall(cudaMemcpy(sMatrixDevice, sMatrix, numSingularValues
-              * numSingularValues * sizeof(float), cudaMemcpyHostToDevice));
-
-            a = numPixels;
-            b = numSingularValues;
-
-            if(65535 > a*b){
-              grid.x = a*b;
-            }
-            else if(65535*1024 > a*b){
-              grid.x = 65535;
-              block.x = 1024;
-              while(block.x*grid.x > a*b){
-                block.x--;
-              }
-            }
-            else{
-              grid.x = 65535;
-              block.x = 1024;
-              while(grid.x*grid.y*block.x < a*b){
-                grid.y++;
-              }
-            }
-
-            multiplyMatrices<<<grid,block>>>(uMatrixDevice, sMatrixDevice,
-              tempMatrixDevice, numPixels, numSingularValues, numSingularValues);
-
-            CudaCheckError();
-
-            CudaSafeCall(cudaFree(sMatrixDevice));
-            CudaSafeCall(cudaFree(uMatrixDevice));
-
-            float* vtMatrixDevice;
-            float* tempMatrix2Device;
-
-            CudaSafeCall(cudaMalloc((void**)&vtMatrixDevice, numSingularValues * numTime
-              * sizeof(float)));
-            CudaSafeCall(cudaMalloc((void**)&tempMatrix2Device, numPixels
-              * numTime * sizeof(float)));
-
-            CudaSafeCall(cudaMemcpy(vtMatrixDevice, vtMatrix, numSingularValues * numTime
-              * sizeof(float), cudaMemcpyHostToDevice));
-
-            a = numPixels;
-            b = numTime;
-
-            if(65535 > a*b){
-              grid.x = a*b;
-            }
-            else if(65535*1024 > a*b){
-              grid.x = 65535;
-              block.x = 1024;
-              while(block.x*grid.x > a*b){
-                block.x--;
-              }
-            }
-            else{
-              grid.x = 65535;
-              block.x = 1024;
-              while(grid.x*grid.y*block.x < a*b){
-                grid.y++;
-              }
-            }
-
-            multiplyMatrices<<<grid,block>>>(tempMatrixDevice, vtMatrixDevice,
-              tempMatrix2Device, numPixels, numSingularValues, numTime);
-
-            CudaCheckError();
-
-            CudaSafeCall(cudaFree(vtMatrixDevice));
-            CudaSafeCall(cudaFree(tempMatrixDevice));
-
-            float* originalMatrix = new float[MNormal*NNormal];
-
-            for(int i = 0; i < MNormal*NNormal; ++i){
-              originalMatrix[i] = 0.0f;
-            }
-            CudaSafeCall(cudaMemcpy(originalMatrix, tempMatrix2Device, MNormal*NNormal*sizeof(float), cudaMemcpyDeviceToHost));
-            CudaSafeCall(cudaFree(tempMatrix2Device));
 
             cout << "Executing NNMF" << endl;
 
@@ -624,6 +523,113 @@ int main(int argc, char *argv[]) {
               widthMatrix[i] = 1;
 
             }
+
+            delete[] sMatrix;
+            delete[] uMatrix;
+            delete[] vtMatrix;
+
+            float targetLoss = .3;
+
+            cout << "getting original matrix U*S*Vt" << endl;
+
+            long a = 0;
+            long b = 0;
+            dim3 grid = {1,1,1};
+            dim3 block = {1,1,1};
+
+            float* uMatrixDevice;
+            float* sMatrixDevice;
+            float* tempMatrixDevice;
+
+            CudaSafeCall(cudaMalloc((void**)&uMatrixDevice, numPixels
+              * numSingularValues * sizeof(float)));
+            CudaSafeCall(cudaMalloc((void**)&sMatrixDevice, numSingularValues
+              * numSingularValues * sizeof(float)));
+            CudaSafeCall(cudaMalloc((void**)&tempMatrixDevice, numPixels
+              * numSingularValues * sizeof(float)));
+
+            CudaSafeCall(cudaMemcpy(uMatrixDevice, newUMatrix, numPixels
+              * numSingularValues * sizeof(float), cudaMemcpyHostToDevice));
+            CudaSafeCall(cudaMemcpy(sMatrixDevice, newSMatrix, numSingularValues
+              * numSingularValues * sizeof(float), cudaMemcpyHostToDevice));
+
+            a = numPixels;
+            b = numSingularValues;
+
+            if(65535 > a*b){
+              grid.x = a*b;
+            }
+            else if(65535*1024 > a*b){
+              grid.x = 65535;
+              block.x = 1024;
+              while(block.x*grid.x > a*b){
+                block.x--;
+              }
+            }
+            else{
+              grid.x = 65535;
+              block.x = 1024;
+              while(grid.x*grid.y*block.x < a*b){
+                grid.y++;
+              }
+            }
+
+            multiplyMatrices<<<grid,block>>>(uMatrixDevice, sMatrixDevice,
+              tempMatrixDevice, numPixels, numSingularValues, numSingularValues);
+
+            CudaCheckError();
+
+            CudaSafeCall(cudaFree(sMatrixDevice));
+            CudaSafeCall(cudaFree(uMatrixDevice));
+
+            float* vtMatrixDevice;
+            float* tempMatrix2Device;
+
+            CudaSafeCall(cudaMalloc((void**)&vtMatrixDevice, numSingularValues * numTime
+              * sizeof(float)));
+            CudaSafeCall(cudaMalloc((void**)&tempMatrix2Device, numPixels
+              * numTime * sizeof(float)));
+
+            CudaSafeCall(cudaMemcpy(vtMatrixDevice, newVTMatrix, numSingularValues * numTime
+              * sizeof(float), cudaMemcpyHostToDevice));
+
+            a = numPixels;
+            b = numTime;
+
+            if(65535 > a*b){
+              grid.x = a*b;
+            }
+            else if(65535*1024 > a*b){
+              grid.x = 65535;
+              block.x = 1024;
+              while(block.x*grid.x > a*b){
+                block.x--;
+              }
+            }
+            else{
+              grid.x = 65535;
+              block.x = 1024;
+              while(grid.x*grid.y*block.x < a*b){
+                grid.y++;
+              }
+            }
+
+            multiplyMatrices<<<grid,block>>>(tempMatrixDevice, vtMatrixDevice,
+              tempMatrix2Device, numPixels, numSingularValues, numTime);
+
+            CudaCheckError();
+
+            CudaSafeCall(cudaFree(vtMatrixDevice));
+            CudaSafeCall(cudaFree(tempMatrixDevice));
+
+            float* originalMatrix = new float[MNormal*NNormal];
+
+
+            CudaSafeCall(cudaMemcpy(originalMatrix, tempMatrix2Device, MNormal*NNormal*sizeof(float), cudaMemcpyDeviceToHost));
+            CudaSafeCall(cudaFree(tempMatrix2Device));
+            // for(int i = 0; i < MNormal*NNormal; ++i){
+            //   cout<< originalMatrix[i] << endl;
+            // }
 
             NMF(heightMatrix, widthMatrix, newUMatrix, newSMatrix, newVTMatrix, originalMatrix,
               numPixels, numTime, numSingularValues, targetLoss);
@@ -1176,6 +1182,12 @@ float findA(float* uMatrix, float* sMatrix, float* vtMatrix,
 
     }
 
+    if (lowestValue < 0.0) {
+
+      lowestValue = lowestValue * (-1.0);
+
+    }
+
     return lowestValue;
 
 }
@@ -1685,7 +1697,7 @@ __global__ void applyScalar(float* targetMatrix, float* numerator, float* denomi
       targetMatrix[currentIndex] = targetMatrix[currentIndex]
         * (numerator[currentIndex] / denominator[currentIndex]);
 
-      printf("%f,%f\n",numerator[currentIndex], denominator[currentIndex]);
+      //printf("%f,%f\n",numerator[currentIndex], denominator[currentIndex]);
 
         currentIndex += numThreads;
     }
@@ -1703,9 +1715,9 @@ __global__ void calculateLoss(float* originalMatrix, float* newMatrix, long numR
   __syncthreads();
   while (currentIndex  < (numRows * numCols)) {
     localLoss += abs(originalMatrix[currentIndex] - newMatrix[currentIndex]);
-    // if(threadIdx.x == 0){
-    //   printf("%f - %f\n",originalMatrix[currentIndex], newMatrix[currentIndex]);
-    // }
+    if(threadIdx.x == 0){
+      printf("%f - %f\n",originalMatrix[currentIndex], newMatrix[currentIndex]);
+    }
     currentIndex += numThreads;
   }
   atomicAdd(&blockLoss, localLoss);

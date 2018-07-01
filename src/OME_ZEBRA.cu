@@ -99,8 +99,8 @@ int main(int argc, char *argv[]) {
       string currentTif;
       for(int i = 0; i < numTimePoints; ++i){
 
-        currentTif = "data/registeredOMEs/" + baseName + "/" +
-        baseName + ".ome" + createFourCharInt(i) + ".tif";
+        currentTif = "/media/spacey-person/CDDL_Drive/Registered/" + baseName + "/" +
+        baseName + createFourCharInt(i) + ".tif";
 
         TIFF* tif = TIFFOpen(currentTif.c_str(), "r");
 
@@ -292,7 +292,7 @@ int main(int argc, char *argv[]) {
           delete[] firingRateArray;
           cout << "Dumping to File" << endl;
 
-          ofstream myfile ("data/NNMF.nmf");
+          ofstream myfile ("/media/spacey-person/CDDL_Drive/NNMF_NOSVD/" + baseName + "/NNMF.nmf");
           if (myfile.is_open()) {
             for(int i = 0; i < (lastGoodIndex)*NNormal; i++){
 
@@ -314,7 +314,7 @@ int main(int argc, char *argv[]) {
 
           cout << "done" << endl;
 
-          ofstream mykeyfile ("data/key.csv");
+          ofstream mykeyfile ("/media/spacey-person/CDDL_Drive/NNMF_NOSVD/" + baseName + "/key.csv");
           if (mykeyfile.is_open()) {
             for(long i = 0; i < MNormal; i++){
 

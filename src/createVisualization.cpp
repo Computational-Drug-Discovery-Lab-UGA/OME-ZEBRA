@@ -30,11 +30,11 @@ int main(int argc, char *argv[]) {
       int k = 2;
       string wFileLocation;
       string tifName = argv[1];
-      string tifFile = "data/out/" + tifName + "/" + tifName + ".ome0000.tif";
-      string nmfChecker = "data/out/" + tifName + "/NNMF.nmf";
-      string keyFileLocation = "data/out/" + tifName + "/" + "key.csv";
+      string tifFile = "/media/spacey-person/CDDL_Drive/Registered/" + tifName + "/" + tifName + "0000.tif";
+      string nmfChecker = "/media/spacey-person/CDDL_Drive/NNMF_NOSVD/" + tifName + "/NNMF.nmf";
+      string keyFileLocation = "/media/spacey-person/CDDL_Drive/NNMF_NOSVD/" + tifName + "/" + "key.csv";
       TIFF* tif = TIFFOpen(tifFile.c_str(), "r");
-      wFileLocation = "data/out/" + tifName + "/" + tifName + "_W.txt";
+      wFileLocation = "/media/spacey-person/CDDL_Drive/NNMF_NOSVD/" + tifName + "/NNMF.nmf_W.txt";
       int kFocus = 0;
       if(argc == 3){
         istringstream argK(argv[2]);
@@ -47,7 +47,7 @@ int main(int argc, char *argv[]) {
         argKFocus >> kFocus;
 
       }
-      string fileName = "data/out/" + tifName + "/" + tifName + "_" + to_string(k) + "_" + to_string(kFocus) + "_RESULT.tif";
+      string fileName = "/media/spacey-person/CDDL_Drive/NNMF_NOSVD/" + tifName + "/" + tifName + "_" + to_string(k) + "_" + to_string(kFocus) + "_RESULT.tif";
       cout<<wFileLocation<<endl;
       cout<<tifFile<<endl;
       cout<<keyFileLocation<<endl;

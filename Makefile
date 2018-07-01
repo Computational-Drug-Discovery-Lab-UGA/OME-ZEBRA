@@ -10,11 +10,11 @@ INCLUDES = -I/usr/local/cuda/include -I/usr/local/include
 # Common flags
 COMMONFLAGS += ${INCLUDES}
 NVCCFLAGS += ${COMMONFLAGS}
-NVCCFLAGS += -std=c++11 -gencode=arch=compute_60,code=sm_60 -Iinclude -lcublas
+NVCCFLAGS += -std=c++11 -gencode=arch=compute_60,code=sm_60 -Iinclude
 CXXFLAGS += ${COMMONFLAGS}
-CXXFLAGS += -Wall -g -std=c++11 -Iinclude -lcublas
+CXXFLAGS += -Wall -g -std=c++11 -Iinclude
 
-LIB_CUDA := -L/usr/local/cuda/lib64 -lcudart -lcublas
+LIB_CUDA := -L/usr/local/cuda/lib64 -lcudart
 LIB_TIFF := -L/usr/local/lib -ltiff
 
 SRCDIR = ./src
@@ -52,11 +52,6 @@ ${BINDIR}/${TARGET2}: ${OBJS2} Makefile
 clean:
 	rm -f bin/*.exe
 	rm -f obj/*
-	rm -f -r data/out/
-	rm -f data/registeredOMEs/*TP*.tif
-	rm -f *.o
-	rm -f data/*.csv
-	rm -f data/NNMF.nmf
 
 config:
 	mkdir obj

@@ -470,11 +470,6 @@ int main(int argc, char *argv[]) {
 
             }
 
-            /*
-            NOTE ROWS THAT ARE ALL ZERO AFTER MULTIPLYING THESE TOGETHER ARE 0 EVEN IF YOU
-            ADD 1 TO ALL VALUES IN THESE MATRICES
-            */
-
             delete[] sMatrix;
             delete[] uMatrix;
             delete[] vtMatrix;

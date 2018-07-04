@@ -84,7 +84,7 @@ int main(int argc , char ** argv) {
   gpu_time = magma_wtime() - gpu_time ;
   printf(" sgesvd gpu time: %7.5f\n", gpu_time); // Magma time
 
-  int numSigFig = 50;
+  int numSigFig = 100;
 
   ofstream sMatrixFile("data/sMatrix.txt");
   if (sMatrixFile.is_open()) {

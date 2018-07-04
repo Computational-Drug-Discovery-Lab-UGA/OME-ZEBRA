@@ -57,29 +57,21 @@ inline void __cudaCheckError(const char *file, const int line) {
     return;
 }
 
-/*
-METHOD DECLARATIONS
-*/
+//TODO get correct firing rate equation
 
-void printDeviceProperties();
 string createFourCharInt(int i);
-void printArray(uint32 * array, uint32 width);
 uint32* extractMartrices(TIFF* tif, string fileName);
 uint32* extractMartrices(TIFF* tif);
-vector<uint32> flattenMatrix(vector<uint32*> matrix, int cols, int rows);
-uint32** hostTranspose(uint32** matrix, int rows, int cols);
-__global__ void transposeuint32Matrix(uint32* flatOrigin, uint32* flatTransposed, long Nrows, long Ncols);
-uint32 findMin(uint32* flatMatrix, int size);
+
 __global__ void calcCa(uint32* flatMatrix, float* calcium, uint32 min, long size);
 __global__ void calcFiringRate(float* frMatrix, long size, int numTimePoints);
-__global__ void calcFiringRateExpanded(float* frMatrix, long size, int numTimePoints);
-__global__ void fillTestMatrix(uint32* flatMatrix, long size);
-void transposeArray(vector<uint32*> inputArray, int n, int m, uint32 * outputArray, uint32 & min, uint32 & max);
+
 __global__ void multiplyMatrices(float* matrixA, float* matrixB, float* matrixC, long diffDimA,
    long comDim, long diffDimB);
 __global__ void applyScalar(float* targetMatrix, float* numerator, float* denominator,
     long numRows, long numCols);
 __global__ void calculateLoss(float* originalMatrix, float* newMatrix, long numRows, long numCols, float* loss);
+
 void updateWidthMatrix(float* heightMatrix, float* widthMatrix,
   float* uMatrix, float* sMatrix, float* vtMatrix, float* newWidthMatrix,
   long numPixels, long numTime, long numSingularValues);
@@ -92,10 +84,6 @@ void NMF(float* heightMatrix, float* widthMatrix, float* uMatrix,
 float findA(float* uMatrix, float* sMatrix, float* vtMatrix,
   long numPixels, long numTime, long numSingularValues);
 
-/*
-MAIN
-*/
-
 int main(int argc, char *argv[]) {
 
     if(argc != 3) {
@@ -103,6 +91,8 @@ int main(int argc, char *argv[]) {
       return 1;
     }
     else {
+      dim3 grid = {1,1,1};
+      dim3 block = {1,1,1};
 
       vector<uint32*> flattenedTimePoints;
       string baseName = argv[1];
@@ -112,47 +102,45 @@ int main(int argc, char *argv[]) {
         exit(-1);
       }
       bool allTifsAreGood = true;
-      uint32 numColumns;
-      uint32 numRows;
-      string currentTif;
-      for(int i = 0; i < numTimePoints; ++i){
-
-        currentTif = "data/registeredOMEs/" + baseName + "/" +
-        baseName + ".ome" + createFourCharInt(i) + ".tif";
-
-        TIFF* tif = TIFFOpen(currentTif.c_str(), "r");
-
-        if (tif) {
-          if(i == 0){
-            TIFFGetField(tif, TIFFTAG_IMAGEWIDTH, &numColumns);
-            TIFFGetField(tif, TIFFTAG_IMAGELENGTH, &numRows);
-          }
-          uint32 tempCol;
-          uint32 tempRow;
-          cout<<currentTif<<" IS OPENED"<<endl;
-          TIFFGetField(tif, TIFFTAG_IMAGEWIDTH, &tempCol);
-          TIFFGetField(tif, TIFFTAG_IMAGELENGTH, &tempRow);
-          if(numRows != tempRow || numColumns != tempCol){
-            cout<<"ERROR NOT ALL TIFFS ARE THE SAME LENGTH"<<endl;
-            exit(-1);
-          }
-
-          uint32* flatMatrix = new uint32[numRows*numColumns];
-          flatMatrix = extractMartrices(tif);
-          flattenedTimePoints.push_back(flatMatrix);
-          TIFFClose(tif);
-
-        }
-        else{
-          allTifsAreGood = false;
-          break;
-        }
-      }
+      // string currentTif;
+      // uint32 numRows, numColumns;
+      // for(int i = 0; i < numTimePoints; ++i){
+      //
+      //   currentTif = "data/registeredOMEs/" + baseName + "/" +
+      //   baseName + ".ome" + createFourCharInt(i) + ".tif";
+      //
+      //   TIFF* tif = TIFFOpen(currentTif.c_str(), "r");
+      //
+      //   if (tif) {
+      //     if(i == 0){
+      //       TIFFGetField(tif, TIFFTAG_IMAGEWIDTH, &numColumns);
+      //       TIFFGetField(tif, TIFFTAG_IMAGELENGTH, &numRows);
+      //     }
+      //     uint32 tempCol;
+      //     uint32 tempRow;
+      //     cout<<currentTif<<" IS OPENED"<<endl;
+      //     TIFFGetField(tif, TIFFTAG_IMAGEWIDTH, &tempCol);
+      //     TIFFGetField(tif, TIFFTAG_IMAGELENGTH, &tempRow);
+      //     if(numRows != tempRow || numColumns != tempCol){
+      //       cout<<"ERROR NOT ALL TIFFS ARE THE SAME LENGTH"<<endl;
+      //       exit(-1);
+      //     }
+      //
+      //     uint32* flatMatrix = new uint32[numRows*numColumns];
+      //     flatMatrix = extractMartrices(tif);
+      //     flattenedTimePoints.push_back(flatMatrix);
+      //     TIFFClose(tif);
+      //
+      //   }
+      //   else{
+      //     allTifsAreGood = false;
+      //     break;
+      //   }
+      // }
       if (allTifsAreGood) {
-
-          int NNormal = numTimePoints;
-          int MNormal = (numRows*numColumns);
-
+          // int NNormal = numTimePoints;
+          // int MNormal = (numRows*numColumns);
+          //
           // cout<<"flattening"<<endl;
           //
           // uint32 min = UINT32_MAX;
@@ -197,9 +185,6 @@ int main(int argc, char *argv[]) {
           //
           // }
           //
-          // dim3 grid = {1,1,1};
-          // dim3 block = {1,1,1};
-          //
           // if(65535 > MNormal*NNormal){
           //   grid.x = MNormal*NNormal;
           // }
@@ -236,7 +221,7 @@ int main(int argc, char *argv[]) {
           //     cout<<"ERROR NEGATIVE CALCIUM CONCENTRATION "<<firingRateArray[i]<<endl;
           //     exit(-1);
           //   }
-          //
+          //   firingRateArray[i] += 1;
           // }
           // // cout<<"Executing firing rate cuda kernel"<<endl;
           // // calcFiringRate<<<grid,block>>>(firingRateArrayDevice, MNormal*NNormal, numTimePoints);
@@ -350,9 +335,9 @@ int main(int argc, char *argv[]) {
           //  mykeyfile.close();
           //  cout<<"NNMF.nmf created successfuly"<<endl;
           //  exit(0);
-          //
 
-            long numSingularValues = 50;
+
+            long numSingularValues = 100;
             long numPixels = 524288;
             long numTime = 512;
 
@@ -410,7 +395,9 @@ int main(int argc, char *argv[]) {
 
             float uValue;
             int indexOfuMatrix = 0;
+            int numUZero = 0;
             while (uMatrixFile >> uValue) {
+                if(uValue == 0.0f) ++numUZero;
 
                 uMatrix[indexOfuMatrix] = uValue;
                 indexOfuMatrix++;
@@ -425,8 +412,9 @@ int main(int argc, char *argv[]) {
 
             float vtValue;
             int indexOfvtMatrix = 0;
+            int numVtZero = 0;
             while (vtMatrixFile >> vtValue) {
-
+                if(vtValue == 0.0f) ++numVtZero;
                 vtMatrix[indexOfvtMatrix] = vtValue;
                 indexOfvtMatrix++;
 
@@ -534,8 +522,6 @@ int main(int argc, char *argv[]) {
 
             long a = 0;
             long b = 0;
-            dim3 grid = {1,1,1};
-            dim3 block = {1,1,1};
 
             float* uMatrixDevice;
             float* sMatrixDevice;
@@ -622,14 +608,45 @@ int main(int argc, char *argv[]) {
             CudaSafeCall(cudaFree(vtMatrixDevice));
             CudaSafeCall(cudaFree(tempMatrixDevice));
 
-            float* originalMatrix = new float[MNormal*NNormal];
+            float* originalMatrix = new float[numPixels*numTime];
 
 
-            CudaSafeCall(cudaMemcpy(originalMatrix, tempMatrix2Device, MNormal*NNormal*sizeof(float), cudaMemcpyDeviceToHost));
+            CudaSafeCall(cudaMemcpy(originalMatrix, tempMatrix2Device, numPixels*numTime*sizeof(float), cudaMemcpyDeviceToHost));
             CudaSafeCall(cudaFree(tempMatrix2Device));
-            // for(int i = 0; i < MNormal*NNormal; ++i){
-            //   cout<< originalMatrix[i] << endl;
-            // }
+
+            bool previousZero = false;
+            int rowCounter = 0;
+
+            for(int i = 0; i < numPixels*numTime; ++i){
+
+
+              if(originalMatrix[i] == 0.0f) {
+
+                //cout<< i <<endl;
+                rowCounter++;
+
+              }
+              if (previousZero && rowCounter == 512) {
+
+                std::cout << i/512<< " Row is all zero" << '\n';
+
+              }
+              if(originalMatrix[i] == 0.0f) {
+
+                previousZero = true;
+
+              }
+              else {
+
+                previousZero = false;
+
+              }
+              if (i%512 == 0) {
+
+                rowCounter = 0;
+
+              }
+            }
 
             NMF(heightMatrix, widthMatrix, newUMatrix, newSMatrix, newVTMatrix, originalMatrix,
               numPixels, numTime, numSingularValues, targetLoss);
@@ -675,37 +692,6 @@ int main(int argc, char *argv[]) {
 
     }
 
-/*
-METHOD IMPLEMENTATIONS
-*/
-
-void printDeviceProperties(){
-    int nDevices;
-
-    cudaGetDeviceCount(&nDevices);
-    for (int i = 0; i < nDevices; i++) {
-        cudaDeviceProp prop;
-        cudaGetDeviceProperties(&prop, i);
-        printf("Device Number: %d\n", i);
-        printf(" -Device name: %s\n", prop.name);
-        printf(" -Memory Clock Rate (KHz): %d\n",
-               prop.memoryClockRate);
-        printf(" -Memory Bus Width (bits): %d\n",
-               prop.memoryBusWidth);
-        printf(" -Peak Memory Bandwidth (GB/s): %f\n\n",
-               2.0 * prop.memoryClockRate * (prop.memoryBusWidth / 8) / 1.0e6);
-        printf(" -Max number of threads per block: %d\n\n",
-               prop.maxThreadsPerBlock);
-        printf(" -Max number of blocks: %dx%dx%d\n\n",
-               prop.maxGridSize[0], prop.maxGridSize[1], prop.maxGridSize[2]);
-        printf(" -Total number of multiprocessors: %d\n\n",
-
-               prop.multiProcessorCount);
-
-
-    }
-}
-
 string createFourCharInt(int i){
   string strInt;
   if(i < 10){
@@ -722,15 +708,6 @@ string createFourCharInt(int i){
   }
   return strInt;
 }
-
-void printArray(uint32 * array, uint32 width){
-    uint32 i;
-    for (i=0;i<width;i++){
-      printf("%u ", array[i]);
-    }
-    cout<<endl;
-}
-
 uint32* extractMartrices(TIFF* tif, string fileName){
   TIFF* firstTimePoint = TIFFOpen(fileName.c_str(), "w");
   if(firstTimePoint){
@@ -781,7 +758,6 @@ uint32* extractMartrices(TIFF* tif, string fileName){
     exit(-1);
   }
 }
-
 uint32* extractMartrices(TIFF* tif){
 
   uint32 height,width;
@@ -812,58 +788,6 @@ uint32* extractMartrices(TIFF* tif){
   return currentTimePoint;
 }
 
-uint32** hostTranspose(uint32** matrix, int rows, int cols){
-  uint32** transposable = new uint32*[rows];
-  for(int row = 0; row < rows; ++row){
-    transposable[row] = new uint32[cols];
-    for(int col = 0; col < cols; ++col){
-      transposable[row][col] = matrix[col][row];
-    }
-    //cout<<"Timepoint "<<row<<" trasposed..."<<endl;
-
-  }
-
-  return transposable;
-}
-
-__global__ void transposeuint32Matrix(uint32* flatOrigin, uint32* flatTransposed, long Nrows, long Ncols){
-
-  long globalID = blockIdx.x * blockDim.x + threadIdx.x;
-  long pixel = globalID;
-  long stride = gridDim.x * blockDim.x;
-  long flatLength = Nrows * Ncols;
-  long row = 0;
-  long col = 0;
-  while(pixel < flatLength){
-    row = pixel/Ncols;
-    col = pixel - Ncols*row;
-    flatTransposed[pixel] = flatOrigin[row + Nrows*col];
-    pixel += stride;
-  }
-
-}
-
-vector<uint32> flattenMatrix(vector<uint32*> matrix, int cols, int rows){
-  vector<uint32> flat;
-  for(int r = 0; r < rows; ++r){
-    for(int c = 0; c < cols; ++c){
-      flat.push_back(matrix[r][c]);
-    }
-  }
-  //cout<<"Matrix is flattened."<<endl;
-  return flat;
-}
-
-uint32 findMin(uint32* flatMatrix, int size){
-  uint32 currentMin = 0;
-  for(int i = 0; i < size; ++i){
-    if(currentMin > flatMatrix[i]){
-      currentMin = flatMatrix[i];
-    }
-  }
-  return currentMin;
-}
-
 __global__ void calcCa(uint32* flatMatrix, float* calcium, uint32 min, long size){
   int blockID = blockIdx.y * gridDim.x + blockIdx.x;
   long globalID = blockID * blockDim.x + threadIdx.x;
@@ -884,7 +808,6 @@ __global__ void calcCa(uint32* flatMatrix, float* calcium, uint32 min, long size
     globalID += stride;
   }
 }
-
 __global__ void calcFiringRate(float* frMatrix, long size, int numTimePoints){
   int blockID = blockIdx.y * gridDim.x + blockIdx.x;
   long globalID = blockID * blockDim.x + threadIdx.x;
@@ -919,277 +842,6 @@ __global__ void calcFiringRate(float* frMatrix, long size, int numTimePoints){
     }
     globalID += stride;
   }
-}
-
-//not implemented
-__global__ void calcFiringRateExpanded(float* frMatrix, long size, int numTimePoints){
-
-}
-
-__global__ void fillTestMatrix(uint32* flatMatrix, long size){
-  int blockID = blockIdx.y * gridDim.x + blockIdx.x;
-  int globalID = blockID * blockDim.x + threadIdx.x;
-  int stride = gridDim.x * gridDim.y * blockDim.x;
-  long currentIndex = globalID;
-  curandState state;
-  while(currentIndex < size){
-    curand_init(clock64(), currentIndex, 0, &state);
-    flatMatrix[currentIndex] = curand_uniform(&state);
-    currentIndex += stride;
-  }
-
-}
-
-void transposeArray(vector<uint32*> inputArray, int n, int m, uint32 * outputArray, uint32 & min, uint32 & max) {
-
-  int outputArrayIndex = 0;
-
-  for(unsigned i=0; i < m; i++) {
-
-    for(unsigned j=0; j < n; j++) {
-
-      if(inputArray[j][i] < min) {
-
-       min = inputArray[j][i];
-
-      }
-
-      if(inputArray[j][i] > max) {
-
-         max = inputArray[j][i];
-
-      }
-
-      outputArray[outputArrayIndex] = inputArray[j][i];
-      outputArrayIndex++;
-
-    }
-
-  }
-
-}
-
-void NMF(float* heightMatrix, float* widthMatrix, float* uMatrix,
-  float* sMatrix, float* vtMatrix, float* originalMatrix, long numPixels, long numTime,
-  long numSingularValues, float targetLoss) {
-
-    float* newWidthMatrix = new float[numPixels * numSingularValues];
-    float* newHeightMatrix = new float[numSingularValues * numTime];
-
-    cout << "New versions allocated" << endl;
-
-    float loss = numeric_limits<float>::max();
-
-    while(loss > targetLoss) {
-
-      cout << "Updating Height Matrix" << endl;
-
-      updateHeightMatrix(heightMatrix, widthMatrix, uMatrix, sMatrix, vtMatrix,
-        newHeightMatrix, numPixels, numTime, numSingularValues);
-
-      cout << "Updating Width Matrix" << endl;
-
-      updateWidthMatrix(heightMatrix, widthMatrix, uMatrix, sMatrix, vtMatrix,
-        newWidthMatrix, numPixels, numTime, numSingularValues);
-
-      float* newWidthMatrixDevice;
-      float* newHeightMatrixDevice;
-      float* testMatrixDevice;
-
-      CudaSafeCall(cudaMalloc((void**)&newWidthMatrixDevice, numPixels * numSingularValues
-        * sizeof(float)));
-      CudaSafeCall(cudaMalloc((void**)&newHeightMatrixDevice, numSingularValues * numTime
-        * sizeof(float)));
-      CudaSafeCall(cudaMalloc((void**)&testMatrixDevice, numPixels * numTime
-        * sizeof(float)));
-
-      CudaSafeCall(cudaMemcpy(newWidthMatrixDevice, newWidthMatrix, numPixels
-        * numSingularValues * sizeof(float), cudaMemcpyHostToDevice));
-      CudaSafeCall(cudaMemcpy(newHeightMatrixDevice, newHeightMatrix, numSingularValues
-        * numTime * sizeof(float), cudaMemcpyHostToDevice));
-
-      dim3 grid = {1,1,1};
-      dim3 block = {1,1,1};
-
-      long a = numPixels;
-      long b = numTime;
-
-      if(65535 > a*b){
-        grid.x = a*b;
-      }
-      else if(65535*1024 > a*b){
-        grid.x = 65535;
-        block.x = 1024;
-        while(block.x*grid.x > a*b){
-          block.x--;
-        }
-      }
-      else{
-        grid.x = 65535;
-        block.x = 1024;
-        while(grid.x*grid.y*block.x < a*b){
-          grid.y++;
-        }
-      }
-
-      multiplyMatrices<<<grid,block>>>(newWidthMatrixDevice, newHeightMatrixDevice, testMatrixDevice,
-        numPixels, numSingularValues, numTime);
-
-      CudaCheckError();
-      CudaSafeCall(cudaMemcpy(heightMatrix, newHeightMatrixDevice, numTime*numSingularValues*sizeof(float), cudaMemcpyDeviceToHost));
-      CudaSafeCall(cudaMemcpy(widthMatrix, newWidthMatrixDevice, numPixels*numSingularValues*sizeof(float), cudaMemcpyDeviceToHost));
-
-
-      CudaSafeCall(cudaFree(newWidthMatrixDevice));
-      CudaSafeCall(cudaFree(newHeightMatrixDevice));
-      float* originalMatrixDevice;
-
-      CudaSafeCall(cudaMalloc((void**)&originalMatrixDevice, numPixels * numTime
-        * sizeof(float)));
-
-      CudaSafeCall(cudaMemcpy(originalMatrixDevice, originalMatrix, numPixels
-        * numTime * sizeof(float), cudaMemcpyHostToDevice));
-
-      grid = {50,1,1};
-      block = {192,1,1};
-
-      float* calculatedLoss;
-      float temp = 0.0f;
-      CudaSafeCall(cudaMalloc((void**)&calculatedLoss,sizeof(float)));
-      CudaSafeCall(cudaMemcpy(calculatedLoss, &temp, sizeof(float), cudaMemcpyHostToDevice));;
-
-      calculateLoss<<<grid,block>>>(originalMatrixDevice, testMatrixDevice, numPixels,
-        numTime, calculatedLoss);
-      CudaCheckError();
-
-      CudaSafeCall(cudaMemcpy(&loss, calculatedLoss, sizeof(float), cudaMemcpyDeviceToHost));
-      CudaSafeCall(cudaFree(originalMatrixDevice));
-      CudaSafeCall(cudaFree(testMatrixDevice));
-
-      cout << "Current Loss = " << loss << endl;
-
-    }
-
-  }
-
-float findA(float* uMatrix, float* sMatrix, float* vtMatrix,
-  long numPixels, long numTime, long numSingularValues) {
-
-    dim3 grid = {1,1,1};
-    dim3 block = {1,1,1};
-    long a = 1;
-    long b = 1;
-
-    float* uMatrixDevice;
-    float* sMatrixDevice;
-    float* tempMatrixDevice;
-
-    CudaSafeCall(cudaMalloc((void**)&uMatrixDevice, numPixels * numSingularValues
-      * sizeof(float)));
-    CudaSafeCall(cudaMalloc((void**)&sMatrixDevice, numSingularValues * numSingularValues
-      * sizeof(float)));
-    CudaSafeCall(cudaMalloc((void**)&tempMatrixDevice, numPixels
-      * numSingularValues * sizeof(float)));
-
-    CudaSafeCall(cudaMemcpy(uMatrixDevice, uMatrix, numPixels
-      * numSingularValues * sizeof(float), cudaMemcpyHostToDevice));
-    CudaSafeCall(cudaMemcpy(sMatrixDevice, sMatrix, numSingularValues * numSingularValues
-      * sizeof(float), cudaMemcpyHostToDevice));
-
-    a = numPixels;
-    b = numSingularValues;
-
-    if(65535 > a*b){
-      grid.x = a*b;
-    }
-    else if(65535*1024 > a*b){
-      grid.x = 65535;
-      block.x = 1024;
-      while(block.x*grid.x > a*b){
-        block.x--;
-      }
-    }
-    else{
-      grid.x = 65535;
-      block.x = 1024;
-      while(grid.x*grid.y*block.x < a*b){
-        grid.y++;
-      }
-    }
-
-    multiplyMatrices<<<grid,block>>>(uMatrixDevice, sMatrixDevice, tempMatrixDevice,
-      numPixels, numSingularValues, numSingularValues);
-
-    CudaCheckError();
-
-    CudaSafeCall(cudaFree(uMatrixDevice));
-    CudaSafeCall(cudaFree(sMatrixDevice));
-
-    float* vtMatrixDevice;
-    float* finalMatrixDevice;
-
-    CudaSafeCall(cudaMalloc((void**)&vtMatrixDevice, numSingularValues * numTime
-      * sizeof(float)));
-    CudaSafeCall(cudaMalloc((void**)&finalMatrixDevice, numPixels * numTime
-      * sizeof(float)));
-
-    CudaSafeCall(cudaMemcpy(vtMatrixDevice, vtMatrix, numSingularValues
-      * numTime * sizeof(float), cudaMemcpyHostToDevice));
-
-    a = numPixels;
-    b = numTime;
-
-    if(65535 > a*b){
-      grid.x = a*b;
-    }
-    else if(65535*1024 > a*b){
-      grid.x = 65535;
-      block.x = 1024;
-      while(block.x*grid.x > a*b){
-        block.x--;
-      }
-    }
-    else{
-      grid.x = 65535;
-      block.x = 1024;
-      while(grid.x*grid.y*block.x < a*b){
-        grid.y++;
-      }
-    }
-
-    multiplyMatrices<<<grid,block>>>(tempMatrixDevice, vtMatrixDevice, finalMatrixDevice,
-      numPixels, numSingularValues, numTime);
-
-    CudaCheckError();
-
-    CudaSafeCall(cudaFree(vtMatrixDevice));
-    CudaSafeCall(cudaFree(tempMatrixDevice));
-
-    float* finalMatrix = new float[numPixels*numTime];
-
-    CudaSafeCall(cudaMemcpy(finalMatrix, finalMatrixDevice, numPixels
-      * numTime * sizeof(float), cudaMemcpyDeviceToHost));
-
-    float lowestValue = 0.0;
-
-    for (long i = 0; i < (numPixels * numTime); i++) {
-
-      if (finalMatrix[i] < lowestValue) {
-
-        lowestValue = finalMatrix[i];
-
-      }
-
-    }
-
-    if (lowestValue < 0.0) {
-
-      lowestValue = lowestValue * (-1.0);
-
-    }
-
-    return lowestValue;
-
 }
 
 void updateHeightMatrix(float* heightMatrix, float* widthMatrix,
@@ -1421,11 +1073,7 @@ void updateHeightMatrix(float* heightMatrix, float* widthMatrix,
       * numTime * sizeof(float), cudaMemcpyDeviceToHost));
 
     // for(int i = 0; i < numTime*numSingularValues; ++i){
-      // if(newHeightMatrix[i] < 0.0f){
-      //   cout<<"ERROR HEIGHT MATRIX VALUE BECAME NEGATIVE"<<endl;
-      //   exit(-1);
-      // }
-      // printf("%f became %f\n",heightMatrix[i],newHeightMatrix[i]);
+    //   printf("%f became %f\n",heightMatrix[i],newHeightMatrix[i]);
     // }
     // exit(0);
     CudaSafeCall(cudaFree(heightMatrixDevice));
@@ -1435,7 +1083,6 @@ void updateHeightMatrix(float* heightMatrix, float* widthMatrix,
     delete[] widthMatrixTransposed;
 
   }
-
 void updateWidthMatrix(float* heightMatrix, float* widthMatrix,
     float* uMatrix, float* sMatrix, float* vtMatrix, float* newWidthMatrix,
     long numPixels, long numTime, long numSingularValues) {
@@ -1642,10 +1289,7 @@ void updateWidthMatrix(float* heightMatrix, float* widthMatrix,
          * numSingularValues * sizeof(float), cudaMemcpyDeviceToHost));
 
        // for(int i = 0; i < numTime*numSingularValues; ++i){
-       //   // if(newWidthMatrix[i] < 0.0f){
-       //   //   cout<<"ERROR WIDTH MATRIX VALUE BECAME NEGATIVE"<<endl;
-       //   //   exit(-1);
-       //   // }
+       //
        //   printf("%f became %f\n",widthMatrix[i],newWidthMatrix[i]);
        // }
        // exit(0);
@@ -1654,6 +1298,240 @@ void updateWidthMatrix(float* heightMatrix, float* widthMatrix,
        CudaSafeCall(cudaFree(denominatorDevice));
 
        delete[] heightMatrixTransposed;
+
+}
+
+void NMF(float* heightMatrix, float* widthMatrix, float* uMatrix,
+  float* sMatrix, float* vtMatrix, float* originalMatrix, long numPixels, long numTime,
+  long numSingularValues, float targetLoss) {
+
+    float* newWidthMatrix = new float[numPixels * numSingularValues];
+    float* newHeightMatrix = new float[numSingularValues * numTime];
+
+    cout << "New versions allocated" << endl;
+
+    float loss = numeric_limits<float>::max();
+
+    while(loss > targetLoss) {
+
+      cout << "Updating Height Matrix" << endl;
+
+      updateHeightMatrix(heightMatrix, widthMatrix, uMatrix, sMatrix, vtMatrix,
+        newHeightMatrix, numPixels, numTime, numSingularValues);
+
+      cout << "Updating Width Matrix" << endl;
+
+      updateWidthMatrix(heightMatrix, widthMatrix, uMatrix, sMatrix, vtMatrix,
+        newWidthMatrix, numPixels, numTime, numSingularValues);
+
+      float* newWidthMatrixDevice;
+      float* newHeightMatrixDevice;
+      float* testMatrixDevice;
+
+      CudaSafeCall(cudaMalloc((void**)&newWidthMatrixDevice, numPixels * numSingularValues
+        * sizeof(float)));
+      CudaSafeCall(cudaMalloc((void**)&newHeightMatrixDevice, numSingularValues * numTime
+        * sizeof(float)));
+      CudaSafeCall(cudaMalloc((void**)&testMatrixDevice, numPixels * numTime
+        * sizeof(float)));
+
+      CudaSafeCall(cudaMemcpy(newWidthMatrixDevice, newWidthMatrix, numPixels
+        * numSingularValues * sizeof(float), cudaMemcpyHostToDevice));
+      CudaSafeCall(cudaMemcpy(newHeightMatrixDevice, newHeightMatrix, numSingularValues
+        * numTime * sizeof(float), cudaMemcpyHostToDevice));
+
+      dim3 grid = {1,1,1};
+      dim3 block = {1,1,1};
+
+      long a = numPixels;
+      long b = numTime;
+
+      if(65535 > a*b){
+        grid.x = a*b;
+      }
+      else if(65535*1024 > a*b){
+        grid.x = 65535;
+        block.x = 1024;
+        while(block.x*grid.x > a*b){
+          block.x--;
+        }
+      }
+      else{
+        grid.x = 65535;
+        block.x = 1024;
+        while(grid.x*grid.y*block.x < a*b){
+          grid.y++;
+        }
+      }
+
+      multiplyMatrices<<<grid,block>>>(newWidthMatrixDevice, newHeightMatrixDevice, testMatrixDevice,
+        numPixels, numSingularValues, numTime);
+
+      CudaCheckError();
+      CudaSafeCall(cudaMemcpy(heightMatrix, newHeightMatrixDevice, numTime*numSingularValues*sizeof(float), cudaMemcpyDeviceToHost));
+      CudaSafeCall(cudaMemcpy(widthMatrix, newWidthMatrixDevice, numPixels*numSingularValues*sizeof(float), cudaMemcpyDeviceToHost));
+
+
+      CudaSafeCall(cudaFree(newWidthMatrixDevice));
+      CudaSafeCall(cudaFree(newHeightMatrixDevice));
+      float* originalMatrixDevice;
+
+      CudaSafeCall(cudaMalloc((void**)&originalMatrixDevice, numPixels * numTime
+        * sizeof(float)));
+
+      CudaSafeCall(cudaMemcpy(originalMatrixDevice, originalMatrix, numPixels
+        * numTime * sizeof(float), cudaMemcpyHostToDevice));
+
+      grid = {50,1,1};
+      block = {192,1,1};
+
+      float* calculatedLoss;
+      float temp = 0.0f;
+      CudaSafeCall(cudaMalloc((void**)&calculatedLoss,sizeof(float)));
+      CudaSafeCall(cudaMemcpy(calculatedLoss, &temp, sizeof(float), cudaMemcpyHostToDevice));;
+
+      calculateLoss<<<grid,block>>>(originalMatrixDevice, testMatrixDevice, numPixels,
+        numTime, calculatedLoss);
+      CudaCheckError();
+
+      CudaSafeCall(cudaMemcpy(&loss, calculatedLoss, sizeof(float), cudaMemcpyDeviceToHost));
+      CudaSafeCall(cudaFree(originalMatrixDevice));
+      CudaSafeCall(cudaFree(testMatrixDevice));
+
+      cout << "Current Loss = " << loss << endl;
+
+    }
+
+  }
+
+float findA(float* uMatrix, float* sMatrix, float* vtMatrix,
+  long numPixels, long numTime, long numSingularValues) {
+
+    dim3 grid = {1,1,1};
+    dim3 block = {1,1,1};
+    long a = 1;
+    long b = 1;
+
+    float* uMatrixDevice;
+    float* sMatrixDevice;
+    float* tempMatrixDevice;
+
+    CudaSafeCall(cudaMalloc((void**)&uMatrixDevice, numPixels * numSingularValues
+      * sizeof(float)));
+    CudaSafeCall(cudaMalloc((void**)&sMatrixDevice, numSingularValues * numSingularValues
+      * sizeof(float)));
+    CudaSafeCall(cudaMalloc((void**)&tempMatrixDevice, numPixels
+      * numSingularValues * sizeof(float)));
+
+    CudaSafeCall(cudaMemcpy(uMatrixDevice, uMatrix, numPixels
+      * numSingularValues * sizeof(float), cudaMemcpyHostToDevice));
+    CudaSafeCall(cudaMemcpy(sMatrixDevice, sMatrix, numSingularValues * numSingularValues
+      * sizeof(float), cudaMemcpyHostToDevice));
+
+    a = numPixels;
+    b = numSingularValues;
+
+    if(65535 > a*b){
+      grid.x = a*b;
+    }
+    else if(65535*1024 > a*b){
+      grid.x = 65535;
+      block.x = 1024;
+      while(block.x*grid.x > a*b){
+        block.x--;
+      }
+    }
+    else{
+      grid.x = 65535;
+      block.x = 1024;
+      while(grid.x*grid.y*block.x < a*b){
+        grid.y++;
+      }
+    }
+
+    multiplyMatrices<<<grid,block>>>(uMatrixDevice, sMatrixDevice, tempMatrixDevice,
+      numPixels, numSingularValues, numSingularValues);
+
+    CudaCheckError();
+
+    CudaSafeCall(cudaFree(uMatrixDevice));
+    CudaSafeCall(cudaFree(sMatrixDevice));
+
+    float* vtMatrixDevice;
+    float* finalMatrixDevice;
+
+    CudaSafeCall(cudaMalloc((void**)&vtMatrixDevice, numSingularValues * numTime
+      * sizeof(float)));
+    CudaSafeCall(cudaMalloc((void**)&finalMatrixDevice, numPixels * numTime
+      * sizeof(float)));
+
+    CudaSafeCall(cudaMemcpy(vtMatrixDevice, vtMatrix, numSingularValues
+      * numTime * sizeof(float), cudaMemcpyHostToDevice));
+
+    a = numPixels;
+    b = numTime;
+
+    if(65535 > a*b){
+      grid.x = a*b;
+    }
+    else if(65535*1024 > a*b){
+      grid.x = 65535;
+      block.x = 1024;
+      while(block.x*grid.x > a*b){
+        block.x--;
+      }
+    }
+    else{
+      grid.x = 65535;
+      block.x = 1024;
+      while(grid.x*grid.y*block.x < a*b){
+        grid.y++;
+      }
+    }
+
+    multiplyMatrices<<<grid,block>>>(tempMatrixDevice, vtMatrixDevice, finalMatrixDevice,
+      numPixels, numSingularValues, numTime);
+
+    CudaCheckError();
+
+    CudaSafeCall(cudaFree(vtMatrixDevice));
+    CudaSafeCall(cudaFree(tempMatrixDevice));
+
+    float* finalMatrix = new float[numPixels*numTime];
+
+    CudaSafeCall(cudaMemcpy(finalMatrix, finalMatrixDevice, numPixels
+      * numTime * sizeof(float), cudaMemcpyDeviceToHost));
+
+    float lowestValue = 0.0;
+
+    for (long i = 0; i < (numPixels * numTime); i++) {
+
+      if (finalMatrix[i] < lowestValue) {
+
+        lowestValue = finalMatrix[i];
+
+      }
+
+    }
+
+    if (lowestValue < 0.0) {
+
+      lowestValue = lowestValue * (-1.0);
+      lowestValue = lowestValue + 1;
+      std::cout << lowestValue << '\n';
+
+      return lowestValue;
+
+    }
+    else {
+
+      lowestValue = lowestValue * (-1.0);
+      lowestValue = lowestValue - 1;
+      std::cout << lowestValue << '\n';
+
+      return lowestValue;
+
+    }
 
 }
 
@@ -1683,7 +1561,6 @@ __global__ void multiplyMatrices(float* matrixA, float* matrixB, float* matrixC,
      }
 
    }
-
 __global__ void applyScalar(float* targetMatrix, float* numerator, float* denominator,
     long numRows, long numCols) {
 
@@ -1702,7 +1579,6 @@ __global__ void applyScalar(float* targetMatrix, float* numerator, float* denomi
         currentIndex += numThreads;
     }
   }
-
 __global__ void calculateLoss(float* originalMatrix, float* newMatrix, long numRows, long numCols, float* loss) {
 
   long blockID = blockIdx.y * gridDim.x + blockIdx.x;
@@ -1715,9 +1591,8 @@ __global__ void calculateLoss(float* originalMatrix, float* newMatrix, long numR
   __syncthreads();
   while (currentIndex  < (numRows * numCols)) {
     localLoss += abs(originalMatrix[currentIndex] - newMatrix[currentIndex]);
-    if(threadIdx.x == 0){
-      printf("%f - %f\n",originalMatrix[currentIndex], newMatrix[currentIndex]);
-    }
+    //if(threadIdx.x == 0) printf("%d , %f - %f\n",currentIndex,originalMatrix[currentIndex], newMatrix[currentIndex]);
+
     currentIndex += numThreads;
   }
   atomicAdd(&blockLoss, localLoss);

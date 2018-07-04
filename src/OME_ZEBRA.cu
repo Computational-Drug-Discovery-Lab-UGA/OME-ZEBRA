@@ -195,6 +195,7 @@ int main(int argc, char *argv[]) {
           //   while(block.x*grid.x > MNormal*NNormal){
           //     block.x--;
           //   }
+          //   block.x++;
           // }
           // else{
           //   grid.x = 65535;
@@ -346,7 +347,7 @@ int main(int argc, char *argv[]) {
 
             float* sMatrix = new float[numSingularValues * numSingularValues];
 
-            std::fstream sMatrixFile("data/sMatrix.txt", std::ios_base::in);
+            std::ifstream sMatrixFile("data/sMatrix.txt");
             std::string currentLine;
             float singularValue;
             long rowCount = 0;
@@ -368,7 +369,7 @@ int main(int argc, char *argv[]) {
             sMatrixFile.close();
             std::cout << "Loading uMatrix" << '\n';
 
-            std::fstream uMatrixFile("data/uMatrix.txt", std::ios_base::in);
+            std::ifstream uMatrixFile("data/uMatrix.txt");
 
             float* uMatrix = new float[numPixels * numSingularValues];
             currentLine = "";
@@ -381,9 +382,10 @@ int main(int argc, char *argv[]) {
                 indexOfuMatrix++;
             }
             std::cout<<numUZero<<endl;
+            uMatrixFile.close();
             std::cout << "Loading vtMatrix" << '\n';
 
-            std::fstream vtMatrixFile("data/vtMatrix.txt", std::ios_base::in);
+            std::ifstream vtMatrixFile("data/vtMatrix.txt");
 
             float* vtMatrix = new float[numSingularValues * numTime];
             currentLine = "";
@@ -397,7 +399,7 @@ int main(int argc, char *argv[]) {
                 indexOfvtMatrix++;
             }
             cout<<numVtZero<<endl;
-
+            vtMatrixFile.close();
             cout << "Executing NNMF" << endl;
 
             float A = findA(uMatrix, sMatrix, vtMatrix,
@@ -406,40 +408,17 @@ int main(int argc, char *argv[]) {
             numSingularValues++;
 
             float* newSMatrix = new float[numSingularValues * numSingularValues];
+            for(long i = 0; i < numSingularValues*numSingularValues; ++i){
+              newSMatrix[i] = 0.0f;
+            }
 
             for (long i = 0; i < numSingularValues; i++) {
-
-              if (i < (numSingularValues - 1)) {
-
-                for (long j = 0; j < numSingularValues; j++) {
-
-                  if (j < (numSingularValues - 1)) {
-
-                    newSMatrix[numSingularValues * i + j] = sMatrix[(numSingularValues-1) * i + j];
-
-                  }
-                  else {
-
-                    newSMatrix[numSingularValues * i + j] = 0.0;
-
-                  }
-
-                }
-
+              if(i < numSingularValues - 1){
+                newSMatrix[i * numSingularValues + i] = sMatrix[i * (numSingularValues-1) + i];
               }
-              else {
-
-                for (long j = 0; j < (numSingularValues - 1); j++) {
-
-                  newSMatrix[numSingularValues * i + j] = 0.0;
-
-                }
-
-                newSMatrix[numSingularValues * numSingularValues - 1] = A;
-
-              }
-
             }
+            newSMatrix[(numSingularValues*numSingularValues) - 1] = A;
+
 
             float* newUMatrix = new float[numPixels * numSingularValues];
 
@@ -454,6 +433,7 @@ int main(int argc, char *argv[]) {
               newUMatrix[numSingularValues * i + (numSingularValues - 1)] = 1.0;
 
             }
+
 
             float* newVTMatrix = new float[numSingularValues * numTime];
 
@@ -473,6 +453,7 @@ int main(int argc, char *argv[]) {
 
             }
 
+
             float* heightMatrix = new float[numSingularValues * numTime];
 
             for (long i = 0; i < (numSingularValues * numTime); i++) {
@@ -488,6 +469,11 @@ int main(int argc, char *argv[]) {
               widthMatrix[i] = 1;
 
             }
+
+            /*
+            NOTE ROWS THAT ARE ALL ZERO AFTER MULTIPLYING THESE TOGETHER ARE 0 EVEN IF YOU
+            ADD 1 TO ALL VALUES IN THESE MATRICES
+            */
 
             delete[] sMatrix;
             delete[] uMatrix;
@@ -528,6 +514,7 @@ int main(int argc, char *argv[]) {
               while(block.x*grid.x > a*b){
                 block.x--;
               }
+              block.x++;
             }
             else{
               grid.x = 65535;
@@ -541,6 +528,43 @@ int main(int argc, char *argv[]) {
               tempMatrixDevice, numPixels, numSingularValues, numSingularValues);
 
             CudaCheckError();
+            float* originalMatrix = new float[numPixels*numSingularValues];
+            CudaSafeCall(cudaMemcpy(originalMatrix, tempMatrixDevice, numPixels*numSingularValues*sizeof(float), cudaMemcpyDeviceToHost));
+            bool previousZero = false;
+            int rowCounter = 0;
+            cout<<"U*S"<<endl;
+            for(int i = 0; i < numPixels*numSingularValues; ++i){
+
+
+              if(originalMatrix[i] == 0.0f) {
+
+                //cout<< i <<endl;
+                rowCounter++;
+
+              }
+              if (previousZero && rowCounter == numSingularValues) {
+
+                std::cout << i/numSingularValues<< " Row is all zero" << '\n';
+
+              }
+              if(originalMatrix[i] == 0.0f) {
+
+                previousZero = true;
+
+              }
+              else {
+
+                previousZero = false;
+
+              }
+              if (i%numSingularValues == 0) {
+
+                rowCounter = 0;
+
+              }
+            }
+
+            delete[] originalMatrix;
 
             CudaSafeCall(cudaFree(sMatrixDevice));
             CudaSafeCall(cudaFree(uMatrixDevice));
@@ -568,6 +592,7 @@ int main(int argc, char *argv[]) {
               while(block.x*grid.x > a*b){
                 block.x--;
               }
+              block.x++;
             }
             else{
               grid.x = 65535;
@@ -585,15 +610,15 @@ int main(int argc, char *argv[]) {
             CudaSafeCall(cudaFree(vtMatrixDevice));
             CudaSafeCall(cudaFree(tempMatrixDevice));
 
-            float* originalMatrix = new float[numPixels*numTime];
+            originalMatrix = new float[numPixels*numTime];
 
 
             CudaSafeCall(cudaMemcpy(originalMatrix, tempMatrix2Device, numPixels*numTime*sizeof(float), cudaMemcpyDeviceToHost));
             CudaSafeCall(cudaFree(tempMatrix2Device));
 
-            bool previousZero = false;
-            int rowCounter = 0;
-
+            previousZero = false;
+            rowCounter = 0;
+            cout<<"U*S*Vt"<<endl;
             for(int i = 0; i < numPixels*numTime; ++i){
 
 
@@ -879,6 +904,7 @@ void updateHeightMatrix(float* heightMatrix, float* widthMatrix,
       while(block.x*grid.x > a*b){
         block.x--;
       }
+      block.x++;
     }
     else{
       grid.x = 65535;
@@ -940,6 +966,8 @@ void updateHeightMatrix(float* heightMatrix, float* widthMatrix,
       while(block.x*grid.x > a*b){
         block.x--;
       }
+      block.x++;
+
     }
     else{
       grid.x = 65535;
@@ -979,6 +1007,8 @@ void updateHeightMatrix(float* heightMatrix, float* widthMatrix,
       while(block.x*grid.x > a*b){
         block.x--;
       }
+      block.x++;
+
     }
     else{
       grid.x = 65535;
@@ -1021,6 +1051,8 @@ void updateHeightMatrix(float* heightMatrix, float* widthMatrix,
       while(block.x*grid.x > a*b){
         block.x--;
       }
+      block.x++;
+
     }
     else{
       grid.x = 65535;
@@ -1109,6 +1141,8 @@ void updateWidthMatrix(float* heightMatrix, float* widthMatrix,
         while(block.x*grid.x > a*b){
           block.x--;
         }
+        block.x++;
+
       }
       else{
         grid.x = 65535;
@@ -1165,6 +1199,8 @@ void updateWidthMatrix(float* heightMatrix, float* widthMatrix,
         while(block.x*grid.x > a*b){
           block.x--;
         }
+        block.x++;
+
       }
       else{
         grid.x = 65535;
@@ -1202,6 +1238,8 @@ void updateWidthMatrix(float* heightMatrix, float* widthMatrix,
         while(block.x*grid.x > a*b){
           block.x--;
         }
+        block.x++;
+
       }
       else{
         grid.x = 65535;
@@ -1241,6 +1279,8 @@ void updateWidthMatrix(float* heightMatrix, float* widthMatrix,
          while(block.x*grid.x > a*b){
            block.x--;
          }
+         block.x++;
+
        }
        else{
          grid.x = 65535;
@@ -1332,6 +1372,8 @@ void NMF(float* heightMatrix, float* widthMatrix, float* uMatrix,
         while(block.x*grid.x > a*b){
           block.x--;
         }
+        block.x++;
+
       }
       else{
         grid.x = 65535;
@@ -1417,6 +1459,8 @@ float findA(float* uMatrix, float* sMatrix, float* vtMatrix,
       while(block.x*grid.x > a*b){
         block.x--;
       }
+      block.x++;
+
     }
     else{
       grid.x = 65535;
@@ -1457,6 +1501,8 @@ float findA(float* uMatrix, float* sMatrix, float* vtMatrix,
       while(block.x*grid.x > a*b){
         block.x--;
       }
+      block.x++;
+
     }
     else{
       grid.x = 65535;
@@ -1568,7 +1614,7 @@ __global__ void calculateLoss(float* originalMatrix, float* newMatrix, long numR
   __syncthreads();
   while (currentIndex  < (numRows * numCols)) {
     localLoss += abs(originalMatrix[currentIndex] - newMatrix[currentIndex]);
-    //if(threadIdx.x == 0) printf("%d , %f - %f\n",currentIndex,originalMatrix[currentIndex], newMatrix[currentIndex]);
+    //if(originalMatrix[currentIndex] == 0.0f) printf("%d , %f - %f\n",currentIndex,originalMatrix[currentIndex], newMatrix[currentIndex]);
 
     currentIndex += numThreads;
   }

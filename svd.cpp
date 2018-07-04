@@ -89,11 +89,8 @@ int main(int argc , char ** argv) {
   ofstream sMatrixFile("data/sMatrix.txt");
   if (sMatrixFile.is_open()) {
     for(long i = 0; i < numSigFig; i++){
-
        sMatrixFile << s1[i] << "\n" ;
-
      }
-
    }
    sMatrixFile.close();
    cout<<"sMatrix dumped"<<endl;
@@ -102,19 +99,10 @@ int main(int argc , char ** argv) {
   ofstream uMatrixFile("data/uMatrix.txt");
   if (uMatrixFile.is_open()) {
     for(long i = 0; i < m; i++){
-
-      for(int j = 0; j < n; j++) {
-
-        if (j < numSigFig) {
-
-          uMatrixFile << u[i * (n+1) + j] << "\n";
-
-        }
-
+      for(int j = 0; j < numSigFig; j++) {
+          uMatrixFile << u[i*n + j] << "\n";
       }
-
      }
-
    }
    uMatrixFile.close();
    cout<<"uMatrix dumped"<<endl;
@@ -122,19 +110,10 @@ int main(int argc , char ** argv) {
    ofstream vtMatrixFile("data/vtMatrix.txt");
    if (vtMatrixFile.is_open()) {
      for(long i = 0; i < n; i++){
-
-       for(int j = 0; j < n; j++) {
-
-         if (j < numSigFig) {
-
-           vtMatrixFile << vt[i * (n+1) + j] << "\n";
-
-         }
-
+       for(int j = 0; j < numSigFig; j++) {
+           vtMatrixFile << vt[i*n + j] << "\n";
        }
-
       }
-
     }
     vtMatrixFile.close();
     cout<<"vtMatrix dumped"<<endl;

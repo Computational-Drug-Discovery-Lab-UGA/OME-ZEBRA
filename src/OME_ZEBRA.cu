@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string>
 #include <iostream>
+#include <sstream>
 #include <vector>
 #include <inttypes.h>
 #include "tiffio.h"
@@ -346,80 +347,56 @@ int main(int argc, char *argv[]) {
             float* sMatrix = new float[numSingularValues * numSingularValues];
 
             std::fstream sMatrixFile("data/sMatrix.txt", std::ios_base::in);
-
+            std::string currentLine;
             float singularValue;
-            int indexOfSingularValue = 0;
-            int colCount = 0;
             long rowCount = 0;
 
-            while (sMatrixFile >> singularValue) {
 
-                if (indexOfSingularValue == colCount) {
-
-                  sMatrix[rowCount * numSingularValues + indexOfSingularValue] = singularValue;
-                  indexOfSingularValue++;
-                  colCount++;
-
+            for(int rowCount = 0; rowCount < numSingularValues; ++rowCount){
+              std::getline(sMatrixFile, currentLine);
+              std::istringstream ss(currentLine);
+              ss >> singularValue;
+              for(int colCount = 0; colCount < numSingularValues; ++colCount){
+                if(colCount == rowCount){
+                  sMatrix[rowCount * numSingularValues + colCount] = singularValue;
                 }
-                else if (colCount < indexOfSingularValue) {
-
-                  for (int i = colCount; i < indexOfSingularValue; i++) {
-
-                    sMatrix[rowCount * numSingularValues + colCount] = 0;
-                    colCount++;
-
-                  }
-
+                else{
+                  sMatrix[rowCount * numSingularValues + colCount] = 0.0f;
                 }
-                else if (colCount < numSingularValues) {
-
-                  for (int i = colCount; i < numSingularValues; i++) {
-
-                    sMatrix[rowCount * numSingularValues + colCount] = 0;
-                    colCount++;
-
-                  }
-
-                  rowCount++;
-                  colCount = 0;
-
-                }
-
+              }
             }
-
+            sMatrixFile.close();
             std::cout << "Loading uMatrix" << '\n';
 
             std::fstream uMatrixFile("data/uMatrix.txt", std::ios_base::in);
 
             float* uMatrix = new float[numPixels * numSingularValues];
-
-            float uValue;
+            currentLine = "";
             int indexOfuMatrix = 0;
             int numUZero = 0;
-            while (uMatrixFile >> uValue) {
-                if(uValue == 0.0f) ++numUZero;
-
-                uMatrix[indexOfuMatrix] = uValue;
+            while (std::getline(uMatrixFile, currentLine)) {
+                std::istringstream ss(currentLine);
+                ss >> uMatrix[indexOfuMatrix];
+                if(uMatrix[indexOfuMatrix] == 0.0f) ++numUZero;
                 indexOfuMatrix++;
-
             }
-
+            std::cout<<numUZero<<endl;
             std::cout << "Loading vtMatrix" << '\n';
 
             std::fstream vtMatrixFile("data/vtMatrix.txt", std::ios_base::in);
 
             float* vtMatrix = new float[numSingularValues * numTime];
-
-            float vtValue;
+            currentLine = "";
             int indexOfvtMatrix = 0;
             int numVtZero = 0;
-            while (vtMatrixFile >> vtValue) {
-                if(vtValue == 0.0f) ++numVtZero;
-                vtMatrix[indexOfvtMatrix] = vtValue;
+            while (std::getline(vtMatrixFile, currentLine)) {
+                std::istringstream ss(currentLine);
+                ss >> vtMatrix[indexOfvtMatrix];
+                //cout<<vtMatrix[indexOfvtMatrix]<<endl;
+                if(vtMatrix[indexOfvtMatrix] == 0.0f) ++numVtZero;
                 indexOfvtMatrix++;
-
             }
-
+            cout<<numVtZero<<endl;
 
             cout << "Executing NNMF" << endl;
 

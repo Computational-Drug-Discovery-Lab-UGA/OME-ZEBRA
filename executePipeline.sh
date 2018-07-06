@@ -1,8 +1,7 @@
 #!/bin/bash
-make clean
-make -j9
-mkdir /media/spacey-person/CDDL_Drive/NNMF_NOSVD
-for dir in /media/spacey-person/CDDL_Drive/Registered/*/;
+#make clean
+make
+for dir in data/registeredOMEs/*
 do
   justDirname=$(basename $dir)
   echo "$dir"

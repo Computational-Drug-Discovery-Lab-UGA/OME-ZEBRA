@@ -4,6 +4,7 @@
 
 void multiplyMatrix(float* matrixA, float* matrixB, float* matrixC, int dimA,
      int dimCommon, int dimB);
+void updateHeight(float* )
 
 int main(int argc, char const *argv[]) {
 
@@ -17,7 +18,7 @@ int main(int argc, char const *argv[]) {
   std::string currentLine = "";
   int indexOfsMatrix = 0;
   int numSZero = 0;
-  
+
   while (std::getline(sMatrixFile, currentLine)) {
 
       std::istringstream ss(currentLine);

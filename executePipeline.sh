@@ -10,10 +10,10 @@ do
 
   ./bin/ZEBRA.exe "${justDirname%%.*}" 512
 
-  ./bin/NMF_GPU  /media/spacey-person/CDDL_Drive/NNMF_NOSVD/"${justDirname%%.*}"/NNMF.nmf  -k 3 -j 5 -t 20 -i 20000
+  ./bin/NMF_GPU  /media/spacey-person/CDDL_Drive/NNMF_NOSVD/"${justDirname%%.*}"/NNMF.nmf  -k 10 -j 10 -t 40 -i 20000
 
-  for((i = 0; i < 3; ++i));
+  for((i = 0; i < 10; ++i));
   do
-  ./bin/NNMF_VISUALIZE.exe "${justDirname%%.*}" 3 $i
+  ./bin/NNMF_VISUALIZE.exe "${justDirname%%.*}" 10 $i
   done
 done

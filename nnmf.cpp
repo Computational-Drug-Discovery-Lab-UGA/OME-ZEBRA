@@ -28,19 +28,62 @@ int main(int argc, char const *argv[]) {
   float* sMatrix = new float[dimS * dimS];
   std::string currentLine = "";
   int indexOfsMatrix = 0;
-  int numSZero = 0;
 
   while (std::getline(sMatrixFile, currentLine)) {
 
       std::istringstream ss(currentLine);
       ss >> sMatrix[indexOfsMatrix];
-
-      //cout<<vtMatrix[indexOfvtMatrix]<<endl;
-
-      if(sMatrix[indexOfsMatrix] == 0.0f) ++numSZero;
       indexOfsMatrix++;
 
   }
+
+  std::ifstream uMatrixFile("data/uMatrix.txt");
+
+  float* uMatrix = new float[dimU * dimS];
+  int indexOfuMatrix = 0;
+
+  while (std::getline(uMatrixFile, currentLine)) {
+
+      std::istringstream ss(currentLine);
+      ss >> uMatrix[indexOfuMatrix];
+      indexOfuMatrix++;
+
+  }
+
+  std::ifstream vtMatrixFile("data/vtMatrix.txt");
+
+  float* vtMatrix = new float[dimU * dimS];
+  int indexOfvtMatrix = 0;
+
+  while (std::getline(vtMatrixFile, currentLine)) {
+
+      std::istringstream ss(currentLine);
+      ss >> vtMatrix[indexOfvtMatrix];
+      indexOfvtMatrix++;
+
+  }
+
+  std::ifstream originalMatrixFile("data/vtMatrix.txt");
+
+  float* originalMatrix = new float[dimU * dimS];
+  int indexOforiginalMatrix = 0;
+
+  while (std::getline(originalMatrixFile, currentLine)) {
+
+      std::istringstream ss(currentLine);
+      ss >> originalMatrix[indexOforiginalMatrix];
+      indexOforiginalMatrix++;
+
+  }
+
+  float* heightMatrix = new float[dimS * dimV];
+
+  float* widthMatrix = new float[dimU * dimS];
+
+  float targetLoss = 0.9;
+
+  NMF(heightMatrix, widthMatrix, uMatrix, sMatrix, vtMatrix, originalMatrix, dimU, dimV,
+    dimS, targetLoss);
 
   return 0;
 

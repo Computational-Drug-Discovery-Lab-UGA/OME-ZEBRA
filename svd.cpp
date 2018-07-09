@@ -9,13 +9,17 @@
 
 using namespace std;
 
-int main(int argc , char ** argv) {
+int main(int argc , char *argv[]) {
 
   magma_init(); // initialize Magma
   real_Double_t gpu_time, cpu_time;
 
   // Matrix size
   magma_int_t m=524288, n=512, n2=m*n, min_mn = min(m,n);
+  if(argc == 2){
+    m = atoi(argv[1]);
+  }
+  printf("m=%d,n=%d\n",m,n);
   float *a, *r; // a,r - mxn matrices
   float *u, *vt;// u - mxm matrix , vt - nxn matrix on the host
   float *s1 , *s2; // vectors of singular values

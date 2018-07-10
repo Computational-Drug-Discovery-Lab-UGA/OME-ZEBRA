@@ -15,7 +15,7 @@ int main(int argc , char ** argv) {
   real_Double_t gpu_time, cpu_time;
 
   // Matrix size
-  magma_int_t m=524288, n=512, n2=m*n, min_mn = min(m,n);
+  magma_int_t m=4, n=2, n2=m*n, min_mn = min(m,n);
   float *a, *r; // a,r - mxn matrices
   float *u, *vt;// u - mxm matrix , vt - nxn matrix on the host
   float *s1 , *s2; // vectors of singular values
@@ -30,13 +30,13 @@ int main(int argc , char ** argv) {
   // Allocate host memory
   magma_smalloc_cpu(&a,n2 ); // host memory for a
   magma_smalloc_cpu(&vt, n*n); // host memory for vt
-  magma_smalloc_cpu(&u, m*n); // host memory for u
+  magma_smalloc_cpu(&u, m*m); // host memory for u
   magma_smalloc_cpu(&s1 , min_mn ); // host memory for s1
   magma_smalloc_cpu(&s2 , min_mn ); // host memory for s2
   magma_smalloc_pinned(&r,n2 ); // host memory for r
   magma_int_t nb = magma_get_sgesvd_nb(m,n); // optim . block size
 
-  magma_sgesvd(MagmaSomeVec, MagmaSomeVec, m, n,
+  magma_sgesvd(MagmaAllVec, MagmaAllVec, m, n,
                 NULL, m, NULL, NULL, m, NULL, n, dummy, -1,
                 &info );
 
@@ -49,18 +49,22 @@ int main(int argc , char ** argv) {
 
   float nextFire;
   int indexOfA = 0;
-  while (firingMatrix >> nextFire) {
-
-      a[indexOfA] = nextFire;
-      indexOfA++;
-
-      if (indexOfA % 1000000 == 0) {
-
-        std::cout << indexOfA << endl;
-
-      }
-
+  for(int i = 0; i < n2; ++i){
+    a[i] = i;
+    std::cout << i << '\n';
   }
+  // while (firingMatrix >> nextFire) {
+  //
+  //     a[indexOfA] = nextFire;
+  //     indexOfA++;
+  //
+  //     if (indexOfA % 1000000 == 0) {
+  //
+  //       std::cout << indexOfA << endl;
+  //
+  //     }
+  //
+  // }
 
   std::cout << "Done Loading" << '\n';
 
@@ -76,7 +80,7 @@ int main(int argc , char ** argv) {
   // are the singular values of a in descending order
   // the first min (m,n) columns of u contain the left sing . vec .
   // the first min (m,n) columns of vt contain the right sing .vec .
-  magma_sgesvd(MagmaSomeVec,MagmaSomeVec,m,n,r,m,s1,u,m,vt,n,h_work,
+  magma_sgesvd(MagmaAllVec,MagmaAllVec,m,n,r,m,s1,u,m,vt,n,h_work,
   lwork,&info );
 
   std::cout << info << std::endl;
@@ -84,11 +88,11 @@ int main(int argc , char ** argv) {
   gpu_time = magma_wtime() - gpu_time ;
   printf(" sgesvd gpu time: %7.5f\n", gpu_time); // Magma time
 
-  int numSigFig = 100;
+  int numSigFig = 2;
 
   ofstream sMatrixFile("data/sMatrix.txt");
   if (sMatrixFile.is_open()) {
-    for(long i = 0; i < numSigFig; i++){
+    for(long i = 0; i < 2; i++){
        sMatrixFile << s1[i] << "\n" ;
      }
    }
@@ -99,7 +103,7 @@ int main(int argc , char ** argv) {
   ofstream uMatrixFile("data/uMatrix.txt");
   if (uMatrixFile.is_open()) {
     for(long i = 0; i < m; i++){
-      for(int j = 0; j < numSigFig; j++) {
+      for(int j = 0; j < m; j++) {
           uMatrixFile << u[i*n + j] << "\n";
       }
      }
@@ -110,7 +114,7 @@ int main(int argc , char ** argv) {
    ofstream vtMatrixFile("data/vtMatrix.txt");
    if (vtMatrixFile.is_open()) {
      for(long i = 0; i < n; i++){
-       for(int j = 0; j < numSigFig; j++) {
+       for(int j = 0; j < n; j++) {
            vtMatrixFile << vt[i*n + j] << "\n";
        }
       }

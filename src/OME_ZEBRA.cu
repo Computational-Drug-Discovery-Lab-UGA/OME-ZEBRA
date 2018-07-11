@@ -239,7 +239,7 @@ int main(int argc, char *argv[]) {
         delete[] normalized;
         cout << "Dumping to File" << endl;
 
-        ofstream myfile ("data/NNMF.nmf");
+        ofstream myfile ("/media/spacey-person/CDDL_Drive/NNMF_NOSVD/"+baseName+"/NNMF.nmf");
         if (myfile.is_open()) {
           for(int i = 0; i < (lastGoodIndex)*NNormal; i++){
             if ((i + 1) % 512 == 0) {
@@ -252,7 +252,7 @@ int main(int argc, char *argv[]) {
           myfile.close();
         }
         cout<<"NNMF.nmf created successfuly"<<endl;
-        ofstream mykeyfile ("data/key.csv");
+        ofstream mykeyfile ("/media/spacey-person/CDDL_Drive/NNMF_NOSVD/"+baseName+"/key.csv");
         if (mykeyfile.is_open()) {
           for(long i = 0; i < MNormal; i++){
 
@@ -386,7 +386,7 @@ __global__ void normalize(uint32* flatMatrix, float* normals, uint32 min, uint32
       currentValue = static_cast<float>(flatMatrix[globalID]) - dmin;
       currentValue /= (dmax - dmin);
     }
-    normals[globalID] = currentValue;
+    normals[globalID] = 1.0f/(1.0f + expf((-10.0f*currentValue) + 7.5));
     globalID += stride;
   }
 }

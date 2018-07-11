@@ -771,7 +771,7 @@ void updateHeightMatrix(float* heightMatrix, float* widthMatrix,
     CudaSafeCall(cudaMalloc((void**)&tempSquareMatrixDevice, numSingularValues
       * numSingularValues * sizeof(float)));
 
-    cout << "Starting to transpose matrix" << endl;
+    //cout << "Starting to transpose matrix" << endl;
 
     float* widthMatrixTransposed = new float[numPixels * numSingularValues];
 
@@ -790,7 +790,7 @@ void updateHeightMatrix(float* heightMatrix, float* widthMatrix,
 
     }
 
-    cout << "Matrix transposed" << endl;
+    //cout << "Matrix transposed" << endl;
 
     CudaSafeCall(cudaMemcpy(widthMatrixTransposedDevice, widthMatrixTransposed, numPixels
       * numSingularValues * sizeof(float), cudaMemcpyHostToDevice));
@@ -819,7 +819,7 @@ void updateHeightMatrix(float* heightMatrix, float* widthMatrix,
       }
     }
 
-    cout << "First multiplication kernel" << endl;
+    //cout << "First multiplication kernel" << endl;
 
     multiplyMatrices<<<grid,block>>>(widthMatrixTransposedDevice, uMatrixDevice, tempSquareMatrixDevice,
       numSingularValues, numPixels, numSingularValues);
@@ -839,7 +839,7 @@ void updateHeightMatrix(float* heightMatrix, float* widthMatrix,
     CudaSafeCall(cudaMemcpy(sMatrixDevice, sMatrix, numSingularValues * numSingularValues
       * sizeof(float), cudaMemcpyHostToDevice));
 
-    cout << "Second multiplication kernel" << endl;
+    //cout << "Second multiplication kernel" << endl;
 
     multiplyMatrices<<<grid,block>>>(tempSquareMatrixDevice, sMatrixDevice, tempSquareMatrix2Device,
       numSingularValues, numSingularValues, numSingularValues);
@@ -882,7 +882,7 @@ void updateHeightMatrix(float* heightMatrix, float* widthMatrix,
       }
     }
 
-    cout << "Third multiplication kernel" << endl;
+    //cout << "Third multiplication kernel" << endl;
 
     multiplyMatrices<<<grid,block>>>(tempSquareMatrix2Device, vtMatrixDevice, numeratorDevice,
       numSingularValues, numSingularValues, numTime);
@@ -923,7 +923,7 @@ void updateHeightMatrix(float* heightMatrix, float* widthMatrix,
       }
     }
 
-    cout << "Fourth multiplication kernel" << endl;
+    //cout << "Fourth multiplication kernel" << endl;
 
     multiplyMatrices<<<grid,block>>>(widthMatrixTransposedDevice, widthMatrixDevice, tempSquareMatrixDevice,
       numSingularValues, numPixels, numSingularValues);
@@ -967,7 +967,7 @@ void updateHeightMatrix(float* heightMatrix, float* widthMatrix,
       }
     }
 
-    cout << "Fifth multiplication kernel" << endl;
+    //cout << "Fifth multiplication kernel" << endl;
 
     multiplyMatrices<<<grid,block>>>(tempSquareMatrixDevice, heightMatrixDevice,
       denominatorDevice, numSingularValues, numSingularValues, numTime);
@@ -976,7 +976,7 @@ void updateHeightMatrix(float* heightMatrix, float* widthMatrix,
 
     CudaSafeCall(cudaFree(tempSquareMatrixDevice));
 
-    cout << "Scalar kernel" << endl;
+    //cout << "Scalar kernel" << endl;
 
     applyScalar<<<grid,block>>>(heightMatrixDevice, numeratorDevice,
       denominatorDevice, numSingularValues, numTime);
@@ -1228,18 +1228,18 @@ void NMF(float* heightMatrix, float* widthMatrix, float* uMatrix,
     float* newWidthMatrix = new float[numPixels * numSingularValues];
     float* newHeightMatrix = new float[numSingularValues * numTime];
 
-    cout << "New versions allocated" << endl;
+    //cout << "New versions allocated" << endl;
 
     float loss = numeric_limits<float>::max();
 
     while(loss > targetLoss) {
 
-      cout << "Updating Height Matrix" << endl;
+      //cout << "Updating Height Matrix" << endl;
 
       updateHeightMatrix(heightMatrix, widthMatrix, uMatrix, sMatrix, vtMatrix,
         newHeightMatrix, numPixels, numTime, numSingularValues);
 
-      cout << "Updating Width Matrix" << endl;
+      //cout << "Updating Width Matrix" << endl;
 
       updateWidthMatrix(heightMatrix, widthMatrix, uMatrix, sMatrix, vtMatrix,
         newWidthMatrix, numPixels, numTime, numSingularValues);
@@ -1444,7 +1444,7 @@ float findA(float* uMatrix, float* sMatrix, float* vtMatrix,
 
       lowestValue = lowestValue * (-1.0);
       lowestValue = lowestValue + 1;
-      std::cout << lowestValue << '\n';
+      //std::cout << lowestValue << '\n';
 
       return lowestValue;
 
@@ -1453,7 +1453,7 @@ float findA(float* uMatrix, float* sMatrix, float* vtMatrix,
 
       lowestValue = lowestValue * (-1.0);
       lowestValue = lowestValue - 1;
-      std::cout << lowestValue << '\n';
+      //std::cout << lowestValue << '\n';
 
       return lowestValue;
 

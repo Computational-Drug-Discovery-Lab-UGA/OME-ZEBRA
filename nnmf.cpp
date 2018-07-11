@@ -12,16 +12,18 @@ void updateHeight(float* heightMatrix, float* widthMatrix, float* uMatrix, float
   float* vtMatrix, float* newHeightMatrix, int numPixels, int numTime, int numSingularValues);
 void updateWidth(float* heightMatrix, float* widthMatrix,
     float* uMatrix, float* sMatrix, float* vtMatrix, float* newWidthMatrix,
-    long numPixels, long numTime, long numSingularValues);
+    int numPixels, int numTime, int numSingularValues);
 void NMF(float* heightMatrix, float* widthMatrix, float* uMatrix,
   float* sMatrix, float* vtMatrix, float* originalMatrix, int numPixels, int numTime,
   int numSingularValues, float targetLoss);
 
 int main(int argc, char const *argv[]) {
 
-  int dimU = 3;
-  int dimS = 3;
-  int dimV = 3;
+  int dimU = 500;
+  int dimS = 200;
+  int dimV = 200;
+
+  std::cout << "Inputting sMatrix" << '\n';
 
   std::ifstream sMatrixFile("data/sMatrix.txt");
 
@@ -33,9 +35,12 @@ int main(int argc, char const *argv[]) {
 
       std::istringstream ss(currentLine);
       ss >> sMatrix[indexOfsMatrix];
+      std::cout << sMatrix[indexOfsMatrix] << '\n';
       indexOfsMatrix++;
 
   }
+
+  std::cout << "Inputting uMatrix" << '\n';
 
   std::ifstream uMatrixFile("data/uMatrix.txt");
 
@@ -46,9 +51,12 @@ int main(int argc, char const *argv[]) {
 
       std::istringstream ss(currentLine);
       ss >> uMatrix[indexOfuMatrix];
+      std::cout << uMatrix[indexOfuMatrix] << '\n';
       indexOfuMatrix++;
 
   }
+
+  std::cout << "Inputting vtMatrix" << '\n';
 
   std::ifstream vtMatrixFile("data/vtMatrix.txt");
 
@@ -59,11 +67,14 @@ int main(int argc, char const *argv[]) {
 
       std::istringstream ss(currentLine);
       ss >> vtMatrix[indexOfvtMatrix];
+      std::cout << vtMatrix[indexOfvtMatrix] << '\n';
       indexOfvtMatrix++;
 
   }
 
-  std::ifstream originalMatrixFile("data/vtMatrix.txt");
+  std::cout << "Inputting originalMatrix" << '\n';
+
+  std::ifstream originalMatrixFile("data/originalMatrix.txt");
 
   float* originalMatrix = new float[dimU * dimS];
   int indexOforiginalMatrix = 0;
@@ -72,13 +83,26 @@ int main(int argc, char const *argv[]) {
 
       std::istringstream ss(currentLine);
       ss >> originalMatrix[indexOforiginalMatrix];
+      std::cout << originalMatrix[indexOforiginalMatrix] << '\n';
       indexOforiginalMatrix++;
 
   }
 
   float* heightMatrix = new float[dimS * dimV];
 
+  for(int i = 0; i < dimS*dimV; i++) {
+
+    heightMatrix[i] = 1.0f;
+
+  }
+
   float* widthMatrix = new float[dimU * dimS];
+
+  for(int i = 0; i < dimU*dimV; i++) {
+
+    widthMatrix[i] = 1.0f;
+
+  }
 
   float targetLoss = 0.9;
 
@@ -135,7 +159,7 @@ float calculateLoss(float* originalMatrix, float* testMatrix, int numRows, int n
 
       int index = numCols * i + j;
 
-      currentLoss = currentLoss + abs(originalMatrix[index] - testMatrix[index]);
+      currentLoss = currentLoss + std::abs(originalMatrix[index] - testMatrix[index]);
 
     }
 
@@ -147,12 +171,9 @@ float calculateLoss(float* originalMatrix, float* testMatrix, int numRows, int n
 
 void updateHeight(float* heightMatrix, float* widthMatrix,
                   float* uMatrix, float* sMatrix, float* vtMatrix, float* newHeightMatrix,
-                  long numPixels, long numTime, long numSingularValues) {
+                  int numPixels, int numTime, int numSingularValues) {
 
   float* widthMatrixTransposed = new float[numPixels * numSingularValues];
-
-  std::cout << numPixels << std::endl;
-  std::cout << numSingularValues << std::endl;
 
   for (long i = 0; i < numPixels; i++) {
 
@@ -206,28 +227,40 @@ void updateWidth(float* heightMatrix, float* widthMatrix,
 
     }
 
+
+
     float* tempSquareMatrix = new float[numSingularValues * numSingularValues];
 
     multiplyMatrix(vtMatrix, heightMatrixTransposed, tempSquareMatrix,
        numSingularValues, numTime, numSingularValues);
+
+
 
     float* tempSquareMatrix2 = new float[numSingularValues * numSingularValues];
 
     multiplyMatrix(sMatrix, tempSquareMatrix, tempSquareMatrix2, numSingularValues,
         numSingularValues, numSingularValues);
 
+
+
     float* numerator = new float[numPixels * numSingularValues];
 
     multiplyMatrix(uMatrix, tempSquareMatrix2, numerator, numPixels,
       numSingularValues, numSingularValues);
 
+
+
     multiplyMatrix(heightMatrix, heightMatrixTransposed, tempSquareMatrix,
       numSingularValues, numTime, numSingularValues);
+
+
 
     float* denominator = new float[numPixels * numSingularValues];
 
     multiplyMatrix(widthMatrix, tempSquareMatrix, denominator, numPixels,
       numSingularValues, numSingularValues);
+
+
 
     applyScalar(widthMatrix, newWidthMatrix, numerator, denominator, numPixels,
       numSingularValues);
@@ -241,16 +274,12 @@ void NMF(float* heightMatrix, float* widthMatrix, float* uMatrix,
   float* newWidthMatrix = new float[numPixels * numSingularValues];
   float* newHeightMatrix = new float[numSingularValues * numTime];
 
-  float loss = std::numeric_limits<float>::max();
+  float loss = 10000.0;
 
   while(loss > targetLoss) {
 
-    std::cout << "Updating Height Matrix" << std::endl;
-
     updateHeight(heightMatrix, widthMatrix, uMatrix, sMatrix, vtMatrix,
       newHeightMatrix, numPixels, numTime, numSingularValues);
-
-    std::cout << "Updating Width Matrix" << '\n';
 
     updateWidth(heightMatrix, widthMatrix, uMatrix, sMatrix, vtMatrix,
       newWidthMatrix, numPixels, numTime, numSingularValues);
@@ -261,6 +290,20 @@ void NMF(float* heightMatrix, float* widthMatrix, float* uMatrix,
       numPixels, numSingularValues, numTime);
 
     loss = calculateLoss(originalMatrix, testMatrix, numPixels, numTime);
+
+    for (int i = 0; i < numSingularValues * numTime; i++) {
+
+      heightMatrix[i] = newHeightMatrix[i];
+
+    }
+
+    for (int i = 0; i < numPixels * numSingularValues; i++) {
+
+      widthMatrix[i] = newWidthMatrix[i];
+
+    }
+
+    std::cout << "Loss is: " << loss << '\n';
 
   }
 

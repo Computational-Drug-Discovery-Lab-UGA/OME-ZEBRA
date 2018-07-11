@@ -15,7 +15,7 @@ int main(int argc , char ** argv) {
   real_Double_t gpu_time, cpu_time;
 
   // Matrix size
-  magma_int_t m=4, n=2, n2=m*n, min_mn = min(m,n);
+  magma_int_t m=500, n=200, n2=m*n, min_mn = min(m,n);
   float *a, *r; // a,r - mxn matrices
   float *u, *vt;// u - mxm matrix , vt - nxn matrix on the host
   float *s1 , *s2; // vectors of singular values
@@ -30,13 +30,13 @@ int main(int argc , char ** argv) {
   // Allocate host memory
   magma_smalloc_cpu(&a,n2 ); // host memory for a
   magma_smalloc_cpu(&vt, n*n); // host memory for vt
-  magma_smalloc_cpu(&u, m*m); // host memory for u
+  magma_smalloc_cpu(&u, m*n); // host memory for u
   magma_smalloc_cpu(&s1 , min_mn ); // host memory for s1
   magma_smalloc_cpu(&s2 , min_mn ); // host memory for s2
   magma_smalloc_pinned(&r,n2 ); // host memory for r
   magma_int_t nb = magma_get_sgesvd_nb(m,n); // optim . block size
 
-  magma_sgesvd(MagmaAllVec, MagmaAllVec, m, n,
+  magma_sgesvd(MagmaSomeVec, MagmaSomeVec, m, n,
                 NULL, m, NULL, NULL, m, NULL, n, dummy, -1,
                 &info );
 
@@ -80,7 +80,7 @@ int main(int argc , char ** argv) {
   // are the singular values of a in descending order
   // the first min (m,n) columns of u contain the left sing . vec .
   // the first min (m,n) columns of vt contain the right sing .vec .
-  magma_sgesvd(MagmaAllVec,MagmaAllVec,m,n,r,m,s1,u,m,vt,n,h_work,
+  magma_sgesvd(MagmaSomeVec,MagmaSomeVec,m,n,r,m,s1,u,m,vt,n,h_work,
   lwork,&info );
 
   std::cout << info << std::endl;
@@ -88,7 +88,7 @@ int main(int argc , char ** argv) {
   gpu_time = magma_wtime() - gpu_time ;
   printf(" sgesvd gpu time: %7.5f\n", gpu_time); // Magma time
 
-  int numSigFig = 2;
+  int numSigFig = 200;
 
   ofstream sMatrixFile("data/sMatrix.txt");
   if (sMatrixFile.is_open()) {
@@ -103,7 +103,7 @@ int main(int argc , char ** argv) {
   ofstream uMatrixFile("data/uMatrix.txt");
   if (uMatrixFile.is_open()) {
     for(long i = 0; i < m; i++){
-      for(int j = 0; j < m; j++) {
+      for(int j = 0; j < n; j++) {
           uMatrixFile << u[i*n + j] << "\n";
       }
      }
@@ -120,7 +120,17 @@ int main(int argc , char ** argv) {
       }
     }
     vtMatrixFile.close();
-    cout<<"vtMatrix dumped"<<endl;
+    cout<<"originalMatrix dumped"<<endl;
+    ofstream originalMatrixFile("data/originalMatrix.txt");
+    if (originalMatrixFile.is_open()) {
+      for(long i = 0; i < m; i++){
+        for(int j = 0; j < n; j++) {
+            originalMatrixFile << a[i*n + j] << "\n";
+        }
+       }
+     }
+     originalMatrixFile.close();
+     cout<<"vtMatrix dumped"<<endl;
 
 
   // values

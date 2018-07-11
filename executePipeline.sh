@@ -12,8 +12,5 @@ do
 
   ./bin/NMF_GPU  /media/spacey-person/CDDL_Drive/NNMF_NOSVD/"${justDirname%%.*}"/NNMF.nmf  -k 10 -j 10 -t 40 -i 20000
 
-  for((i = 0; i < 10; ++i));
-  do
-  ./bin/NNMF_VISUALIZE.exe "${justDirname%%.*}" 10 $i
-  done
+  ./bin/NNMF_VISUALIZE.exe "${justDirname%%.*}" 10 
 done

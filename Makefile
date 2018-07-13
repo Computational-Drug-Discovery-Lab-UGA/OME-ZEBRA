@@ -24,7 +24,7 @@ BINDIR = ./bin
 _OBJS1 = OME_ZEBRA.cu.o
 OBJS1 = ${patsubst %, ${OBJDIR}/%, ${_OBJS1}}
 
-_OBJS2 = createVisualization.cpp.o
+_OBJS2 = createVisualization.cu.o
 OBJS2 = ${patsubst %, ${OBJDIR}/%, ${_OBJS2}}
 
 TARGET1 = ZEBRA.exe

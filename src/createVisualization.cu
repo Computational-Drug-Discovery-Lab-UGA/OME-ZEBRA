@@ -68,6 +68,7 @@ inline void __cudaCheckError(const char *file, const int line) {
 }
 
 
+string createFourCharInt(int i);
 __global__ void multiplyMatrices(float* matrixA, float* matrixB, float* matrixC, long diffDimA,
    long comDim, long diffDimB);
 
@@ -320,7 +321,7 @@ int main(int argc, char *argv[]) {
           result[i] = 4294967295*(result[i] - minF)/(maxF-minF);
         }
         for(int tp = 0; tp < numTimePoints; ++tp){
-          string newTif = newDirectoryName + "/" + tifName + "_" + to_string(tp);
+          string newTif = newDirectoryName + "/" + tifName + "_" + createFourCharInt(tp);
           TIFF *tpfTif = TIFFOpen(newTif.c_str(), "w");
 
           if(tpfTif){
@@ -360,6 +361,19 @@ int main(int argc, char *argv[]) {
   return 0;
 }
 
+string createFourCharInt(int i) {
+  string strInt;
+  if (i < 10) {
+    strInt = "000" + to_string(i);
+  } else if (i < 100) {
+    strInt = "00" + to_string(i);
+  } else if (i < 1000) {
+    strInt = "0" + to_string(i);
+  } else {
+    strInt = to_string(i);
+  }
+  return strInt;
+}
 __global__ void multiplyMatrices(float* matrixA, float* matrixB, float* matrixC, long diffDimA,
    long comDim, long diffDimB) {
 

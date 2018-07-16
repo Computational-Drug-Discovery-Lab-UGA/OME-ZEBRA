@@ -327,12 +327,12 @@ int main(int argc, char *argv[]) {
           if(tpfTif){
             TIFFSetField(tpfTif, TIFFTAG_IMAGEWIDTH, width);
             TIFFSetField(tpfTif, TIFFTAG_IMAGELENGTH, height);
-            TIFFSetField(tpfTif, TIFFTAG_SAMPLESPERPIXEL, samplesPerPixel);
+            TIFFSetField(tpfTif, TIFFTAG_SAMPLESPERPIXEL, 8);
             TIFFSetField(tpfTif, TIFFTAG_BITSPERSAMPLE, bitsPerSample);
             TIFFSetField(tpfTif, TIFFTAG_PHOTOMETRIC, photo);
             for(int row = 0; row < height; ++row){
               for(int col = 0; col < width; ++col){
-                data[row][col] = (uint32) result[(row*width + col)*numTimePoints + tp];
+                data[row][col] = (uint8) result[(row*width + col)*numTimePoints + tp];
               }
 
               if (TIFFWriteScanline(tpfTif, data[row], row, 0) != 1) {

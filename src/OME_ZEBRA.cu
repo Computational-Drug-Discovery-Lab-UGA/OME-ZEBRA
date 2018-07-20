@@ -85,7 +85,7 @@ float findA(float* uMatrix, float* sMatrix, float* vtMatrix,
   long numPixels, long numTime, long numSingularValues);
 
 int main(int argc, char *argv[]) {
-    long numSingularValues = 100;
+    long numSingularValues = 50;
     long numPixels = 524288;
     long numTime = 512;
     if(argc < 3) {

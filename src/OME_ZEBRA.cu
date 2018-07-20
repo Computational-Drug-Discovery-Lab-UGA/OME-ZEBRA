@@ -1440,24 +1440,16 @@ float findA(float* uMatrix, float* sMatrix, float* vtMatrix,
 
     }
 
-    if (lowestValue < 0.0) {
+    if (lowestValue > 0.0) {
 
-      lowestValue = lowestValue * (-1.0);
-      lowestValue = lowestValue + 1;
-      //std::cout << lowestValue << '\n';
-
-      return lowestValue;
+      lowestValue = lowestValue * -1.0f
 
     }
-    else {
 
-      lowestValue = lowestValue * (-1.0);
-      lowestValue = lowestValue - 1;
-      //std::cout << lowestValue << '\n';
+    float a = (lowestValue * -1.0f) + 0.01f;
 
-      return lowestValue;
+    return a;
 
-    }
 
 }
 

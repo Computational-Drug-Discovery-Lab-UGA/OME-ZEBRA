@@ -1,18 +1,5 @@
-#include "cuda_runtime.h"
-#include "device_launch_parameters.h"
-#include "tiffio.h"
-#include <cfloat>
-#include <cstdlib>
-#include <cuda.h>
-#include <curand.h>
-#include <curand_kernel.h>
-#include <fstream>
-#include <inttypes.h>
-#include <iostream>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string>
-#include <vector>
+#include "common_includes.h"
+
 using namespace std;
 
 // Define this to turn on error checking

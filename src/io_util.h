@@ -8,8 +8,9 @@
 
 std::string createFourCharInt(int i);
 void extractMartrices(TIFF *tif, uint32* &imageMatrix, unsigned int width, unsigned int height, unsigned int scanLineSize);
-uint32* readTiffVideo(std::string videoDirectoryPath, unsigned int &width, unsigned int &height, unsigned int &numTimePoints);
-void createSpatialTiffs(std::string directoryWithNNMF, int k, unsigned int width, unsigned int height, unsigned int numTimePoints);
-void createKVideo(std::string filePath, unsigned int width, unsigned int height, unsigned int numTimePoints);
-void createVisualization(std::string videoDirectoryPath, int k, unsigned int width, unsigned int height, unsigned int numTimePoints);
+uint32* readTiffVideo(std::string videoDirectoryPath, unsigned int &width, unsigned int &height, unsigned int &numTimePoints, std::string &baseName);
+int createKey(float* &matrix, bool* &key, unsigned int numTimePoints, unsigned long numPixels);
+
+void createVisualization(std::string videoDirectoryPath, int k, unsigned int width, unsigned int height,
+  unsigned int numTimePoints, float* W, float* H, float* matrix, bool* key, std::string baseName);
 #endif /* IO_UTIL_H */

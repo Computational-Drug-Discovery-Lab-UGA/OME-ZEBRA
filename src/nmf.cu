@@ -1,245 +1,68 @@
-#include "cuda_zebra.cuh"
+#include<stdio.h>
+#include<stdlib.h>
+#include"matrix.h"
+#include<time.h>
+#include<sys/time.h>
 
-// Define this to turn on error checking
-#define CUDA_ERROR_CHECK
-
-#define CudaSafeCall(err) __cudaSafeCall(err, __FILE__, __LINE__)
-#define CudaCheckError() __cudaCheckError(__FILE__, __LINE__)
-
-inline void __cudaSafeCall(cudaError err, const char *file, const int line) {
-#ifdef CUDA_ERROR_CHECK
-  if (cudaSuccess != err) {
-    fprintf(stderr, "cudaSafeCall() failed at %s:%i : %s\n", file, line,
-            cudaGetErrorString(err));
-    exit(-1);
-  }
-#endif
-
-  return;
-}
-inline void __cudaCheckError(const char *file, const int line) {
-#ifdef CUDA_ERROR_CHECK
-  cudaError err = cudaGetLastError();
-  if (cudaSuccess != err) {
-    fprintf(stderr, "cudaCheckError() failed at %s:%i : %s\n", file, line,
-            cudaGetErrorString(err));
-    exit(-1);
-  }
-
-  // More careful checking. However, this will affect performance.
-  // Comment away if needed.
-  // err = cudaDeviceSynchronize();
-  if (cudaSuccess != err) {
-    fprintf(stderr, "cudaCheckError() with sync failed at %s:%i : %s\n", file,
-            line, cudaGetErrorString(err));
-    exit(-1);
-  }
-#endif
-
-  return;
-}
 // status printed and convergence check every ITER_CHECK iterations
-#define ITER_CHECK 25
+#define ITER_CHECK 25	
 // max number of iterations
-#define MAX_ITER 200
+#define MAX_ITER 200 	
 // set to zero to guarantee MAX_ITER iterations, 0.001 is a good value otherwise
-#define CONVERGE_THRESH 0.001
+#define CONVERGE_THRESH 0
 
 // number of timers used in profiling (don't change)
-#define TIMERS 10
+#define TIMERS 10  
 char *tname[] = {"total","sgemm","eps","vecdiv","vecmult","sumrows","sumcols","coldiv","rowdiv","check"};
 
 
+void update_div(matrix W, matrix H, matrix X, const float thresh, const int max_iter, double* t, int verbose);
+double get_time();
+unsigned nextpow2(unsigned x);
 
-__global__ void findMinMax(uint32* matrix, unsigned long size, uint32* min, uint32* max){
-  int blockID = blockIdx.y * gridDim.x + blockIdx.x;
-  long globalID = blockID * blockDim.x + threadIdx.x;
-  __shared__ uint32 bmax;
-  __shared__ uint32 bmin;
-  bmax = 0;
-  bmin = UINT32_MAX;
-  __syncthreads();
-  if(globalID < size){
-    uint32 value = matrix[globalID];
-    atomicMax(&bmax, value);
-    atomicMin(&bmin, value);
-  }
-  __syncthreads();
-  if(threadIdx.x == 0){
-    atomicMax(max, bmax);
-    atomicMin(min, bmin);
-  }
-}
-__global__ void normalize(uint32 *matrix, float *normals, uint32* min, uint32* max, unsigned long size) {
-  int blockID = blockIdx.y * gridDim.x + blockIdx.x;
-  long globalID = blockID * blockDim.x + threadIdx.x;
-  int stride = gridDim.x * gridDim.y * blockDim.x;
-  float currentValue = 0;
-  float dmin = static_cast<float>(*min);
-  float dmax = static_cast<float>(*max);
-  while(globalID < size){
-    if (matrix[globalID] != 0) {
-      currentValue = static_cast<float>(matrix[globalID]) - dmin;
-      currentValue /= (dmax - dmin);
-    }
-    normals[globalID] = 1.0f / (1.0f + expf((-10.0f * currentValue) + 7.5));
-    globalID += stride;
-  }
-}
-__global__ void generateKey(unsigned long numPixels, unsigned int numTimePoints, float* matrix, bool* key){
-  long blockID = blockIdx.y * gridDim.x + blockIdx.x;
-  if(blockID < numPixels){
-    __shared__ bool hasNonZero;
-    hasNonZero = false;
-    __syncthreads();
-    for(int tp = threadIdx.x; tp < numTimePoints; tp += blockDim.x){
-      if(hasNonZero) return;
-      if(matrix[blockID*numTimePoints + tp] != 0.0f){
-        key[blockID] = true;
-        hasNonZero = true;
-        return;
-      }
-    }
-  }
-}
-__global__ void randInitMatrix(unsigned long size, float* matrix){
-  int blockID = blockIdx.y * gridDim.x + blockIdx.x;
-  long globalID = blockID * blockDim.x + threadIdx.x;
-  curandState state;
-  if(globalID < size){
-   curand_init(clock64(), globalID, 0, &state);
-   matrix[globalID] = curand_uniform(&state);
-  }
-}
-__global__ void multiplyMatrices(float *matrixA, float *matrixB, float *matrixC,
-                                 long diffDimA, long comDim, long diffDimB){
 
-  long blockID = blockIdx.y * gridDim.x + blockIdx.x;
-  long globalID = blockID * blockDim.x + threadIdx.x;
-  long currentIndex = globalID;
+int main(int argc, char *argv[]){
 
-  if(currentIndex < (diffDimA * diffDimB)){
 
-    long iIndex = currentIndex / diffDimB;
-    long jIndex = currentIndex % diffDimB;
+    //factor X into W*H
+    matrix W,H,X;
 
-    float sum = 0;
 
-    for(int k = 0; k < comDim; k++){
+    // read in matrix data:
+    // X - matrix to factorize
+    // W - initial W matrix
+    // H - initial H matrix
+    read_matrix(&W,"../W.bin");
+    read_matrix(&X,"../X.bin");
+    read_matrix(&H,"../H.bin");
 
-      sum += (matrixA[iIndex * comDim + k] * matrixB[k * diffDimB + jIndex]);
-    }
+    //make sure no zero elements
+    matrix_eps(X);
+    matrix_eps(H);
+    matrix_eps(W);
 
-    matrixC[iIndex * diffDimB + jIndex] = sum;
-  }
+    int max_iter;
+    if(argc > 1)
+        max_iter = atoi(argv[1]);
+    else 
+        max_iter = MAX_ITER;
+
+    // iterative nmf minimization
+    update_div(W,H,X,CONVERGE_THRESH,max_iter,NULL,1);
+
+
+    // write results matrices to binary files
+    // (can be read with export_bin.m in Matlab)
+    write_matrix(W,"../Wout.bin");
+    write_matrix(H,"../Hout.bin");
+
+    destroy_matrix(&W);
+    destroy_matrix(&H);
+    destroy_matrix(&X);
+    return 0;
 }
 
-void getFlatGridBlock(unsigned long size, dim3 &grid, dim3 &block) {
-  if(2147483647 > size){
-    grid.x = size;
-  }
-  else if((unsigned long) 2147483647 * 1024 > size){
-    grid.x = 2147483647;
-    block.x = 1024;
-    while(block.x * grid.x > size){
-      block.x--;
-    }
-    block.x++;
-  }
-  else{
-    grid.x = 65535;
-    block.x = 1024;
-    grid.y = 1;
-    while(grid.x * grid.y * block.x < size){
-      grid.y++;
-    }
-  }
-}
-void getGrid(unsigned long size, dim3 &grid, int blockSize) {
-  if(2147483647 > size){
-    grid.x = size;
-  }
-  else{
-    grid.x = 65535;
-    grid.y = 1;
-    while(grid.x * grid.y * grid.y < size){
-      grid.y++;
-    }
-  }
-}
-float* executeNormalization(uint32* matrix, unsigned long size){
-  uint32 max = 0;
-  uint32 min = UINT32_MAX;
-  dim3 grid = {1,1,1};
-  dim3 block = {1,1,1};
-  getFlatGridBlock(size, grid, block);
 
-  float* norm = new float[size];
-  uint32* maxd;
-  uint32* mind;
-  uint32* matrixDevice;
-  float* normDevice;
-  CudaSafeCall(cudaMalloc((void**)&maxd, sizeof(uint32)));
-  CudaSafeCall(cudaMalloc((void**)&mind, sizeof(uint32)));
-  CudaSafeCall(cudaMalloc((void**)&matrixDevice, size*sizeof(uint32)));
-  CudaSafeCall(cudaMalloc((void**)&normDevice, size*sizeof(float)));
-  CudaSafeCall(cudaMemcpy(maxd, &max, sizeof(uint32), cudaMemcpyHostToDevice));
-  CudaSafeCall(cudaMemcpy(mind, &min, sizeof(uint32), cudaMemcpyHostToDevice));
-  CudaSafeCall(cudaMemcpy(matrixDevice, &matrix, size*sizeof(uint32), cudaMemcpyHostToDevice));
-
-  findMinMax<<<grid,block>>>(matrixDevice, size, mind, maxd);
-  cudaDeviceSynchronize();
-  CudaCheckError();
-  normalize<<<grid,block>>>(matrixDevice, normDevice, mind, maxd, size);
-  CudaCheckError();
-  CudaSafeCall(cudaMemcpy(norm, normDevice, size*sizeof(float), cudaMemcpyDeviceToHost));
-  CudaSafeCall(cudaFree(maxd));
-  CudaSafeCall(cudaFree(mind));
-  CudaSafeCall(cudaFree(matrixDevice));
-  CudaSafeCall(cudaFree(normDevice));
-
-  return norm;
-
-}
-bool* generateKey(unsigned long numPixels, unsigned int numTimePoints, float* matrix, unsigned long &numPixelsWithValues){
-  dim3 grid = {1,1,1};
-  dim3 block = {1,1,1};
-  block.x = (numTimePoints < 1024) ? numTimePoints : 1024;
-  getGrid(numPixels, grid, block.x);
-
-  bool* key = new bool[numPixels];
-
-  float* matrixDevice;
-  bool* keyDevice;
-
-  CudaSafeCall(cudaMalloc((void**)&matrixDevice, numPixels*numTimePoints*sizeof(float)));
-  CudaSafeCall(cudaMalloc((void**)&keyDevice, numPixels*sizeof(float)));
-  CudaSafeCall(cudaMemcpy(matrixDevice, &matrix, numPixels*numTimePoints*sizeof(float), cudaMemcpyHostToDevice));
-
-  generateKey<<<grid,block>>>(numPixels, numTimePoints, matrixDevice, keyDevice);
-  CudaCheckError();
-  CudaSafeCall(cudaMemcpy(key, keyDevice, numPixels*sizeof(bool), cudaMemcpyDeviceToHost));
-
-  CudaSafeCall(cudaFree(matrixDevice));
-  CudaSafeCall(cudaFree(keyDevice));
-  for(int p = 0; p < numPixels; ++p){
-    if(key[p]) ++numPixelsWithValues;
-  }
-
-  return key;
-
-}
-float* minimizeVideo(unsigned long numPixels, unsigned long numPixelsWithValues, unsigned int numTimePoints, float* matrix, bool* key){
-  float* minimizedVideo = new float[numPixelsWithValues*numTimePoints];
-  int currentPixel = 0;
-  for(int p = 0; p < numPixels; ++p){
-    if(key[p]){
-      memcpy(&minimizedVideo[currentPixel*numTimePoints], matrix + p*numTimePoints, numTimePoints*sizeof(float));
-      ++currentPixel;
-    }
-  }
-  return minimizedVideo;
-}
 
 double get_time(){
     //output time in microseconds
@@ -247,40 +70,37 @@ double get_time(){
     //the following line is required for function-wise timing to work,
     //but it slows down overall execution time.
     //comment out for faster execution
-    cudaThreadSynchronize();
+    cudaThreadSynchronize(); 
 
     struct timeval t;
     gettimeofday(&t,NULL);
     return (double)(t.tv_sec+t.tv_usec/1E6);
 }
-int start_time(double* t, int i){
+
+int start_time(double* t, int i)
+{
     if (t != NULL)
     {
         t[i] -= get_time();
         return 1;
     }
-    else
+    else 
         return 0;
 }
-int stop_time(double* t, int i){
+
+int stop_time(double* t, int i)
+{
     if (t != NULL)
     {
         t[i] += get_time();
         return 1;
     }
-    else
+    else 
         return 0;
 }
-unsigned nextpow2(unsigned x){
-    x = x - 1;
-    x = x | (x >> 1);
-    x = x | (x >> 2);
-    x = x | (x >> 4);
-    x = x | (x >> 8);
-    x = x | (x >> 16);
-    return x + 1;
 
-}
+
+
 void update_div(matrix W0, matrix H0, matrix X0, const float thresh, const int max_iter, double *t,int verbose){
     //run iterative multiplicative updates on W,H
 
@@ -362,6 +182,16 @@ void update_div(matrix W0, matrix H0, matrix X0, const float thresh, const int m
 
     // block size in vector arithmetic operations
     const int BLOCK_SIZE = 128;
+
+
+
+
+
+    //copy host matrices to device memory
+    copy_matrix_to_device(&W0);
+    copy_matrix_to_device(&H0);
+    copy_matrix_to_device(&X0);
+
 
     //matrix to hold W*H
     matrix WH0;
@@ -473,7 +303,7 @@ void update_div(matrix W0, matrix H0, matrix X0, const float thresh, const int m
 
 
             /* matlab algorithm
-               Z = X./(W*H+eps); H = H.*(W'*Z)./(repmat(sum(W)',1,F));
+               Z = X./(W*H+eps); H = H.*(W'*Z)./(repmat(sum(W)',1,F)); 
                Z = X./(W*H+eps);
                W = W.*(Z*H')./(repmat(sum(H,2)',N,1));
                */
@@ -698,47 +528,14 @@ void update_div(matrix W0, matrix H0, matrix X0, const float thresh, const int m
 
 }
 
-void performNNMF(float* &W, float* &H, float* matrix, unsigned int k, unsigned long numPixels, unsigned int numTimePoints){
-  float* dW;
-  float* dH;
-  float* dMatrix;
-  CudaSafeCall(cudaMalloc((void**)&dW, numPixels*k*sizeof(float)));
-  CudaSafeCall(cudaMalloc((void**)&dH, k*numTimePoints*sizeof(float)));
-  CudaSafeCall(cudaMalloc((void**)&dMatrix, numPixels*numTimePoints*sizeof(float)));
-  CudaSafeCall(cudaMemcpy(dMatrix, matrix, numPixels*numTimePoints*sizeof(float), cudaMemcpyHostToDevice));
-  dim3 grid = {1,1,1};
-  dim3 block = {1,1,1};
-  getFlatGridBlock(numPixels*k, grid, block);
-  randInitMatrix<<<grid,block>>>(numPixels*k, dW);
-  CudaCheckError();
-  grid = {1,1,1};
-  block = {1,1,1};
-  getFlatGridBlock(k*numTimePoints, grid, block);
-  randInitMatrix<<<grid,block>>>(k*numTimePoints, dH);
-  CudaCheckError();
-  CudaSafeCall(cudaMemcpy(W, dW, numPixels*k*sizeof(float), cudaMemcpyDeviceToHost));
-  CudaSafeCall(cudaMemcpy(H, dH, k*numTimePoints*sizeof(float), cudaMemcpyDeviceToHost));
-  
-  matrix wM, hM, vM;
-  wM.dim = {numPixels, k};
-  hM.dim = {k, numTimePoints};
-  vM.dim = {numPixels, numTimePoints};
-  wM.mat = W;
-  hM.mat = H;
-  vM.mat = matrix;
-  wM.mat_d = dW;
-  hM.mat_d = dH;
-  vM.mat_d = dMatrix;
-  matrix_eps(wM);
-  matrix_eps(hM);
-  matrix_eps(vM);
-  matrix_eps_d(wM, 32);
-  matrix_eps_d(hM, 32);
-  matrix_eps_d(vM, 32);
+unsigned nextpow2(unsigned x) 
+{
+    x = x - 1;
+    x = x | (x >> 1);
+    x = x | (x >> 2);
+    x = x | (x >> 4);
+    x = x | (x >> 8);
+    x = x | (x >> 16);
+    return x + 1;
 
-  update_div(wM, hM, vM, CONVERGE_THRESH, MAX_ITER, NULL, 1);
-
-  CudaSafeCall(cudaFree(wM.mat_d));
-  CudaSafeCall(cudaFree(hM.mat_d));
-  CudaSafeCall(cudaFree(vM.mat_d));
 }

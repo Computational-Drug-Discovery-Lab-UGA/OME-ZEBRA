@@ -6,25 +6,7 @@ of the first timepoint, the w matrix of NNMF output and a  key csv that
 represents the if a pixel row is all 0.
 */
 
-#include "cuda_runtime.h"
-#include "device_launch_parameters.h"
-#include <cuda.h>
-#include "tiffio.h"
-#include <cstring>
-#include <fstream>
-#include <inttypes.h>
-#include <iostream>
-#include <sstream>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string>
-#include <vector>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <limits>
-
-
-
+#include "common_includes.h"
 using namespace std;
 
 
@@ -66,6 +48,7 @@ inline void __cudaCheckError(const char *file, const int line) {
 
   return;
 }
+
 
 
 string createFourCharInt(int i);

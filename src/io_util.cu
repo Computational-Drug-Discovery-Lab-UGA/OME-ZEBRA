@@ -75,22 +75,32 @@ uint32* readTiffVideo(std::string videoDirectoryPath, unsigned int &width, unsig
     exit(-1);
   }
   struct dirent* in_file;
-  std::string currentFileName = "";
   std::vector<uint32*> videoVector;
   unsigned int scanLineSize;
+  std::cout<<"reading tif timepoint files from "<<videoDirectoryPath<<std::endl;
+  std::vector<std::string> fileNames;
   while((in_file = readdir(dir)) != NULL){
-    if (in_file->d_name != "." || in_file->d_name != "..") continue;
-    currentFileName = in_file->d_name;
+    std::string currentFileName = in_file->d_name;
+    if (currentFileName == "." || currentFileName == "..") continue;
     //TODO check if it is a tif
-    TIFF *tif = TIFFOpen(currentFileName.c_str(), "r");
+    if (numTimePoints == 0) {
+      baseName = currentFileName.substr(0, currentFileName.find_first_of("."));
+    }
+    currentFileName = videoDirectoryPath + currentFileName;
+    fileNames.push_back(currentFileName);
+    ++numTimePoints;
+  }
+  closedir(dir);
+  std::sort(fileNames.begin(), fileNames.end());
+  for(int i = 0; i < numTimePoints; ++i){
+    std::cout<<"reading "<<fileNames[i]<<std::endl;
+    TIFF *tif = TIFFOpen(fileNames[i].c_str(), "r");
     if (tif) {
-      if (numTimePoints == 0) {
+      if (i == 0) {
         TIFFGetField(tif, TIFFTAG_IMAGEWIDTH, &width);
         TIFFGetField(tif, TIFFTAG_IMAGELENGTH, &height);
         scanLineSize = TIFFScanlineSize(tif);
-        baseName = currentFileName.substr(currentFileName.find_last_of("/\\") + 1);
       }
-
       uint32 *tpMatrix = new uint32[height*width];
       extractMartrices(tif, tpMatrix, width, height, scanLineSize);
       videoVector.push_back(tpMatrix);
@@ -98,10 +108,9 @@ uint32* readTiffVideo(std::string videoDirectoryPath, unsigned int &width, unsig
     }
     else{
       std::cout<<"READING IN TIFF DIRECTORY FAILED AT TP = "<<numTimePoints<<std::endl;
+      exit(-1);
     }
-    ++numTimePoints;
   }
-  closedir(dir);
   uint32* videoMatrix = new uint32[height*width*numTimePoints];
   for(int i = 0; i < numTimePoints; ++i){
     memcpy(&videoMatrix[i*height*width], videoVector[i], height*width*sizeof(uint32));
@@ -111,6 +120,7 @@ uint32* readTiffVideo(std::string videoDirectoryPath, unsigned int &width, unsig
       videoMatrix[r*numTimePoints + c] = videoVector[c][r];
     }
   }
+  printf("width = %d\nheight = %d\nnumTimePoints = %d\nbaseName = %s\n", width, height, numTimePoints, baseName.c_str());
   return videoMatrix;
 }
 

@@ -1,12 +1,9 @@
-#ifndef CUDA_ZEBRA_H
-#define CUDA_ZEBRA_H
+#ifndef CUDA_ZEBRA_CUH
+#define CUDA_ZEBRA_CUH
 
 #include "common_includes.h"
-#include <time.h>
 #include <sys/time.h>
 #include <math.h>
-#include <curand.h>
-#include <curand_kernel.h>
 #include "matrix.cuh"
 
 __global__ void findMinMax(uint32* mtx, unsigned long size, uint32* min, uint32* max);
@@ -30,4 +27,4 @@ void update_div(matrix W, matrix H, matrix X, const float thresh, const int max_
 
 void performNNMF(float* &W, float* &H, float* V, unsigned int k, unsigned long numPixels, unsigned int numTimePoints);
 
-#endif /* CUDA_ZEBRA_H */
+#endif /* CUDA_ZEBRA_CUH */

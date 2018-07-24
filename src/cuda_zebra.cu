@@ -40,9 +40,9 @@ inline void __cudaCheckError(const char *file, const int line) {
 }
 
 // status printed and convergence check every ITER_CHECK iterations
-#define ITER_CHECK 25
+#define ITER_CHECK 40
 // max number of iterations
-#define MAX_ITER 200
+#define MAX_ITER 20000
 // set to zero to guarantee MAX_ITER iterations, 0.001 is a good value otherwise
 #define CONVERGE_THRESH 0.001
 
@@ -94,11 +94,23 @@ __global__ void generateKey(unsigned long numPixels, unsigned int numTimePoints,
     hasNonZero = false;
     __syncthreads();
     for(int tp = threadIdx.x; tp < numTimePoints; tp += blockDim.x){
-      if(hasNonZero) return;
+      if(hasNonZero) break;
       if(mtx[blockID*numTimePoints + tp] != 0.0f){
         key[blockID] = true;
         hasNonZero = true;
-        return;
+        break;
+      }
+    }
+    __syncthreads();
+    if(!hasNonZero){
+      key[blockID] = false;
+      return;
+    }
+    else{
+      for(int tp = threadIdx.x; tp < numTimePoints; tp += blockDim.x){
+        if(mtx[blockID*numTimePoints + tp] == 0.0f){
+          mtx[blockID*numTimePoints + tp] += 2e-30;
+        }
       }
     }
   }
@@ -106,10 +118,9 @@ __global__ void generateKey(unsigned long numPixels, unsigned int numTimePoints,
 __global__ void randInitMatrix(unsigned long size, float* mtx){
   int blockID = blockIdx.y * gridDim.x + blockIdx.x;
   long globalID = blockID * blockDim.x + threadIdx.x;
-  curandState state;
   if(globalID < size){
-   curand_init(clock64(), globalID, 0, &state);
-   mtx[globalID] = curand_uniform(&state);
+    mtx[globalID] = ((float)(clock64()%1000))/1000.0f;
+   if(mtx[globalID] == 0.0f) mtx[globalID] += 2e-30;
   }
 }
 __global__ void multiplyMatrices(float *matrixA, float *matrixB, float *matrixC,
@@ -186,11 +197,13 @@ float* executeNormalization(uint32* mtx, unsigned long size){
   CudaSafeCall(cudaMalloc((void**)&normDevice, size*sizeof(float)));
   CudaSafeCall(cudaMemcpy(maxd, &max, sizeof(uint32), cudaMemcpyHostToDevice));
   CudaSafeCall(cudaMemcpy(mind, &min, sizeof(uint32), cudaMemcpyHostToDevice));
-  CudaSafeCall(cudaMemcpy(matrixDevice, &mtx, size*sizeof(uint32), cudaMemcpyHostToDevice));
+  CudaSafeCall(cudaMemcpy(matrixDevice, mtx, size*sizeof(uint32), cudaMemcpyHostToDevice));
 
+  std::cout<<"searching for max and min"<<std::endl;
   findMinMax<<<grid,block>>>(matrixDevice, size, mind, maxd);
   cudaDeviceSynchronize();
   CudaCheckError();
+  std::cout<<"executing normalization"<<std::endl;
   normalize<<<grid,block>>>(matrixDevice, normDevice, mind, maxd, size);
   CudaCheckError();
   CudaSafeCall(cudaMemcpy(norm, normDevice, size*sizeof(float), cudaMemcpyDeviceToHost));
@@ -215,22 +228,24 @@ bool* generateKey(unsigned long numPixels, unsigned int numTimePoints, float* mt
 
   CudaSafeCall(cudaMalloc((void**)&matrixDevice, numPixels*numTimePoints*sizeof(float)));
   CudaSafeCall(cudaMalloc((void**)&keyDevice, numPixels*sizeof(float)));
-  CudaSafeCall(cudaMemcpy(matrixDevice, &mtx, numPixels*numTimePoints*sizeof(float), cudaMemcpyHostToDevice));
+  CudaSafeCall(cudaMemcpy(matrixDevice, mtx, numPixels*numTimePoints*sizeof(float), cudaMemcpyHostToDevice));
+  std::cout<<"generating key to eradicate pixels that are always 0 = ";
 
   generateKey<<<grid,block>>>(numPixels, numTimePoints, matrixDevice, keyDevice);
   CudaCheckError();
   CudaSafeCall(cudaMemcpy(key, keyDevice, numPixels*sizeof(bool), cudaMemcpyDeviceToHost));
-
   CudaSafeCall(cudaFree(matrixDevice));
   CudaSafeCall(cudaFree(keyDevice));
   for(int p = 0; p < numPixels; ++p){
     if(key[p]) ++numPixelsWithValues;
   }
+  std::cout<<numPixelsWithValues<<std::endl;
 
   return key;
 
 }
 float* minimizeVideo(unsigned long numPixels, unsigned long numPixelsWithValues, unsigned int numTimePoints, float* mtx, bool* key){
+  std::cout<<"minimizing video due existence of all 0 rows"<<std::endl;
   float* minimizedVideo = new float[numPixelsWithValues*numTimePoints];
   int currentPixel = 0;
   for(int p = 0; p < numPixels; ++p){
@@ -452,6 +467,7 @@ void update_div(matrix W0, matrix H0, matrix X0, const float thresh, const int m
         //matrix test1;
 
         for(i=0;i<max_iter;i++){
+            std::cout<<"iteration "<<i<<std::endl;
 
             //check for convergence, print status
             if(i % ITER_CHECK == 0 && i != 0){
@@ -703,6 +719,7 @@ void performNNMF(float* &W, float* &H, float* V, unsigned int k, unsigned long n
   float* dW;
   float* dH;
   float* dMatrix;
+
   CudaSafeCall(cudaMalloc((void**)&dW, numPixels*k*sizeof(float)));
   CudaSafeCall(cudaMalloc((void**)&dH, k*numTimePoints*sizeof(float)));
   CudaSafeCall(cudaMalloc((void**)&dMatrix, numPixels*numTimePoints*sizeof(float)));
@@ -733,14 +750,13 @@ void performNNMF(float* &W, float* &H, float* V, unsigned int k, unsigned long n
   wM.mat_d = dW;
   hM.mat_d = dH;
   vM.mat_d = dMatrix;
-  matrix_eps(wM);
-  matrix_eps(hM);
-  matrix_eps(vM);
-  matrix_eps_d(wM, 32);
-  matrix_eps_d(hM, 32);
-  matrix_eps_d(vM, 32);
 
+  clock_t nnmfTimer;
+  nnmfTimer = clock();
+  std::cout<<"starting nnmf"<<std::endl;
   update_div(wM, hM, vM, CONVERGE_THRESH, MAX_ITER, NULL, 1);
+  printf("nnmf took %f seconds.\n\n", ((float) clock() - nnmfTimer)/CLOCKS_PER_SEC);
+
 
   CudaSafeCall(cudaFree(wM.mat_d));
   CudaSafeCall(cudaFree(hM.mat_d));

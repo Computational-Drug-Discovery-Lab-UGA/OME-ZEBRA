@@ -26,6 +26,8 @@
 #include <sys/types.h>
 #include <limits>
 #include <dirent.h>
+#include <algorithm>
+#include <time.h>
 
 
 #endif /* COMMON_INCLUDES_H */

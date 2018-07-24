@@ -1,8 +1,5 @@
-#include <stdio.h>
-#include <stdlib.h>
-//#include <assert.h>
-
-#include "matrix.h"
+#include "common_includes.h"
+#include "matrix.cuh"
 
 #define EPS 2.2204E-16
 #define MAX_BLOCKS 65535
@@ -33,11 +30,11 @@ void read_matrix(matrix* A, char* file){
     //read matrix in from file, store in column-major order
     //A* must point to an uninitialized matrix
 
-    FILE* fp;    
+    FILE* fp;
     size_t count;
-    
+
     fp = fopen(file,"rb");
-    count = fread(A->dim,sizeof(int),2, fp); 
+    count = fread(A->dim,sizeof(int),2, fp);
     if(count < 2)
 	fprintf(stderr,"read_matrix: fread error\n");
 
@@ -52,35 +49,35 @@ void read_matrix(matrix* A, char* file){
     A->mat_d = NULL;
     //copy_matrix_to_device(A);
 
-    printf("read %s [%ix%i]\n",file,A->dim[0],A->dim[1]); 
+    printf("read %s [%ix%i]\n",file,A->dim[0],A->dim[1]);
 }
 
 void write_matrix(matrix A, char* file){
     //write matrix to file using column-major order
     //dimensions are written as leading ints
 
-    FILE* fp;    
+    FILE* fp;
     size_t count;
-    
+
     fp = fopen(file,"wb");
-    count = fwrite(A.dim,sizeof(int),2,fp); 
+    count = fwrite(A.dim,sizeof(int),2,fp);
     if(count < 2)
 	fprintf(stderr,"write_matrix: fwrite error\n");
 
-    
+
     count = fwrite(A.mat,sizeof(float),A.dim[0]*A.dim[1],fp);
     if(count < A.dim[0]*A.dim[1])
 	fprintf(stderr,"write_matrix: fwrite error\n");
     fclose(fp);
 
-    printf("write %s [%ix%i]\n",file,A.dim[0],A.dim[1]); 
+    printf("write %s [%ix%i]\n",file,A.dim[0],A.dim[1]);
 }
 
 void create_matrix(matrix* A, int rows, int cols, float value){
     //create matrix with all elements equal to 'value'
     //matrix dimensions are in dim (rows,cols)
     //set A->mat_d to NULL
-    
+
     A->dim[0] = rows;
     A->dim[1] = cols;
     const int N = A->dim[0]*A->dim[1];
@@ -174,8 +171,8 @@ void copy_to_padded(matrix A, matrix Apad){
 	exit(1);
     }
     //cudaMemcpy2D( void* dst, size_t dpitch, const void* src, size_t spitch, size_t width, size_t height, enum cudaMemcpyKind kind )
-    		
-	
+
+
 }
 
 void copy_matrix_to_device_padded(matrix A, matrix Apad){
@@ -202,8 +199,8 @@ void copy_matrix_to_device_padded(matrix A, matrix Apad){
 	exit(1);
     }
     //cudaMemcpy2D( void* dst, size_t dpitch, const void* src, size_t spitch, size_t width, size_t height, enum cudaMemcpyKind kind )
-    		
-	
+
+
 }
 
 void copy_from_padded(matrix A, matrix Apad){
@@ -224,8 +221,8 @@ void copy_from_padded(matrix A, matrix Apad){
     }
 
     cudaMemcpy2D( A.mat_d, sizeof(float)*M, Apad.mat_d, sizeof(float)*M_padded, sizeof(float)*M, N, cudaMemcpyDeviceToDevice);
-	
-	
+
+
 }
 
 void copy_matrix_from_device_padded(matrix A, matrix Apad){
@@ -246,8 +243,8 @@ void copy_matrix_from_device_padded(matrix A, matrix Apad){
     }
 
     cudaMemcpy2D( A.mat, sizeof(float)*M, Apad.mat_d, sizeof(float)*M_padded, sizeof(float)*M, N, cudaMemcpyDeviceToHost);
-	
-	
+
+
 }
 
 void create_matrix_on_both(matrix* A, int rows, int cols, float value){
@@ -428,33 +425,33 @@ void print_matrix(matrix A){
 }
 
 void matrix_multiply_d( matrix a, matrix b, matrix c ){
-    
+
     cublasSgemm('N',
 	    'N', c.dim[0], c.dim[1],
 	    a.dim[1], 1, a.mat_d,
 	    a.dim[0], b.mat_d, b.dim[0],
 	    0, c.mat_d, c.dim[0]);
     if(cublasGetError() != CUBLAS_STATUS_SUCCESS){
-	fprintf(stderr,"matrix_multiply_d: NOT SUCCESS\n"); 
+	fprintf(stderr,"matrix_multiply_d: NOT SUCCESS\n");
 	exit(1);
     }
 }
 
 void matrix_multiply_AtB_d( matrix a, matrix b, matrix c ){
-    
+
     cublasSgemm('T',
 	    'N', c.dim[0], c.dim[1],
 	    b.dim[0], 1, a.mat_d,
 	    a.dim[0], b.mat_d, b.dim[0],
 	    0, c.mat_d, c.dim[0]);
     if(cublasGetError() != CUBLAS_STATUS_SUCCESS){
-	fprintf(stderr,"matrix_multiply_AtB_d: NOT SUCCESS\n"); 
+	fprintf(stderr,"matrix_multiply_AtB_d: NOT SUCCESS\n");
 	exit(1);
     }
 }
 
 void matrix_multiply_ABt_d( matrix a, matrix b, matrix c ){
-    
+
     cublasSgemm('N',
 	    'T', c.dim[0], c.dim[1],
 	    a.dim[1], 1, a.mat_d,
@@ -462,7 +459,7 @@ void matrix_multiply_ABt_d( matrix a, matrix b, matrix c ){
 	    0, c.mat_d, c.dim[0]);
     cublasStatus err = cublasGetError();
     if(err != CUBLAS_STATUS_SUCCESS){
-	fprintf(stderr,"matrix_multiply_ABt_d: NOT SUCCESS [%i]\n",err); 
+	fprintf(stderr,"matrix_multiply_ABt_d: NOT SUCCESS [%i]\n",err);
 	switch(err){
 	    case CUBLAS_STATUS_NOT_INITIALIZED:
 		fprintf(stderr,"CUBLAS_STATUS_NOT_INITIALIZED\n");
@@ -510,14 +507,14 @@ float matrix_difference_norm_d(action_t action, matrix a, matrix b, int* params)
 	r1size = 0;
 	return 0;
     }
-    
+
     if(a.dim[0] != b.dim[0] || a.dim[1] != b.dim[1]){
 	fprintf(stderr,"matrix_difference_norm_d: dimension error\n");
 	exit(1);
     }
 
     const int N = a.dim[0]*a.dim[1];	//size of each reduction
-    
+
     dim3 dimBlock(block1);
     dim3 dimGrid((N/(block1*lapt1)) + (!(N%(block1*lapt1))?0:1));
 
@@ -615,7 +612,7 @@ float matrix_div_d(action_t action, matrix a, matrix b, int* params){
     //block2 - "" for 2nd "" (set to 1 if not using 2nd level)
     //lapt1 - load/adds per thread for first red. lev.
     //lapt2 - "" for 2nd ""
-    
+
     int block1 = params[0];
     int block2 = params[2];
     int lapt1 = params[1];
@@ -643,7 +640,7 @@ float matrix_div_d(action_t action, matrix a, matrix b, int* params){
     }
 
     const int N = a.dim[0]*a.dim[1];	//size of each reduction
-    
+
     dim3 dimBlock(block1);
     dim3 dimGrid((N/(block1*lapt1)) + (!(N%(block1*lapt1))?0:1));
 
@@ -753,7 +750,7 @@ void element_divide_d( matrix a, matrix b, matrix c, int block_size){
 
     vecDiv<<<dimGrid,dimBlock>>>(a.mat_d,b.mat_d,c.mat_d,N);
 }
-    
+
 __global__ void vecDiv(float* a,float* b,float* c,const int N){
     //const int i = blockIdx.x*blockDim.x + threadIdx.x;
     const int i = gridDim.x*blockDim.x*blockIdx.y +  blockIdx.x*blockDim.x + threadIdx.x;
@@ -781,7 +778,7 @@ void element_multiply_d( matrix a, matrix b, matrix c, int block_size){
 
     vecMult<<<dimGrid,dimBlock>>>(a.mat_d,b.mat_d,c.mat_d,N);
 }
-    
+
 __global__ void vecMult(float* a,float* b,float* c,const int N){
     //const int i = blockIdx.x*blockDim.x + threadIdx.x;
     const int i = gridDim.x*blockDim.x*blockIdx.y +  blockIdx.x*blockDim.x + threadIdx.x;
@@ -802,7 +799,7 @@ void matrix_eps_d(matrix a, int block_size){
 
     dim3 dimBlock(block_size);
     dim3 dimGrid((N/dimBlock.x) + (!(N%dimBlock.x)?0:1));
-    
+
     if (dimGrid.x > MAX_BLOCKS)
 	grid2D(&dimGrid);
 
@@ -888,7 +885,7 @@ void sum_cols_d(action_t action, matrix a, matrix c, int* params){
 	r1size = 0;
 	return;
     }
-    
+
     if(a.dim[1] != c.dim[1] || c.dim[0] != 1){
 	fprintf(stderr,"sum_cols_d: dimension error\n");
 	exit(1);
@@ -896,7 +893,7 @@ void sum_cols_d(action_t action, matrix a, matrix c, int* params){
 
     const int N = a.dim[0];	//size of each reduction
     const int M = a.dim[1];	//number of reductions
-    
+
     dim3 dimBlock(block1,1);
     dim3 dimGrid((N/(block1*lapt1)) + (!(N%(block1*lapt1))?0:1),M);
 
@@ -987,7 +984,7 @@ void sum_rows_d(action_t action, matrix a, matrix c, int* params){
     //block2 - "" for 2nd "" (set to 1 if not using 2nd level)
     //lapt1 - load/adds per thread for first red. lev.
     //lapt2 - "" for 2nd ""
-    
+
     int block1 = params[0];
     int block2 = params[2];
     int lapt1 = params[1];
@@ -1010,7 +1007,7 @@ void sum_rows_d(action_t action, matrix a, matrix c, int* params){
 
     const int N = a.dim[1];	//size of each reduction
     const int M = a.dim[0];	//number of reductions
-    
+
     dim3 dimBlock(block1,1);
     dim3 dimGrid((N/(block1*lapt1)) + (!(N%(block1*lapt1))?0:1),M);
 
@@ -1102,7 +1099,7 @@ float nan_check_d(action_t action, matrix a, int* params)
     //block2 - "" for 2nd "" (set to 1 if not using 2nd level)
     //lapt1 - load/adds per thread for first red. lev.
     //lapt2 - "" for 2nd ""
-    
+
     int block1 = params[0];
     int block2 = params[2];
     int lapt1 = params[1];
@@ -1126,7 +1123,7 @@ float nan_check_d(action_t action, matrix a, int* params)
 
 
     const int N = a.dim[0]*a.dim[1];	//size of each reduction
-    
+
     dim3 dimBlock(block1);
     dim3 dimGrid((N/(block1*lapt1)) + (!(N%(block1*lapt1))?0:1));
 
@@ -1222,7 +1219,7 @@ float zero_check_d(action_t action, matrix a, int* params)
     //block2 - "" for 2nd "" (set to 1 if not using 2nd level)
     //lapt1 - load/adds per thread for first red. lev.
     //lapt2 - "" for 2nd ""
-    
+
     int block1 = params[0];
     int block2 = params[2];
     int lapt1 = params[1];
@@ -1246,7 +1243,7 @@ float zero_check_d(action_t action, matrix a, int* params)
 
 
     const int N = a.dim[0]*a.dim[1];	//size of each reduction
-    
+
     dim3 dimBlock(block1);
     dim3 dimGrid((N/(block1*lapt1)) + (!(N%(block1*lapt1))?0:1));
 
@@ -1344,11 +1341,11 @@ __global__ void reduce1DNan(float *g_idata1, float *g_odata, int N){
     const int gridSize = blockSize*gridDim.x;
     float x;
     sdata[tid] = 0;
-    while (i < N) { 
+    while (i < N) {
 	x = g_idata1[i];
-	//sdata[tid] += (x*__logf(x/y)-x+y); 
+	//sdata[tid] += (x*__logf(x/y)-x+y);
 	sdata[tid] += (float)isnan(x);
-       	i += gridSize; 
+       	i += gridSize;
     }
     __syncthreads();
     // do reduction in shared mem
@@ -1368,7 +1365,7 @@ __global__ void reduce1DNan(float *g_idata1, float *g_odata, int N){
     }
 
     // write result for this block to global mem
-    if (tid == 0){ 
+    if (tid == 0){
 	g_odata[blockIdx.x] = sdata[0];
     }
 }
@@ -1382,11 +1379,11 @@ __global__ void reduce1DEql(float *g_idata1, float *g_odata, int N){
     const int gridSize = blockSize*gridDim.x;
     float x;
     sdata[tid] = 0;
-    while (i < N) { 
+    while (i < N) {
 	x = g_idata1[i];
 	//sdata[tid] += (float)isinf(x);
 	sdata[tid] += (float)(x==0);
-       	i += gridSize; 
+       	i += gridSize;
     }
     __syncthreads();
     // do reduction in shared mem
@@ -1406,7 +1403,7 @@ __global__ void reduce1DEql(float *g_idata1, float *g_odata, int N){
     }
 
     // write result for this block to global mem
-    if (tid == 0){ 
+    if (tid == 0){
 	g_odata[blockIdx.x] = sdata[0];
     }
 }
@@ -1422,18 +1419,18 @@ __global__ void reduce1DDiff(float *g_idata1, float *g_idata2, float *g_odata, i
     const int gridSize = blockSize*gridDim.x;
     sum[tid] = 0;
     diff[tid] = 0;
-    while (i < N) { 
+    while (i < N) {
 	diff[tid] += fabs(g_idata1[i] - g_idata2[i]);
 	sum[tid] += fabs(g_idata1[i]);
-       	i += gridSize; 
+       	i += gridSize;
     }
     __syncthreads();
     // do reduction in shared mem
     if (blockSize >= 512) { if (tid < 256) { diff[tid] += diff[tid + 256]; sum[tid] += sum[tid + 256]; }
        	__syncthreads(); }
-    if (blockSize >= 256) { if (tid < 128) { diff[tid] += diff[tid + 128]; sum[tid] += sum[tid + 128]; } 
+    if (blockSize >= 256) { if (tid < 128) { diff[tid] += diff[tid + 128]; sum[tid] += sum[tid + 128]; }
 	__syncthreads(); }
-    if (blockSize >= 128) { if (tid < 64) { diff[tid] += diff[tid + 64]; sum[tid] += sum[tid + 64]; } 
+    if (blockSize >= 128) { if (tid < 64) { diff[tid] += diff[tid + 64]; sum[tid] += sum[tid + 64]; }
 	__syncthreads(); }
     if (tid < 32) {
 	if (blockSize >= 64){ diff[tid] += diff[tid + 32]; sum[tid] += sum[tid + 32]; }
@@ -1445,7 +1442,7 @@ __global__ void reduce1DDiff(float *g_idata1, float *g_idata2, float *g_odata, i
     }
 
     // write result for this block to global mem
-    if (tid == 0){ 
+    if (tid == 0){
 	g_odata[blockIdx.x + gridDim.x] = sum[0];
 	g_odata[blockIdx.x] = diff[0];
     }
@@ -1461,12 +1458,12 @@ __global__ void reduce1DDiv(float *g_idata1, float *g_idata2, float *g_odata, in
     float x;
     float y;
     sdata[tid] = 0;
-    while (i < N) { 
+    while (i < N) {
 	x = g_idata1[i];
 	y = g_idata2[i];
-	//sdata[tid] += (x*__logf(x/y)-x+y); 
-	sdata[tid] += (x*(logf(x)-logf(y))-x+y); 
-       	i += gridSize; 
+	//sdata[tid] += (x*__logf(x/y)-x+y);
+	sdata[tid] += (x*(logf(x)-logf(y))-x+y);
+       	i += gridSize;
     }
     __syncthreads();
     // do reduction in shared mem
@@ -1486,7 +1483,7 @@ __global__ void reduce1DDiv(float *g_idata1, float *g_idata2, float *g_odata, in
     }
 
     // write result for this block to global mem
-    if (tid == 0){ 
+    if (tid == 0){
 	g_odata[blockIdx.x] = sdata[0];
     }
 }
@@ -1532,9 +1529,9 @@ __global__ void reduce2DStrided(float *g_idata, float *g_odata, int N, int strid
     const unsigned int gridSize = blockSize*2*gridDim.x;
     int n = N - blockSize;
     sdata[tid] = 0;
-    while (i < n) { 
+    while (i < n) {
 	sdata[tid] += g_idata[i*stride+offset] + g_idata[(i+blockSize)*stride+offset];
-       	i += gridSize; 
+       	i += gridSize;
     }
     if(i<N)
 	sdata[tid] += g_idata[i*stride+offset];
@@ -1631,9 +1628,3 @@ void grid2D(dim3* dimGrid)
     dimGrid->x = dimGrid->x/y + (!(dimGrid->x%y)?0:1);
 
 }
-
-    
-
-    
-
-

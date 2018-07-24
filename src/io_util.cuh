@@ -1,0 +1,18 @@
+#ifndef IO_UTIL_CUH
+#define IO_UTIL_CUH
+
+#include "common_includes.h"
+#include "cuda_zebra.cuh"
+
+std::string createFourCharInt(int i);
+void extractMartrices(TIFF *tif, uint32* &imageMatrix, unsigned int width, unsigned int height, unsigned int scanLineSize);
+uint32* readTiffVideo(std::string videoDirectoryPath, unsigned int &width, unsigned int &height, unsigned int &numTimePoints, std::string &baseName);
+int createKey(float* &mtx, bool* &key, unsigned int numTimePoints, unsigned long numPixels);
+
+void createSpatialImages(std::string outDir, std::string firstTimePointLocation, std::string baseName, int k,
+  unsigned int width, unsigned int height, float* W, bool* key);
+void createKVideos(std::string outDir, std::string baseName, std::string firstTimePointLocation, int k, unsigned int width, unsigned int height,
+  unsigned int numTimePoints, float* W, float* H, bool* key);
+void createVisualization(std::string videoDirectoryPath, int k, unsigned int width, unsigned int height,
+  unsigned int numTimePoints, float* W, float* H, bool* key, std::string baseName);
+#endif /* IO_UTIL_CUH */

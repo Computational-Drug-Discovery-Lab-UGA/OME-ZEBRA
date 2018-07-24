@@ -1,22 +1,59 @@
-#include "io_util.h"
+#include "io_util.cuh"
 
+// Define this to turn on error checking
+#define CUDA_ERROR_CHECK
+
+#define CudaSafeCall(err) __cudaSafeCall(err, __FILE__, __LINE__)
+#define CudaCheckError() __cudaCheckError(__FILE__, __LINE__)
+
+inline void __cudaSafeCall(cudaError err, const char *file, const int line) {
+#ifdef CUDA_ERROR_CHECK
+  if (cudaSuccess != err) {
+    fprintf(stderr, "cudaSafeCall() failed at %s:%i : %s\n", file, line,
+            cudaGetErrorString(err));
+    exit(-1);
+  }
+#endif
+
+  return;
+}
+inline void __cudaCheckError(const char *file, const int line) {
+#ifdef CUDA_ERROR_CHECK
+  cudaError err = cudaGetLastError();
+  if (cudaSuccess != err) {
+    fprintf(stderr, "cudaCheckError() failed at %s:%i : %s\n", file, line,
+            cudaGetErrorString(err));
+    exit(-1);
+  }
+
+  // More careful checking. However, this will affect performance.
+  // Comment away if needed.
+  // err = cudaDeviceSynchronize();
+  if (cudaSuccess != err) {
+    fprintf(stderr, "cudaCheckError() with sync failed at %s:%i : %s\n", file,
+            line, cudaGetErrorString(err));
+    exit(-1);
+  }
+#endif
+
+  return;
+}
 /*
 IO HELPERS
 */
 std::string createFourCharInt(int i) {
   std::string strInt;
   if (i < 10) {
-    strInt = "000" + to_string(i);
+    strInt = "000" + std::to_string(i);
   } else if (i < 100) {
-    strInt = "00" + to_string(i);
+    strInt = "00" + std::to_string(i);
   } else if (i < 1000) {
-    strInt = "0" + to_string(i);
+    strInt = "0" + std::to_string(i);
   } else {
-    strInt = to_string(i);
+    strInt = std::to_string(i);
   }
   return strInt;
 }
-
 void extractMartrices(TIFF *tif, uint32* &imageMatrix, unsigned int width, unsigned int height, unsigned int scanLineSize) {
   tdata_t buf;
   buf = _TIFFmalloc(scanLineSize);
@@ -31,18 +68,17 @@ void extractMartrices(TIFF *tif, uint32* &imageMatrix, unsigned int width, unsig
   }
   _TIFFfree(buf);
 }
-
 uint32* readTiffVideo(std::string videoDirectoryPath, unsigned int &width, unsigned int &height, unsigned int &numTimePoints, std::string &baseName){
   DIR* dir;
   if (NULL == (dir = opendir(videoDirectoryPath.c_str()))){
-      printf("Error : Failed to open input directory %s\n",videoDirectoryPath);
-      exit(-1);
-    }
+    printf("Error : Failed to open input directory %s\n",videoDirectoryPath.c_str());
+    exit(-1);
   }
   struct dirent* in_file;
   std::string currentFileName = "";
-  vector<uint32*> videoVector;
-  while(in_file = readDir(dir)){
+  std::vector<uint32*> videoVector;
+  unsigned int scanLineSize;
+  while((in_file = readdir(dir)) != NULL){
     if (in_file->d_name != "." || in_file->d_name != "..") continue;
     currentFileName = in_file->d_name;
     //TODO check if it is a tif
@@ -57,7 +93,7 @@ uint32* readTiffVideo(std::string videoDirectoryPath, unsigned int &width, unsig
 
       uint32 *tpMatrix = new uint32[height*width];
       extractMartrices(tif, tpMatrix, width, height, scanLineSize);
-      videoVector.push_back(flatMatrix);
+      videoVector.push_back(tpMatrix);
       TIFFClose(tif);
     }
     else{
@@ -78,12 +114,13 @@ uint32* readTiffVideo(std::string videoDirectoryPath, unsigned int &width, unsig
   return videoMatrix;
 }
 
-int createKey(float* &matrix, bool* &key, unsigned int numTimePoints, unsigned long numPixels){
+int createKey(float* &mtx, bool* &key, unsigned int numTimePoints, unsigned long numPixels){
   int nonZeroCounter = 0;
+  int lastGoodIndex = 0;
   for (unsigned i = 0; i < numPixels; i++) {
     nonZeroCounter = 0;
     for (unsigned j = 0; j < numTimePoints; j++) {
-      if (matrix[(numTimePoints * i) + j] != 0.0f) {
+      if (mtx[(numTimePoints * i) + j] != 0.0f) {
         nonZeroCounter++;
         break;
       }
@@ -96,32 +133,8 @@ int createKey(float* &matrix, bool* &key, unsigned int numTimePoints, unsigned l
   return lastGoodIndex;
 }
 
-/*
-VISUALIZATION
-*/
-
-void createVisualization(std::string videoDirectoryPath, int k, unsigned int width, unsigned int height, unsigned int numTimePoints,
-  float* W, float* H, float* matrix, bool* key, std::string baseName){
-
-  DIR* dir;
-  std::firstTimePointLocation = "";
-  if (NULL == (dir = opendir(videoDirectoryPath.c_str()))){
-      printf("Error : Failed to open input directory %s\n",videoDirectoryPath);
-      exit(-1);
-    }
-  }
-  struct dirent* in_file;
-  std::string currentFileName = "";
-  while(in_file = readDir(dir)){
-    if (in_file->d_name != "." || in_file->d_name != "..") continue;
-    currentFileName = in_file->d_name;
-    if(currentFileName.find("0000.tif") != std::string::npos){
-      firstTimePointLocation = currentFileName;
-      break;
-    }
-  }
-  closedir(dir);
-
+void createSpatialImages(std::string outDir, std::string firstTimePointLocation, std::string baseName, int k,
+  unsigned int width, unsigned int height, float* W, bool* key){
   TIFF *tif = TIFFOpen(firstTimePointLocation.c_str(), "r");
   uint32 max = 0;
   uint32 min = 4294967295;
@@ -132,16 +145,14 @@ void createVisualization(std::string videoDirectoryPath, int k, unsigned int wid
       kMatrix[i][ii] = new uint32[width];
     }
   }
+  uint32 samplesPerPixel, bitsPerSample, photo;
+
   if(tif){
     tdata_t buf;
     tsize_t scanLineSize;
     uint32 row;
-    vector<uint32 *> currentPlane;
+    std::vector<uint32 *> currentPlane;
 
-    uint32 height, width, samplesPerPixel, bitsPerSample, photo;
-
-    TIFFGetField(tif, TIFFTAG_IMAGEWIDTH, &width);
-    TIFFGetField(tif, TIFFTAG_IMAGELENGTH, &height);
     TIFFGetField(tif, TIFFTAG_SAMPLESPERPIXEL, &samplesPerPixel);
     TIFFGetField(tif, TIFFTAG_BITSPERSAMPLE, &bitsPerSample);
     TIFFGetField(tif, TIFFTAG_PHOTOMETRIC, &photo);
@@ -161,7 +172,7 @@ void createVisualization(std::string videoDirectoryPath, int k, unsigned int wid
             min = kMatrix[0][row][col];
         }
       } else {
-        cout << "ERROR READING SCANLINE" << endl;
+        std::cout << "ERROR READING SCANLINE" << std::endl;
         exit(-1);
       }
     }
@@ -194,7 +205,7 @@ void createVisualization(std::string videoDirectoryPath, int k, unsigned int wid
     }
   }
   for (int kFocus = 0; kFocus < k; ++kFocus) {
-    string fileName = videoDirectoryPath + "out/" + baseName + "_" + to_string(k) + "_" + to_string(kFocus) + ".tif";
+    std::string fileName = outDir + "/" + baseName + "_" + std::to_string(k) + "_" + std::to_string(kFocus) + ".tif";
     TIFF *resultTif = TIFFOpen(fileName.c_str(), "w");
     if (resultTif) {
       TIFFSetField(resultTif, TIFFTAG_IMAGEWIDTH, width);
@@ -204,15 +215,15 @@ void createVisualization(std::string videoDirectoryPath, int k, unsigned int wid
       TIFFSetField(resultTif, TIFFTAG_PHOTOMETRIC, photo);
       for(int row = 0; row < height; ++row){
         if (TIFFWriteScanline(resultTif, kMatrix[kFocus][row], row, 0) != 1) {
-          cout << "ERROR WRITING FIRST TIMEPOINT" << endl;
+          std::cout << "ERROR WRITING FIRST TIMEPOINT" << std::endl;
           exit(-1);
         }
       }
-      cout<<fileName<<" has been created"<<endl;
+      std::cout<<fileName<<" has been created"<<std::endl;
       TIFFClose(resultTif);
     }
     else{
-      cout<<"COULD NOT OPEN TIF"<<endl;
+      std::cout<<"COULD NOT OPEN TIF"<<std::endl;
       exit(-1);
     }
   }
@@ -223,6 +234,23 @@ void createVisualization(std::string videoDirectoryPath, int k, unsigned int wid
     delete[] kMatrix[i];
   }
   delete[] kMatrix;
+}
+void createKVideos(std::string outDir, std::string baseName, std::string firstTimePointLocation, int k, unsigned int width, unsigned int height,
+  unsigned int numTimePoints, float* W, float* H, bool* key){
+
+  TIFF *tif = TIFFOpen(firstTimePointLocation.c_str(), "r");
+  uint32 samplesPerPixel, bitsPerSample, photo;
+  if(tif){
+    TIFFGetField(tif, TIFFTAG_SAMPLESPERPIXEL, &samplesPerPixel);
+    TIFFGetField(tif, TIFFTAG_BITSPERSAMPLE, &bitsPerSample);
+    TIFFGetField(tif, TIFFTAG_PHOTOMETRIC, &photo);
+    TIFFClose(tif);
+  }
+  else{
+    std::cout<<"cannot open "<<firstTimePointLocation<<std::endl;
+    exit(-1);
+  }
+
   float* wColDevice;
   float* hRowDevice;
   float* resultDevice;
@@ -259,14 +287,13 @@ void createVisualization(std::string videoDirectoryPath, int k, unsigned int wid
   for(int i = 0; i < height; ++i){
     data[i] = new uint32[width];
   }
-  cout<<"starting k video generation"<<endl;
+  std::cout<<"starting k video generation"<<std::endl;
   for(int kFocus = 0; kFocus < k; ++kFocus){
-    string newDirectoryName = videoDirectoryPath + baseName + "_k" + to_string(k) + "_" + to_string(kFocus);
+    std::string newDirectoryName = outDir + "/" +  baseName + "_k" + std::to_string(k) + "_" + std::to_string(kFocus);
     if(mkdir(newDirectoryName.c_str(), 0777) == -1){
-      cout<<"CANNOT CREATE "<<newDirectoryName<<endl;
-      exit(-1);
+      std::cout<<"CANNOT CREATE "<<newDirectoryName<<std::endl;
     }
-    cout<<newDirectoryName<<" created"<<endl;
+    std::cout<<newDirectoryName<<" created"<<std::endl;
     for(int w = 0; w < height*width; ++w){
       wCol[w] = W[w*k + kFocus];
     }
@@ -278,8 +305,8 @@ void createVisualization(std::string videoDirectoryPath, int k, unsigned int wid
     multiplyMatrices<<<grid,block>>>(wColDevice, hRowDevice, resultDevice, height*width, 1, numTimePoints);
     CudaCheckError();
     CudaSafeCall(cudaMemcpy(result, resultDevice, width*height*numTimePoints*sizeof(float), cudaMemcpyDeviceToHost));
-    float minF = numeric_limits<float>::max();
-    float maxF = numeric_limits<float>::min();
+    float minF = std::numeric_limits<float>::max();
+    float maxF = std::numeric_limits<float>::min();
     for(int i = 0; i < height*width*numTimePoints; ++i){
       if(result[i] < minF) minF = result[i];
       if(result[i] > maxF) maxF = result[i];
@@ -288,7 +315,7 @@ void createVisualization(std::string videoDirectoryPath, int k, unsigned int wid
       result[i] = 4294967295*(result[i] - minF)/(maxF-minF);
     }
     for(int tp = 0; tp < numTimePoints; ++tp){
-      string newTif = newDirectoryName + "/" + baseName + "_" + createFourCharInt(tp);
+      std::string newTif = newDirectoryName + "/" + baseName + "_" + createFourCharInt(tp);
       TIFF *tpfTif = TIFFOpen(newTif.c_str(), "w");
 
       if(tpfTif){
@@ -303,15 +330,15 @@ void createVisualization(std::string videoDirectoryPath, int k, unsigned int wid
           }
 
           if (TIFFWriteScanline(tpfTif, data[row], row, 0) != 1) {
-            cout << "ERROR WRITING FIRST TIMEPOINT" << endl;
+            std::cout << "ERROR WRITING FIRST TIMEPOINT" << std::endl;
             exit(-1);
           }
         }
         TIFFClose(tpfTif);
-        cout<<newTif<<" has been created"<<endl;
+        std::cout<<newTif<<" has been created"<<std::endl;
       }
       else{
-        cout<<"COULD NOT CREATE "<<newTif<<endl;
+        std::cout<<"COULD NOT CREATE "<<newTif<<std::endl;
         exit(-1);
       }
     }
@@ -321,4 +348,31 @@ void createVisualization(std::string videoDirectoryPath, int k, unsigned int wid
   }
   delete[] data;
 
+}
+void createVisualization(std::string videoDirectoryPath, int k, unsigned int width, unsigned int height,
+  unsigned int numTimePoints, float* W, float* H, bool* key, std::string baseName){
+
+  std::string outDir = videoDirectoryPath + "/out";
+  if(mkdir(outDir.c_str(), 0777) == -1){
+    std::cout<<"CANNOT CREATE "<<outDir<<std::endl;
+  }
+  DIR* dir;
+  std::string firstTimePointLocation = "";
+  if (NULL == (dir = opendir(videoDirectoryPath.c_str()))){
+    printf("Error : Failed to open input directory %s\n",videoDirectoryPath.c_str());
+    exit(-1);
+  }
+  struct dirent* in_file;
+  std::string currentFileName = "";
+  while((in_file = readdir(dir)) != NULL){
+    if (in_file->d_name != "." || in_file->d_name != "..") continue;
+    currentFileName = in_file->d_name;
+    if(currentFileName.find("0000.tif") != std::string::npos){
+      firstTimePointLocation = currentFileName;
+      break;
+    }
+  }
+  closedir(dir);
+  createSpatialImages(outDir, firstTimePointLocation, baseName, k, width, height, W, key);
+  createKVideos(outDir, baseName, firstTimePointLocation, k, width, height, numTimePoints, W, H, key);
 }

@@ -1,7 +1,7 @@
 #include "common_includes.h"
-#include "io_util.h"
+#include "io_util.cuh"
 #include "cuda_zebra.cuh"
-#include "matrix.h"
+#include "matrix.cuh"
 
 
 int main(int argc, char *argv[]) {
@@ -31,7 +31,7 @@ int main(int argc, char *argv[]) {
   float* W = new float[k*width*height];
   float* H = new float[k*numTimePoints];
   performNNMF(W, H, minimizedVideo, k, height*width, numTimePoints);
-  createVisualization(baseDirectory,k, width, height, numTimePoints, W, H, minimizedVideo, key, baseName);
+  createVisualization(baseDirectory,k, width, height, numTimePoints, W, H, key, baseName);
 
   return 0;
 }

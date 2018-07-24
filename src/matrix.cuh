@@ -1,3 +1,5 @@
+#ifndef MATRIX_CUH
+#define MATRIX_CUH
 
 #include <cublas.h>
 #include <math.h>
@@ -56,3 +58,4 @@ void col_divide_d( matrix a, matrix b, matrix c);
 void sum_cols_d(action_t action, matrix a, matrix c, int* params);
 void sum_rows_d(action_t action, matrix a, matrix c, int* params);
 
+#endif /* MATRIX_CUH */

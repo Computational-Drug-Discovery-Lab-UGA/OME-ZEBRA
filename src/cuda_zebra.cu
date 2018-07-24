@@ -38,6 +38,7 @@ inline void __cudaCheckError(const char *file, const int line) {
 
   return;
 }
+
 // status printed and convergence check every ITER_CHECK iterations
 #define ITER_CHECK 25
 // max number of iterations
@@ -51,7 +52,7 @@ char *tname[] = {"total","sgemm","eps","vecdiv","vecmult","sumrows","sumcols","c
 
 
 
-__global__ void findMinMax(uint32* matrix, unsigned long size, uint32* min, uint32* max){
+__global__ void findMinMax(uint32* mtx, unsigned long size, uint32* min, uint32* max){
   int blockID = blockIdx.y * gridDim.x + blockIdx.x;
   long globalID = blockID * blockDim.x + threadIdx.x;
   __shared__ uint32 bmax;
@@ -60,7 +61,7 @@ __global__ void findMinMax(uint32* matrix, unsigned long size, uint32* min, uint
   bmin = UINT32_MAX;
   __syncthreads();
   if(globalID < size){
-    uint32 value = matrix[globalID];
+    uint32 value = mtx[globalID];
     atomicMax(&bmax, value);
     atomicMin(&bmin, value);
   }
@@ -70,7 +71,7 @@ __global__ void findMinMax(uint32* matrix, unsigned long size, uint32* min, uint
     atomicMin(min, bmin);
   }
 }
-__global__ void normalize(uint32 *matrix, float *normals, uint32* min, uint32* max, unsigned long size) {
+__global__ void normalize(uint32 *mtx, float *normals, uint32* min, uint32* max, unsigned long size) {
   int blockID = blockIdx.y * gridDim.x + blockIdx.x;
   long globalID = blockID * blockDim.x + threadIdx.x;
   int stride = gridDim.x * gridDim.y * blockDim.x;
@@ -78,15 +79,15 @@ __global__ void normalize(uint32 *matrix, float *normals, uint32* min, uint32* m
   float dmin = static_cast<float>(*min);
   float dmax = static_cast<float>(*max);
   while(globalID < size){
-    if (matrix[globalID] != 0) {
-      currentValue = static_cast<float>(matrix[globalID]) - dmin;
+    if (mtx[globalID] != 0) {
+      currentValue = static_cast<float>(mtx[globalID]) - dmin;
       currentValue /= (dmax - dmin);
     }
     normals[globalID] = 1.0f / (1.0f + expf((-10.0f * currentValue) + 7.5));
     globalID += stride;
   }
 }
-__global__ void generateKey(unsigned long numPixels, unsigned int numTimePoints, float* matrix, bool* key){
+__global__ void generateKey(unsigned long numPixels, unsigned int numTimePoints, float* mtx, bool* key){
   long blockID = blockIdx.y * gridDim.x + blockIdx.x;
   if(blockID < numPixels){
     __shared__ bool hasNonZero;
@@ -94,7 +95,7 @@ __global__ void generateKey(unsigned long numPixels, unsigned int numTimePoints,
     __syncthreads();
     for(int tp = threadIdx.x; tp < numTimePoints; tp += blockDim.x){
       if(hasNonZero) return;
-      if(matrix[blockID*numTimePoints + tp] != 0.0f){
+      if(mtx[blockID*numTimePoints + tp] != 0.0f){
         key[blockID] = true;
         hasNonZero = true;
         return;
@@ -102,13 +103,13 @@ __global__ void generateKey(unsigned long numPixels, unsigned int numTimePoints,
     }
   }
 }
-__global__ void randInitMatrix(unsigned long size, float* matrix){
+__global__ void randInitMatrix(unsigned long size, float* mtx){
   int blockID = blockIdx.y * gridDim.x + blockIdx.x;
   long globalID = blockID * blockDim.x + threadIdx.x;
   curandState state;
   if(globalID < size){
    curand_init(clock64(), globalID, 0, &state);
-   matrix[globalID] = curand_uniform(&state);
+   mtx[globalID] = curand_uniform(&state);
   }
 }
 __global__ void multiplyMatrices(float *matrixA, float *matrixB, float *matrixC,
@@ -167,7 +168,7 @@ void getGrid(unsigned long size, dim3 &grid, int blockSize) {
     }
   }
 }
-float* executeNormalization(uint32* matrix, unsigned long size){
+float* executeNormalization(uint32* mtx, unsigned long size){
   uint32 max = 0;
   uint32 min = UINT32_MAX;
   dim3 grid = {1,1,1};
@@ -185,7 +186,7 @@ float* executeNormalization(uint32* matrix, unsigned long size){
   CudaSafeCall(cudaMalloc((void**)&normDevice, size*sizeof(float)));
   CudaSafeCall(cudaMemcpy(maxd, &max, sizeof(uint32), cudaMemcpyHostToDevice));
   CudaSafeCall(cudaMemcpy(mind, &min, sizeof(uint32), cudaMemcpyHostToDevice));
-  CudaSafeCall(cudaMemcpy(matrixDevice, &matrix, size*sizeof(uint32), cudaMemcpyHostToDevice));
+  CudaSafeCall(cudaMemcpy(matrixDevice, &mtx, size*sizeof(uint32), cudaMemcpyHostToDevice));
 
   findMinMax<<<grid,block>>>(matrixDevice, size, mind, maxd);
   cudaDeviceSynchronize();
@@ -201,7 +202,7 @@ float* executeNormalization(uint32* matrix, unsigned long size){
   return norm;
 
 }
-bool* generateKey(unsigned long numPixels, unsigned int numTimePoints, float* matrix, unsigned long &numPixelsWithValues){
+bool* generateKey(unsigned long numPixels, unsigned int numTimePoints, float* mtx, unsigned long &numPixelsWithValues){
   dim3 grid = {1,1,1};
   dim3 block = {1,1,1};
   block.x = (numTimePoints < 1024) ? numTimePoints : 1024;
@@ -214,7 +215,7 @@ bool* generateKey(unsigned long numPixels, unsigned int numTimePoints, float* ma
 
   CudaSafeCall(cudaMalloc((void**)&matrixDevice, numPixels*numTimePoints*sizeof(float)));
   CudaSafeCall(cudaMalloc((void**)&keyDevice, numPixels*sizeof(float)));
-  CudaSafeCall(cudaMemcpy(matrixDevice, &matrix, numPixels*numTimePoints*sizeof(float), cudaMemcpyHostToDevice));
+  CudaSafeCall(cudaMemcpy(matrixDevice, &mtx, numPixels*numTimePoints*sizeof(float), cudaMemcpyHostToDevice));
 
   generateKey<<<grid,block>>>(numPixels, numTimePoints, matrixDevice, keyDevice);
   CudaCheckError();
@@ -229,12 +230,12 @@ bool* generateKey(unsigned long numPixels, unsigned int numTimePoints, float* ma
   return key;
 
 }
-float* minimizeVideo(unsigned long numPixels, unsigned long numPixelsWithValues, unsigned int numTimePoints, float* matrix, bool* key){
+float* minimizeVideo(unsigned long numPixels, unsigned long numPixelsWithValues, unsigned int numTimePoints, float* mtx, bool* key){
   float* minimizedVideo = new float[numPixelsWithValues*numTimePoints];
   int currentPixel = 0;
   for(int p = 0; p < numPixels; ++p){
     if(key[p]){
-      memcpy(&minimizedVideo[currentPixel*numTimePoints], matrix + p*numTimePoints, numTimePoints*sizeof(float));
+      memcpy(&minimizedVideo[currentPixel*numTimePoints], mtx + p*numTimePoints, numTimePoints*sizeof(float));
       ++currentPixel;
     }
   }
@@ -698,14 +699,14 @@ void update_div(matrix W0, matrix H0, matrix X0, const float thresh, const int m
 
 }
 
-void performNNMF(float* &W, float* &H, float* matrix, unsigned int k, unsigned long numPixels, unsigned int numTimePoints){
+void performNNMF(float* &W, float* &H, float* V, unsigned int k, unsigned long numPixels, unsigned int numTimePoints){
   float* dW;
   float* dH;
   float* dMatrix;
   CudaSafeCall(cudaMalloc((void**)&dW, numPixels*k*sizeof(float)));
   CudaSafeCall(cudaMalloc((void**)&dH, k*numTimePoints*sizeof(float)));
   CudaSafeCall(cudaMalloc((void**)&dMatrix, numPixels*numTimePoints*sizeof(float)));
-  CudaSafeCall(cudaMemcpy(dMatrix, matrix, numPixels*numTimePoints*sizeof(float), cudaMemcpyHostToDevice));
+  CudaSafeCall(cudaMemcpy(dMatrix, V, numPixels*numTimePoints*sizeof(float), cudaMemcpyHostToDevice));
   dim3 grid = {1,1,1};
   dim3 block = {1,1,1};
   getFlatGridBlock(numPixels*k, grid, block);
@@ -718,14 +719,17 @@ void performNNMF(float* &W, float* &H, float* matrix, unsigned int k, unsigned l
   CudaCheckError();
   CudaSafeCall(cudaMemcpy(W, dW, numPixels*k*sizeof(float), cudaMemcpyDeviceToHost));
   CudaSafeCall(cudaMemcpy(H, dH, k*numTimePoints*sizeof(float), cudaMemcpyDeviceToHost));
-  
+
   matrix wM, hM, vM;
-  wM.dim = {numPixels, k};
-  hM.dim = {k, numTimePoints};
-  vM.dim = {numPixels, numTimePoints};
+  wM.dim[0] = numPixels;
+  wM.dim[1] = k;
+  hM.dim[0] = k;
+  hM.dim[1] = numTimePoints;
+  vM.dim[0] = numPixels;
+  vM.dim[1] = numTimePoints;
   wM.mat = W;
   hM.mat = H;
-  vM.mat = matrix;
+  vM.mat = V;
   wM.mat_d = dW;
   hM.mat_d = dH;
   vM.mat_d = dMatrix;

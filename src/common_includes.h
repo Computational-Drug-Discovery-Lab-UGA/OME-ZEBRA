@@ -25,6 +25,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <limits>
+#include <dirent.h>
 
 
 #endif /* COMMON_INCLUDES_H */

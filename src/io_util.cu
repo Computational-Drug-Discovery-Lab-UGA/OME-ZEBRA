@@ -81,7 +81,8 @@ uint32* readTiffVideo(std::string videoDirectoryPath, unsigned int &width, unsig
   std::vector<std::string> fileNames;
   while((in_file = readdir(dir)) != NULL){
     std::string currentFileName = in_file->d_name;
-    if (currentFileName == "." || currentFileName == "..") continue;
+    if (currentFileName == "." || currentFileName == ".." || currentFileName.length() < 5||
+      currentFileName.substr(currentFileName.length() - 3) != "tif") continue;
     //TODO check if it is a tif
     if (numTimePoints == 0) {
       baseName = currentFileName.substr(0, currentFileName.find_first_of("."));
@@ -112,9 +113,6 @@ uint32* readTiffVideo(std::string videoDirectoryPath, unsigned int &width, unsig
     }
   }
   uint32* videoMatrix = new uint32[height*width*numTimePoints];
-  for(int i = 0; i < numTimePoints; ++i){
-    memcpy(&videoMatrix[i*height*width], videoVector[i], height*width*sizeof(uint32));
-  }
   for(int r = 0; r < height*width; ++r){
     for(int c = 0; c < numTimePoints; ++c){
       videoMatrix[r*numTimePoints + c] = videoVector[c][r];
@@ -147,7 +145,7 @@ void createSpatialImages(std::string outDir, std::string firstTimePointLocation,
   unsigned int width, unsigned int height, float* W, bool* key){
   TIFF *tif = TIFFOpen(firstTimePointLocation.c_str(), "r");
   uint32 max = 0;
-  uint32 min = 4294967295;
+  uint32 min = UINT32_MAX;
   uint32 ***kMatrix = new uint32**[k];
   for (int i = 0; i < k; ++i) {
     kMatrix[i] = new uint32*[height];
@@ -186,6 +184,7 @@ void createSpatialImages(std::string outDir, std::string firstTimePointLocation,
         exit(-1);
       }
     }
+    printf("first timepoint - (uint32) min = %d, max = %d\n",min,max);
     TIFFClose(tif);
     _TIFFfree(buf);
   }
@@ -215,7 +214,7 @@ void createSpatialImages(std::string outDir, std::string firstTimePointLocation,
     }
   }
   for (int kFocus = 0; kFocus < k; ++kFocus) {
-    std::string fileName = outDir + "/" + baseName + "_" + std::to_string(k) + "_" + std::to_string(kFocus) + ".tif";
+    std::string fileName = outDir + baseName + "_" + std::to_string(k) + "_" + std::to_string(kFocus) + ".tif";
     TIFF *resultTif = TIFFOpen(fileName.c_str(), "w");
     if (resultTif) {
       TIFFSetField(resultTif, TIFFTAG_IMAGEWIDTH, width);
@@ -299,7 +298,7 @@ void createKVideos(std::string outDir, std::string baseName, std::string firstTi
   }
   std::cout<<"starting k video generation"<<std::endl;
   for(int kFocus = 0; kFocus < k; ++kFocus){
-    std::string newDirectoryName = outDir + "/" +  baseName + "_k" + std::to_string(k) + "_" + std::to_string(kFocus);
+    std::string newDirectoryName = outDir +  baseName + "_k" + std::to_string(k) + "_" + std::to_string(kFocus) + "/";
     if(mkdir(newDirectoryName.c_str(), 0777) == -1){
       std::cout<<"CANNOT CREATE "<<newDirectoryName<<std::endl;
     }
@@ -322,10 +321,10 @@ void createKVideos(std::string outDir, std::string baseName, std::string firstTi
       if(result[i] > maxF) maxF = result[i];
     }
     for(int i = 0; i < height*width*numTimePoints; ++i){
-      result[i] = 4294967295*(result[i] - minF)/(maxF-minF);
+      result[i] = UINT32_MAX*(result[i] - minF)/(maxF-minF);
     }
     for(int tp = 0; tp < numTimePoints; ++tp){
-      std::string newTif = newDirectoryName + "/" + baseName + "_" + createFourCharInt(tp);
+      std::string newTif = newDirectoryName + baseName + "_" + createFourCharInt(tp);
       TIFF *tpfTif = TIFFOpen(newTif.c_str(), "w");
 
       if(tpfTif){
@@ -345,13 +344,13 @@ void createKVideos(std::string outDir, std::string baseName, std::string firstTi
           }
         }
         TIFFClose(tpfTif);
-        std::cout<<newTif<<" has been created"<<std::endl;
       }
       else{
         std::cout<<"COULD NOT CREATE "<<newTif<<std::endl;
         exit(-1);
       }
     }
+    std::cout<<numTimePoints<<" images in "<<newDirectoryName<<" have been created"<<std::endl;
   }
   for(int i = 0; i < height; ++i){
     delete[] data[i];
@@ -362,7 +361,7 @@ void createKVideos(std::string outDir, std::string baseName, std::string firstTi
 void createVisualization(std::string videoDirectoryPath, int k, unsigned int width, unsigned int height,
   unsigned int numTimePoints, float* W, float* H, bool* key, std::string baseName){
 
-  std::string outDir = videoDirectoryPath + "/out";
+  std::string outDir = videoDirectoryPath + "out/";
   if(mkdir(outDir.c_str(), 0777) == -1){
     std::cout<<"CANNOT CREATE "<<outDir<<std::endl;
   }
@@ -375,10 +374,10 @@ void createVisualization(std::string videoDirectoryPath, int k, unsigned int wid
   struct dirent* in_file;
   std::string currentFileName = "";
   while((in_file = readdir(dir)) != NULL){
-    if (in_file->d_name != "." || in_file->d_name != "..") continue;
+    if (in_file->d_name == "." || in_file->d_name == "..") continue;
     currentFileName = in_file->d_name;
     if(currentFileName.find("0000.tif") != std::string::npos){
-      firstTimePointLocation = currentFileName;
+      firstTimePointLocation = videoDirectoryPath + currentFileName;
       break;
     }
   }

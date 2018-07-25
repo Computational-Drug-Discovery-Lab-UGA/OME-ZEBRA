@@ -49,8 +49,10 @@ __global__ void findMinMax(uint32* mtx, unsigned long size, uint32* min, uint32*
   __syncthreads();
   if(globalID < size){
     uint32 value = mtx[globalID];
-    atomicMax(&bmax, value);
-    atomicMin(&bmin, value);
+    if(value != 0){
+      atomicMax(&bmax, value);
+      atomicMin(&bmin, value);
+    }
   }
   __syncthreads();
   if(threadIdx.x == 0){
@@ -70,7 +72,9 @@ __global__ void normalize(uint32 *mtx, float *normals, uint32* min, uint32* max,
       currentValue = static_cast<float>(mtx[globalID]) - dmin;
       currentValue /= (dmax - dmin);
     }
+    normals[globalID] = currentValue;
     normals[globalID] = 1.0f / (1.0f + expf((-10.0f * currentValue) + 7.5));
+    printf("%f\n",normals[globalID]);
     globalID += stride;
   }
 }
@@ -81,24 +85,17 @@ __global__ void generateKey(unsigned long numPixels, unsigned int numTimePoints,
     hasNonZero = false;
     __syncthreads();
     for(int tp = threadIdx.x; tp < numTimePoints; tp += blockDim.x){
-      if(hasNonZero) break;
+      if(hasNonZero) return;
       if(mtx[blockID*numTimePoints + tp] != 0.0f){
         key[blockID] = true;
         hasNonZero = true;
-        break;
+        return;
       }
     }
     __syncthreads();
     if(!hasNonZero){
       key[blockID] = false;
       return;
-    }
-    else{
-      for(int tp = threadIdx.x; tp < numTimePoints; tp += blockDim.x){
-        if(mtx[blockID*numTimePoints + tp] == 0.0f){
-          mtx[blockID*numTimePoints + tp] += 2e-30;
-        }
-      }
     }
   }
 }
@@ -107,7 +104,7 @@ __global__ void randInitMatrix(unsigned long size, float* mtx){
   long globalID = blockID * blockDim.x + threadIdx.x;
   if(globalID < size){
     mtx[globalID] = ((float)(clock64()%1000))/1000.0f;
-   if(mtx[globalID] == 0.0f) mtx[globalID] += 2e-30;
+    if(mtx[globalID] == 0.0f) mtx[globalID] += 2e-30;
   }
 }
 __global__ void multiplyMatrices(float *matrixA, float *matrixB, float *matrixC,
@@ -193,12 +190,14 @@ float* executeNormalization(uint32* mtx, unsigned long size){
   std::cout<<"executing normalization"<<std::endl;
   normalize<<<grid,block>>>(matrixDevice, normDevice, mind, maxd, size);
   CudaCheckError();
+  CudaSafeCall(cudaMemcpy(&max, maxd, sizeof(uint32), cudaMemcpyDeviceToHost));
+  CudaSafeCall(cudaMemcpy(&min, mind, sizeof(uint32), cudaMemcpyDeviceToHost));
   CudaSafeCall(cudaMemcpy(norm, normDevice, size*sizeof(float), cudaMemcpyDeviceToHost));
   CudaSafeCall(cudaFree(maxd));
   CudaSafeCall(cudaFree(mind));
   CudaSafeCall(cudaFree(matrixDevice));
   CudaSafeCall(cudaFree(normDevice));
-
+  printf("(uint32) min = %d, max = %d\n",min,max);
   return norm;
 
 }
@@ -226,7 +225,7 @@ bool* generateKey(unsigned long numPixels, unsigned int numTimePoints, float* mt
   for(int p = 0; p < numPixels; ++p){
     if(key[p]) ++numPixelsWithValues;
   }
-  std::cout<<numPixelsWithValues<<std::endl;
+  std::cout<<numPixels - numPixelsWithValues<<std::endl;
 
   return key;
 
@@ -247,12 +246,9 @@ float* minimizeVideo(unsigned long numPixels, unsigned long numPixelsWithValues,
 void performNNMF(float* &W, float* &H, float* V, unsigned int k, unsigned long numPixels, unsigned int numTimePoints){
   float* dW;
   float* dH;
-  float* dMatrix;
 
   CudaSafeCall(cudaMalloc((void**)&dW, numPixels*k*sizeof(float)));
   CudaSafeCall(cudaMalloc((void**)&dH, k*numTimePoints*sizeof(float)));
-  CudaSafeCall(cudaMalloc((void**)&dMatrix, numPixels*numTimePoints*sizeof(float)));
-  CudaSafeCall(cudaMemcpy(dMatrix, V, numPixels*numTimePoints*sizeof(float), cudaMemcpyHostToDevice));
   dim3 grid = {1,1,1};
   dim3 block = {1,1,1};
   getFlatGridBlock(numPixels*k, grid, block);
@@ -265,15 +261,91 @@ void performNNMF(float* &W, float* &H, float* V, unsigned int k, unsigned long n
   CudaCheckError();
   CudaSafeCall(cudaMemcpy(W, dW, numPixels*k*sizeof(float), cudaMemcpyDeviceToHost));
   CudaSafeCall(cudaMemcpy(H, dH, k*numTimePoints*sizeof(float), cudaMemcpyDeviceToHost));
-
-
+  CudaSafeCall(cudaFree(dW));
+  CudaSafeCall(cudaFree(dH));
 
   clock_t nnmfTimer;
   nnmfTimer = clock();
   std::cout<<"starting nnmf"<<std::endl;
+  printf("%f,%f\n",W[0],H[0]);
 
   /*DO NMF*/
+  if (nmfgpu::ResultType::Success == nmfgpu::initialize()) {
 
+    auto result = nmfgpu::chooseGpu(0);
+    if (result != nmfgpu::ResultType::Success) {
+      std::cerr << "--gpu-index: Device cannot be selected!" << std::endl << std::endl;
+      exit(-1);
+    } else {
+      std::cout << "CUDA device #" << 0 << " selected for computation" << std::endl;
+    }
+
+		// Construct algorithm parameter
+		auto context = nmfgpu::NmfDescription<float>();
+		context.inputMatrix.rows = numPixels;
+		context.inputMatrix.columns = numTimePoints;
+		context.inputMatrix.format = nmfgpu::StorageFormat::Dense;
+		context.inputMatrix.dense.values = V;
+		context.inputMatrix.dense.leadingDimension = numPixels;
+
+		context.features = k;
+		context.initMethod = nmfgpu::NmfInitializationMethod::AllRandomValues;
+		context.numIterations = 20000;
+
+		context.outputMatrixW.rows = numPixels;
+		context.outputMatrixW.columns = k;
+		context.outputMatrixW.format = nmfgpu::StorageFormat::Dense;
+		context.outputMatrixW.dense.values = W;
+		context.outputMatrixW.dense.leadingDimension = numPixels;
+
+		context.outputMatrixH.rows = k;
+		context.outputMatrixH.columns = numTimePoints;
+		context.outputMatrixH.format = nmfgpu::StorageFormat::Dense;
+		context.outputMatrixH.dense.values = H;
+		context.outputMatrixH.dense.leadingDimension = k;
+
+		context.numRuns = 1;
+		context.seed = time(nullptr);
+		context.thresholdType = nmfgpu::NmfThresholdType::Frobenius;
+		context.thresholdValue = 0.00000001;
+		context.callbackUserInterrupt = nullptr;
+		context.useConstantBasisVectors = false;
+
+		nmfgpu::Parameter parameters[]{
+			{"lambdaH", 0.01},
+			{"lambdaW", 0.01},
+			{"alphaH", 0.01},
+			{"alphaW", 0.01},
+			{"lambda", 0.01},
+			{"theta", 0.5},
+		};
+		context.parameters = parameters;
+		context.numParameters = 6;
+
+		context.algorithm = nmfgpu::NmfAlgorithm::nsNMF;
+		nmfgpu::compute(context, nullptr);
+    printf("%f,%f\n",W[0],H[0]);
+
+		// Check frobenius norm on cpu side
+		std::cout << "Host verification:" << std::endl;
+		double frobenius = 0.0;
+		for (int column = 0; column < numTimePoints; ++column) {
+			for (int row = 0; row < numPixels; ++row) {
+				double sum = 0.0;
+				for (int feature = 0; feature < k; ++feature) {
+					sum += W[feature * numPixels + row] * H[column * k + feature];
+				}
+				frobenius += pow(V[column * numPixels + row] - sum, 2.0);
+			}
+		}
+		frobenius = std::sqrt(frobenius);
+		std::cout << "Frobenius norm: " << frobenius << std::endl;
+
+		// Finalize the library
+		nmfgpu::finalize();
+	} else {
+		std::cerr << "[ERROR] Failed to initialize the nmfgpu library!" << std::endl;
+	}
 
   printf("nnmf took %f seconds.\n\n", ((float) clock() - nnmfTimer)/CLOCKS_PER_SEC);
 }

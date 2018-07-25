@@ -2,7 +2,6 @@
 #include "io_util.cuh"
 #include "cuda_zebra.cuh"
 
-
 int main(int argc, char *argv[]) {
   if(argc != 2){
     std::cout << "Usage: ./exe <directory of timepoint tifs>";
@@ -26,7 +25,8 @@ int main(int argc, char *argv[]) {
   else{
     minimizedVideo = normVideo;
   }
-  unsigned int k = 10;
+
+  unsigned int k = 3;
   float* W = new float[k*width*height];
   float* H = new float[k*numTimePoints];
   performNNMF(W, H, minimizedVideo, k, height*width, numTimePoints);

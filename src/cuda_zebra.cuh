@@ -2,9 +2,6 @@
 #define CUDA_ZEBRA_CUH
 
 #include "common_includes.h"
-#include <sys/time.h>
-#include <math.h>
-#include "matrix.cuh"
 
 __global__ void findMinMax(uint32* mtx, unsigned long size, uint32* min, uint32* max);
 __global__ void normalize(uint32 *mtx, float *normals, uint32* min, uint32* max, unsigned long size);

@@ -1,7 +1,6 @@
 #include "common_includes.h"
 #include "io_util.cuh"
 #include "cuda_zebra.cuh"
-#include "matrix.cuh"
 
 
 int main(int argc, char *argv[]) {

@@ -21,8 +21,7 @@ SRCDIR = ./src
 OBJDIR = ./obj
 BINDIR = ./bin
 
-_OBJS = matrix.cu.o
-_OBJS += cuda_zebra.cu.o
+_OBJS = cuda_zebra.cu.o
 _OBJS += io_util.cu.o
 _OBJS += OME_ZEBRA.cu.o
 OBJS = ${patsubst %, ${OBJDIR}/%, ${_OBJS}}

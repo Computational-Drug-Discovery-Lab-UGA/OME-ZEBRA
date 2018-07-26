@@ -26,7 +26,7 @@ int main(int argc, char *argv[]) {
     minimizedVideo = normVideo;
   }
 
-  unsigned int k = 3;
+  unsigned int k = 2;
   float* W = new float[k*width*height];
   float* H = new float[k*numTimePoints];
   performNNMF(W, H, minimizedVideo, k, height*width, numTimePoints);

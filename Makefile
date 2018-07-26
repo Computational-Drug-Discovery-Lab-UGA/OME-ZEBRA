@@ -1,6 +1,7 @@
 CUDA_INSTALL_PATH := /usr/local/cuda
 
 CXX := /usr/bin/g++
+C := /usr/bin/gcc
 LINK := /usr/bin/g++
 NVCC := nvcc
 
@@ -13,13 +14,16 @@ NVCCFLAGS += ${COMMONFLAGS}
 NVCCFLAGS += -std=c++11 -gencode=arch=compute_60,code=sm_60 -Iinclude
 CXXFLAGS += ${COMMONFLAGS}
 CXXFLAGS += -Wall -g -std=c++11 -Iinclude
+CFLAGS += ${COMMONFLAGS}
+CFLAGS += ${CXXFLAGS}
 
-LIB_CUDA := -L/usr/local/cuda/lib64 -lcudart -lcublas -L/usr/local/nmfgpu/lib -lnmfgpu64
+LIB_CUDA := -L/usr/local/cuda/lib64 -lcudart -lcublas -L/usr/local/nmfgpu/lib
 LIB_TIFF := -L/usr/local/lib -ltiff
 
 SRCDIR = ./src
 OBJDIR = ./obj
 BINDIR = ./bin
+
 
 _OBJS = cuda_zebra.cu.o
 _OBJS += io_util.cu.o
@@ -30,7 +34,7 @@ TARGET = ZEBRA_NMF
 LINKLINE = ${LINK} -o ${BINDIR}/${TARGET} ${OBJS} ${LIB_CUDA} ${LIB_TIFF} ${INCLUDES}
 
 
-.SUFFIXES: .cpp .cu .o
+.SUFFIXES: .c .cpp .cu .o
 
 all: ${BINDIR}/${TARGET}
 
@@ -39,6 +43,10 @@ ${OBJDIR}/%.cu.o: ${SRCDIR}/%.cu
 
 ${OBJDIR}/%.cpp.o: ${SRCDIR}/%.cpp
 	${CXX} ${CXXFLAGS} ${INCLUDES} -c $< -o $@
+
+${OBJDIR}/%.c.o: ${SRCDIR}/%.c
+	${C} ${CFLAGS} ${INCLUDES} -c $< -o $@
+
 
 ${BINDIR}/${TARGET}: ${OBJS} Makefile
 	${LINKLINE}

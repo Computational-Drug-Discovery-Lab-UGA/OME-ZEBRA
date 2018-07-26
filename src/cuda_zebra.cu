@@ -74,7 +74,7 @@ __global__ void normalize(uint32 *mtx, float *normals, uint32* min, uint32* max,
     }
     normals[globalID] = currentValue;
     normals[globalID] = 1.0f / (1.0f + expf((-10.0f * currentValue) + 7.5));
-    printf("%f\n",normals[globalID]);
+    //printf("%f\n",normals[globalID]);
     globalID += stride;
   }
 }
@@ -197,7 +197,7 @@ float* executeNormalization(uint32* mtx, unsigned long size){
   CudaSafeCall(cudaFree(mind));
   CudaSafeCall(cudaFree(matrixDevice));
   CudaSafeCall(cudaFree(normDevice));
-  printf("(uint32) min = %d, max = %d\n",min,max);
+  printf("whole video - (uint32) min = %d, max = %d\n",min,max);
   return norm;
 
 }
@@ -270,82 +270,7 @@ void performNNMF(float* &W, float* &H, float* V, unsigned int k, unsigned long n
   printf("%f,%f\n",W[0],H[0]);
 
   /*DO NMF*/
-  if (nmfgpu::ResultType::Success == nmfgpu::initialize()) {
 
-    auto result = nmfgpu::chooseGpu(0);
-    if (result != nmfgpu::ResultType::Success) {
-      std::cerr << "--gpu-index: Device cannot be selected!" << std::endl << std::endl;
-      exit(-1);
-    } else {
-      std::cout << "CUDA device #" << 0 << " selected for computation" << std::endl;
-    }
-
-		// Construct algorithm parameter
-		auto context = nmfgpu::NmfDescription<float>();
-		context.inputMatrix.rows = numPixels;
-		context.inputMatrix.columns = numTimePoints;
-		context.inputMatrix.format = nmfgpu::StorageFormat::Dense;
-		context.inputMatrix.dense.values = V;
-		context.inputMatrix.dense.leadingDimension = numPixels;
-
-		context.features = k;
-		context.initMethod = nmfgpu::NmfInitializationMethod::AllRandomValues;
-		context.numIterations = 20000;
-
-		context.outputMatrixW.rows = numPixels;
-		context.outputMatrixW.columns = k;
-		context.outputMatrixW.format = nmfgpu::StorageFormat::Dense;
-		context.outputMatrixW.dense.values = W;
-		context.outputMatrixW.dense.leadingDimension = numPixels;
-
-		context.outputMatrixH.rows = k;
-		context.outputMatrixH.columns = numTimePoints;
-		context.outputMatrixH.format = nmfgpu::StorageFormat::Dense;
-		context.outputMatrixH.dense.values = H;
-		context.outputMatrixH.dense.leadingDimension = k;
-
-		context.numRuns = 1;
-		context.seed = time(nullptr);
-		context.thresholdType = nmfgpu::NmfThresholdType::Frobenius;
-		context.thresholdValue = 0.00000001;
-		context.callbackUserInterrupt = nullptr;
-		context.useConstantBasisVectors = false;
-
-		nmfgpu::Parameter parameters[]{
-			{"lambdaH", 0.01},
-			{"lambdaW", 0.01},
-			{"alphaH", 0.01},
-			{"alphaW", 0.01},
-			{"lambda", 0.01},
-			{"theta", 0.5},
-		};
-		context.parameters = parameters;
-		context.numParameters = 6;
-
-		context.algorithm = nmfgpu::NmfAlgorithm::nsNMF;
-		nmfgpu::compute(context, nullptr);
-    printf("%f,%f\n",W[0],H[0]);
-
-		// Check frobenius norm on cpu side
-		std::cout << "Host verification:" << std::endl;
-		double frobenius = 0.0;
-		for (int column = 0; column < numTimePoints; ++column) {
-			for (int row = 0; row < numPixels; ++row) {
-				double sum = 0.0;
-				for (int feature = 0; feature < k; ++feature) {
-					sum += W[feature * numPixels + row] * H[column * k + feature];
-				}
-				frobenius += pow(V[column * numPixels + row] - sum, 2.0);
-			}
-		}
-		frobenius = std::sqrt(frobenius);
-		std::cout << "Frobenius norm: " << frobenius << std::endl;
-
-		// Finalize the library
-		nmfgpu::finalize();
-	} else {
-		std::cerr << "[ERROR] Failed to initialize the nmfgpu library!" << std::endl;
-	}
 
   printf("nnmf took %f seconds.\n\n", ((float) clock() - nnmfTimer)/CLOCKS_PER_SEC);
 }

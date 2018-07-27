@@ -197,13 +197,15 @@ void createSpatialImages(std::string outDir, std::string firstTimePointLocation,
   float currentValue = 0.0f;
   for(int row = 0; row < height; ++row){
     for (int col = 0; col < width; ++col) {
+      for (int kFocus = 0; kFocus < k; kFocus++) {
+        kMatrix[kFocus][row][col] -= min;
+      }
       if(key[row*width + col]){
         largest = 0;
         largestValue = 0.0f;
         currentValue = 0.0f;
         for (int kFocus = 0; kFocus < k; kFocus++) {
           currentValue = W[(row*width + col)*k + kFocus];
-          kMatrix[kFocus][row][col] -= min;
           if (largestValue < currentValue) {
             largest = kFocus;
             largestValue = currentValue;
@@ -352,6 +354,12 @@ void createKVideos(std::string outDir, std::string baseName, std::string firstTi
     }
     std::cout<<numTimePoints<<" images in "<<newDirectoryName<<" have been created"<<std::endl;
   }
+  CudaSafeCall(cudaFree(wColDevice));
+  CudaSafeCall(cudaFree(hRowDevice));
+  CudaSafeCall(cudaFree(resultDevice));
+  delete[] wCol;
+  delete[] hRow;
+  delete[] result;
   for(int i = 0; i < height; ++i){
     delete[] data[i];
   }

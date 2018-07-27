@@ -6,8 +6,7 @@ LINK := /usr/bin/g++
 NVCC := nvcc
 
 # Includes
-INCLUDES = -I/usr/local/cuda/include -I/usr/local/include -I/usr/local/nmfgpu/include
-
+INCLUDES = -I/usr/local/cuda/include -I/usr/local/include
 # Common flags
 COMMONFLAGS += ${INCLUDES}
 NVCCFLAGS += ${COMMONFLAGS}
@@ -24,17 +23,7 @@ SRCDIR = ./src
 OBJDIR = ./obj
 BINDIR = ./bin
 
-
-_OBJS = common.c.o
-_OBJS += matrix_io_routines.c.o
-_OBJS += matrix_io.c.o
-_OBJS += timing.c.o
-_OBJS += GPU_setup.c.o
-_OBJS += matrix_operations.c.o
-_OBJS += GPU_kernels.cu.o
-_OBJS += NMF_routines.c.o
-_OBJS += NMF_GPU.c.o
-_OBJS += cuda_zebra.cu.o
+_OBJS = cuda_zebra.cu.o
 _OBJS += io_util.cu.o
 _OBJS += OME_ZEBRA.cu.o
 OBJS = ${patsubst %, ${OBJDIR}/%, ${_OBJS}}
@@ -61,7 +50,7 @@ ${BINDIR}/${TARGET}: ${OBJS} Makefile
 	${LINKLINE}
 
 clean:
-	rm -f bin/*
+	rm -f bin/ZEBRA_NMF
 	rm -f obj/*
 
 config:

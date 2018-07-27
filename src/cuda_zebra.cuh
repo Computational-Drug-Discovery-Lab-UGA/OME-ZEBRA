@@ -1,6 +1,8 @@
 #ifndef CUDA_ZEBRA_CUH
 #define CUDA_ZEBRA_CUH
 
+
+
 #include "common_includes.h"
 
 __global__ void findMinMax(uint32* mtx, unsigned long size, uint32* min, uint32* max);
@@ -16,6 +18,6 @@ float* executeNormalization(uint32* mtx, unsigned long size);
 bool* generateKey(unsigned long numPixels, unsigned int numTimePoints, float* mtx, unsigned long &numPixelsWithValues);
 float* minimizeVideo(unsigned long numPixels, unsigned long numPixelsWithValues, unsigned int numTimePoints, float* mtx, bool* key);
 
-void performNNMF(float* &W, float* &H, float* V, unsigned int k, unsigned long numPixels, unsigned int numTimePoints);
+void performNNMF(float* &W, float* &H, float* V, unsigned int k, unsigned long numPixels, unsigned int numTimePoints, std::string outDir);
 
 #endif /* CUDA_ZEBRA_CUH */

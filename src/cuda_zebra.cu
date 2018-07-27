@@ -104,7 +104,6 @@ __global__ void randInitMatrix(unsigned long size, float* mtx){
   long globalID = blockID * blockDim.x + threadIdx.x;
   if(globalID < size){
     mtx[globalID] = ((float)(clock64()%1000))/1000.0f;
-    if(mtx[globalID] == 0.0f) mtx[globalID] += 2e-30;
   }
 }
 __global__ void multiplyMatrices(float *matrixA, float *matrixB, float *matrixC,
@@ -243,34 +242,91 @@ float* minimizeVideo(unsigned long numPixels, unsigned long numPixelsWithValues,
   return minimizedVideo;
 }
 
-void performNNMF(float* &W, float* &H, float* V, unsigned int k, unsigned long numPixels, unsigned int numTimePoints){
-  float* dW;
-  float* dH;
-
-  CudaSafeCall(cudaMalloc((void**)&dW, numPixels*k*sizeof(float)));
-  CudaSafeCall(cudaMalloc((void**)&dH, k*numTimePoints*sizeof(float)));
-  dim3 grid = {1,1,1};
-  dim3 block = {1,1,1};
-  getFlatGridBlock(numPixels*k, grid, block);
-  randInitMatrix<<<grid,block>>>(numPixels*k, dW);
-  CudaCheckError();
-  grid = {1,1,1};
-  block = {1,1,1};
-  getFlatGridBlock(k*numTimePoints, grid, block);
-  randInitMatrix<<<grid,block>>>(k*numTimePoints, dH);
-  CudaCheckError();
-  CudaSafeCall(cudaMemcpy(W, dW, numPixels*k*sizeof(float), cudaMemcpyDeviceToHost));
-  CudaSafeCall(cudaMemcpy(H, dH, k*numTimePoints*sizeof(float), cudaMemcpyDeviceToHost));
-  CudaSafeCall(cudaFree(dW));
-  CudaSafeCall(cudaFree(dH));
-
+void performNNMF(float* &W, float* &H, float* V, unsigned int k, unsigned long numPixels, unsigned int numTimePoints, std::string baseDir){
+  // float* dW;
+  // float* dH;
+  //
+  // CudaSafeCall(cudaMalloc((void**)&dW, numPixels*k*sizeof(float)));
+  // CudaSafeCall(cudaMalloc((void**)&dH, k*numTimePoints*sizeof(float)));
+  // dim3 grid = {1,1,1};
+  // dim3 block = {1,1,1};
+  // getFlatGridBlock(numPixels*k, grid, block);
+  // randInitMatrix<<<grid,block>>>(numPixels*k, dW);
+  // CudaCheckError();
+  // grid = {1,1,1};
+  // block = {1,1,1};
+  // getFlatGridBlock(k*numTimePoints, grid, block);
+  // randInitMatrix<<<grid,block>>>(k*numTimePoints, dH);
+  // CudaCheckError();
+  // CudaSafeCall(cudaMemcpy(W, dW, numPixels*k*sizeof(float), cudaMemcpyDeviceToHost));
+  // CudaSafeCall(cudaMemcpy(H, dH, k*numTimePoints*sizeof(float), cudaMemcpyDeviceToHost));
+  // CudaSafeCall(cudaFree(dW));
+  // CudaSafeCall(cudaFree(dH));
+  //
   clock_t nnmfTimer;
   nnmfTimer = clock();
   std::cout<<"starting nnmf"<<std::endl;
-  printf("%f,%f\n",W[0],H[0]);
+  std::string nmfFileName = baseDir + "NNMF.txt";
+  std::ofstream NNMFile(nmfFileName);
+  if(NNMFile.is_open()){
+    for(int i = 0; i < numPixels*numTimePoints; ++i){
+      if ((i + 1) % numTimePoints == 0) {
+        NNMFile << V[i] << "\n";
+      }
+      else {
+        NNMFile << V[i] << " ";
+      }
+    }
+    NNMFile.close();
+    std::cout<< nmfFileName <<" has been created.\n"<<std::endl;
+  }
+  else{
+    std::cout<<"error cannot create"<< nmfFileName <<std::endl;
+  }
+  printf("writing NNMF.txt took %f seconds.\n\n", ((float) clock() - nnmfTimer)/CLOCKS_PER_SEC);
+  nnmfTimer = clock();
+
 
   /*DO NMF*/
 
+  std::string executableLine = "./bin/NMF_GPU " + baseDir + "NNMF.txt -k " + std::to_string(k) + " -j 10 -t 40 -i 20000";
+  std::system(executableLine.c_str());
+
 
   printf("nnmf took %f seconds.\n\n", ((float) clock() - nnmfTimer)/CLOCKS_PER_SEC);
+  nnmfTimer = clock();
+
+  std::cout<<"reading in h and w file"<<std::endl;
+  std::string wFileName = nmfFileName + "_W.txt";
+  std::string hFileName = nmfFileName + "_H.txt";
+  std::string wLine = "";
+  std::string hLine = "";
+  std::ifstream wFile(wFileName);
+  std::ifstream hFile(hFileName);
+  float currentValue = 0.0f;
+  if(wFile.is_open() && hFile.is_open()){
+    for(int row = 0; row < numPixels; ++row){
+      for(int col = 0; col < numTimePoints; ++col){
+        getline(wFile, wLine);
+        getline(hFile, hLine);
+        std::istringstream ww(wLine);
+        std::istringstream hh(hLine);
+        if(row < k){
+          hh >> currentValue;
+          H[row*numTimePoints + col] = currentValue;
+        }
+        if(col < k){
+          ww >> currentValue;
+          W[row*numTimePoints + col] = currentValue;
+        }
+      }
+    }
+    wFile.close();
+    hFile.close();
+  }
+  else{
+    std::cout<<"error cannot open W or H file"<<std::endl;
+  }
+  printf("reading h and w took %f seconds.\n\n", ((float) clock() - nnmfTimer)/CLOCKS_PER_SEC);
+
 }

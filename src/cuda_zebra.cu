@@ -73,7 +73,7 @@ __global__ void normalize(uint32 *mtx, float *normals, uint32* min, uint32* max,
       currentValue /= (dmax - dmin);
     }
     normals[globalID] = currentValue;
-    //normals[globalID] = 1.0f / (1.0f + expf((-10.0f * currentValue) + 7.5));
+    normals[globalID] = 1.0f / (1.0f + expf((-10.0f * currentValue) + 7.5));
     //printf("%f\n",normals[globalID]);
     globalID += stride;
   }
@@ -285,8 +285,7 @@ void performNNMF(float* &W, float* &H, float* V, unsigned int k, unsigned long n
   }
   printf("writing NNMF.txt took %f seconds.\n\n", ((float) clock() - nnmfTimer)/CLOCKS_PER_SEC);
   nnmfTimer = clock();
-
-
+  delete[] V;
   /*DO NMF*/
 
   std::string executableLine = "./bin/NMF_GPU " + baseDir + "NNMF.txt -k " + std::to_string(k) + " -j 10 -t 40 -i 20000";
@@ -295,30 +294,33 @@ void performNNMF(float* &W, float* &H, float* V, unsigned int k, unsigned long n
 
   printf("nnmf took %f seconds.\n\n", ((float) clock() - nnmfTimer)/CLOCKS_PER_SEC);
   nnmfTimer = clock();
-
+  W = new float[k*numPixels];
+  H = new float[k*numTimePoints];
   std::cout<<"reading in h and w file"<<std::endl;
   std::string wFileName = nmfFileName + "_W.txt";
   std::string hFileName = nmfFileName + "_H.txt";
+  std::cout<<"opening "<<wFileName<<" and"<<hFileName<<std::endl;
   std::string wLine = "";
   std::string hLine = "";
   std::ifstream wFile(wFileName);
   std::ifstream hFile(hFileName);
-  float currentValue = 0.0f;
+  std::istringstream hh;
+  std::istringstream ww;
   if(wFile.is_open() && hFile.is_open()){
     for(int row = 0; row < numPixels; ++row){
-      for(int col = 0; col < numTimePoints; ++col){
-        getline(wFile, wLine);
+      wLine = "";
+      hLine = "";
+      if(row < k){
         getline(hFile, hLine);
-        std::istringstream ww(wLine);
-        std::istringstream hh(hLine);
-        if(row < k){
-          hh >> currentValue;
-          H[row*numTimePoints + col] = currentValue;
-        }
-        if(col < k){
-          ww >> currentValue;
-          W[row*k + col] = currentValue;
-        }
+        hh = std::istringstream(hLine);
+      }
+      getline(wFile, wLine);
+      ww = std::istringstream(wLine);
+      for(int col = 0; col < k; ++col){
+        ww >> W[row*k + col];
+      }
+      for(int col = 0; row < k && col < numTimePoints; ++col){
+        hh >> H[row*numTimePoints + col];
       }
     }
     wFile.close();

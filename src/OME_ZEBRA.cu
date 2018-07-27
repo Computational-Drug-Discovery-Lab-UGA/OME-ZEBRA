@@ -3,9 +3,14 @@
 #include "cuda_zebra.cuh"
 
 int main(int argc, char *argv[]) {
-  if(argc != 2){
+  if(argc < 2 || argc > 3){
     std::cout << "Usage: ./exe <directory of timepoint tifs>";
     exit(-1);
+  }
+  unsigned int k;
+  if(argc == 3) k = std::stoi(argv[2]);
+  else{
+    k = 2;
   }
   std::string baseDirectory = argv[1];
   unsigned int width = 0;
@@ -25,12 +30,12 @@ int main(int argc, char *argv[]) {
   else{
     minimizedVideo = normVideo;
   }
-  unsigned int k = 2;
-  float* W = new float[k*width*height];
-  float* H = new float[k*numTimePoints];
+  float* W;
+  float* H;
   //W & H are not currently and neither are any c files
   performNNMF(W, H, minimizedVideo, k, height*width, numTimePoints, baseDirectory);
   createVisualization(baseDirectory,k, width, height, numTimePoints, W, H, key, baseName);
+  cudaDeviceReset();
   return 0;
 }
 

@@ -352,6 +352,12 @@ void createKVideos(std::string outDir, std::string baseName, std::string firstTi
     }
     std::cout<<numTimePoints<<" images in "<<newDirectoryName<<" have been created"<<std::endl;
   }
+  CudaSafeCall(cudaFree(wColDevice));
+  CudaSafeCall(cudaFree(hRowDevice));
+  CudaSafeCall(cudaFree(resultDevice));
+  delete[] wCol;
+  delete[] hRow;
+  delete[] result;
   for(int i = 0; i < height; ++i){
     delete[] data[i];
   }

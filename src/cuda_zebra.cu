@@ -73,7 +73,7 @@ __global__ void normalize(uint32 *mtx, float *normals, uint32* min, uint32* max,
       currentValue /= (dmax - dmin);
     }
     normals[globalID] = currentValue;
-    normals[globalID] = 1.0f / (1.0f + expf((-10.0f * currentValue) + 7.5));
+    //normals[globalID] = 1.0f / (1.0f + expf((-10.0f * currentValue) + 7.5));
     //printf("%f\n",normals[globalID]);
     globalID += stride;
   }
@@ -317,7 +317,7 @@ void performNNMF(float* &W, float* &H, float* V, unsigned int k, unsigned long n
         }
         if(col < k){
           ww >> currentValue;
-          W[row*numTimePoints + col] = currentValue;
+          W[row*k + col] = currentValue;
         }
       }
     }

@@ -1,4 +1,5 @@
 #include "cuda_zebra.cuh"
+#include "magma_svd.h"
 
 // Define this to turn on error checking
 #define CUDA_ERROR_CHECK
@@ -127,6 +128,30 @@ __global__ void multiplyMatrices(float *matrixA, float *matrixB, float *matrixC,
 
     matrixC[iIndex * diffDimB + jIndex] = sum;
   }
+}
+
+void executeMultiplyMatrices(float *matrixA, float *matrixB, float *matrixC,
+                                 long diffDimA, long comDim, long diffDimB){
+
+  float* matrixADevice, matrixBDevice, matrixCDevice;
+
+  CudaSafeCall(cudaMalloc((void**)&matrixADevice, diffDimA*comDim*sizeof(float)));
+  CudaSafeCall(cudaMalloc((void**)&matrixBDevice, comDim*diffDimB*sizeof(float)));
+  CudaSafeCall(cudaMalloc((void**)&matrixCDevice, diffDimA*diffDimB*sizeof(float)));
+
+  CudaSafeCall(cudaMemcpy(matrixADevice, matrixA, diffDimA*comDim*sizeof(float), cudaMemcpyHostToDevice));
+  CudaSafeCall(cudaMemcpy(matrixBDevice, matrixB, comDim*diffDimB*sizeof(float), cudaMemcpyHostToDevice));
+
+  dim3 grid, block;
+
+  getFlatGridBlock(diffDimA*diffDimB, grid, block);
+
+  multiplyMatrices<<<grid, block>>>(matrixADevice, matrixBDevice, matrixCDevice, diffDimA, comDim, diffDimB);
+
+  CudaSafeCall(cudaMemcpy(matrixC, matrixCDevice, diffDimA*diffDimB*sizeof(float), cudaMemcpyDeviceToHost));
+
+  
+
 }
 
 void getFlatGridBlock(unsigned long size, dim3 &grid, dim3 &block) {
@@ -263,6 +288,83 @@ void performNNMF(float* &W, float* &H, float* V, unsigned int k, unsigned long n
   // CudaSafeCall(cudaFree(dW));
   // CudaSafeCall(cudaFree(dH));
   //
+
+  float* sMatrix = new float[numTimePoints];
+  float* uMatrix = new float[numPixels*numTimePoints];
+  float* vtMatrix = new float[numTimePoints*numTimePoints];
+
+  performSVD(numPixels, numTimePoints, V, sMatrix, uMatrix, vtMatrix);
+
+  long numSigFig = 50;
+
+  float* newSMatrix = new float[numSigFig];
+
+  for (long i = 0; i < numSigFig; i++) {
+
+    newSMatrix[i] = sMatrix[i];
+
+  }
+
+  delete sMatrix;
+
+  float* sMatrix = new float[numSigFig*numSigFig];
+
+  long indexCount = 0;
+
+  for (long i = 0; i < numSigFig; i++) {
+
+    for (long j = 0; j < numSigFig; j++) {
+
+      if (j = indexCount) {
+
+        sMatrix[i * numSigFig + j] = newSMatrix[j];
+        indexCount++;
+
+      }
+      else {
+
+        sMatrix[i * numSigFig + j] = 0.0f;
+
+      }
+
+    }
+
+  }
+
+  float* newUMatrix = new float[numPixels*numSigFig];
+
+  for (long i = 0; i < numPixels; i++) {
+
+    for (long j = 0; j < numSigFig; j++) {
+
+      newUMatrix[i * numPixels + j] = uMatrix[i * numPixels + j];
+
+    }
+
+  }
+
+  delete uMatrix;
+
+  float* newVTMatrix = new float[numSigFig*numTimePoints];
+
+  for (long i = 0; i < numSigFig; i++) {
+
+    for (long j = 0; j < numTimePoints; j++) {
+
+      newVTMatrix[i * numSigFig + j] = vtMatrix[i * numSigFig + j];
+
+    }
+
+  }
+
+  delete vtMatrix;
+
+  float* tempMatrix =
+
+  multiplyMatrices<<<1024, ((numPixels*numSigFig)/1024 + 1)>>>()
+
+
+
   clock_t nnmfTimer;
   nnmfTimer = clock();
   std::cout<<"starting nnmf"<<std::endl;

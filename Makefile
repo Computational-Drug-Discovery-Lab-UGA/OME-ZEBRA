@@ -2,21 +2,22 @@ CUDA_INSTALL_PATH := /usr/local/cuda
 
 CXX := /usr/bin/g++
 C := /usr/bin/gcc
-LINK := /usr/bin/g++
+LINK := nvcc
 NVCC := nvcc
 
 # Includes
-INCLUDES = -I/usr/local/cuda/include -I/usr/local/include
+INCLUDES = -I/usr/local/cuda/include -I/usr/local/magma/include -I/usr/local/include -Iinclude
 # Common flags
 COMMONFLAGS += ${INCLUDES}
 NVCCFLAGS += ${COMMONFLAGS}
-NVCCFLAGS += -std=c++11 -gencode=arch=compute_60,code=sm_60 -Iinclude
+NVCCFLAGS += -std=c++11 -gencode=arch=compute_60,code=sm_60
+NVCCFLAGS += -O3 -Xcompiler -fopenmp -DHAVE_CUBLAS -DADD_
 CXXFLAGS += ${COMMONFLAGS}
-CXXFLAGS += -Wall -g -std=c++11 -Iinclude
+CXXFLAGS += -Wall -g -std=c++11
 CFLAGS += ${COMMONFLAGS}
-CFLAGS += -Wall -g -Iinclude
+CFLAGS += -Wall -g
 
-LIB_CUDA := -L/usr/local/cuda/lib64 -lcudart -lcublas -lcurand
+LIB_CUDA := -L/usr/local/cuda/lib64 -lcudart -lm -lcublas -lcurand
 LIB_TIFF := -L/usr/local/lib -ltiff
 
 SRCDIR = ./src

@@ -269,19 +269,16 @@ float* minimizeVideo(unsigned long numPixels, unsigned long numPixelsWithValues,
 }
 
 
-void performSVD(unsigned int numSigFig, unsigned long mValue, unsigned long nValue, float* originalMatrix, float* sMatrix, float* uMatrix, float* vtMatrix) {
-
+void performSVD(unsigned int numSigFig, unsigned long mValue, unsigned long nValue, float* originalMatrix, float* &sMatrix, float* &uMatrix, float* &vtMatrix) {
+  std::cout<<"starting SVD"<<std::endl;
   magma_init(); // initialize Magma
   real_Double_t gpu_time, cpu_time;
 
-  // Matrix size
   magma_int_t m=mValue, n=nValue, n2=m*n, min_mn = (((m)<(n))?(m):(n));
-  m = mValue;
-  n = nValue;
   printf("m=%d,n=%d\n",m,n);
-  float *a, *r; // a,r - mxn matrices
+  float *r; // a,r - mxn matrices
   float *u, *vt;// u - mxm matrix , vt - nxn matrix on the host
-  float *s1 , *s2; // vectors of singular values
+  float *s1; // vectors of singular values
   magma_int_t info;
   magma_int_t ione = 1;
   float work[1], error = 1.; // used in difference computations
@@ -291,11 +288,9 @@ void performSVD(unsigned int numSigFig, unsigned long mValue, unsigned long nVal
   magma_int_t ISEED[4] = {0 ,0 ,0 ,1}; // seed
 
   // Allocate host memory
-  magma_smalloc_cpu(&a,n2 ); // host memory for a
   magma_smalloc_cpu(&vt, n*n); // host memory for vt
   magma_smalloc_cpu(&u, m*n); // host memory for u
   magma_smalloc_cpu(&s1 , min_mn ); // host memory for s1
-  magma_smalloc_cpu(&s2 , min_mn ); // host memory for s2
   magma_smalloc_pinned(&r,n2 ); // host memory for r
   magma_int_t nb = magma_get_sgesvd_nb(m,n); // optim . block size
 
@@ -306,18 +301,10 @@ void performSVD(unsigned int numSigFig, unsigned long mValue, unsigned long nVal
   lwork = (magma_int_t) MAGMA_S_REAL( dummy[0] );
   magma_smalloc_pinned(& h_work , lwork ); // host mem . for h_work
 
-  std::cout << "Loading matrix" << '\n';
 
-  for (long i = 0; i < m*n; i++) {
-
-    a[i] = originalMatrix[i];
-
-  }
-
-  std::cout << "Done Loading" << '\n';
 
   // lapackf77_slarnv(&ione, ISEED, &n2, a);
-  lapackf77_slacpy(MagmaFullStr, &m, &n, a, &m, r, &m);
+  lapackf77_slacpy(MagmaFullStr, &m, &n, originalMatrix, &m, r, &m);
 
   // MAGMA
   gpu_time = magma_wtime();
@@ -331,49 +318,26 @@ void performSVD(unsigned int numSigFig, unsigned long mValue, unsigned long nVal
   magma_sgesvd(MagmaSomeVec,MagmaSomeVec,m,n,r,m,s1,u,m,vt,n,h_work,
   lwork,&info );
 
-  std::cout << info << std::endl;
-
   gpu_time = magma_wtime() - gpu_time ;
   printf(" sgesvd gpu time: %7.5f\n", gpu_time); // Magma time
-
-  for (long i = 0; i < min_mn; i++) {
-
-    sMatrix[i] = s1[i];
-
-  }
-  delete[] sMatrix;
-  sMatrix = new float[numSigFig*numSigFig];
-  long indexCount = 0;
+  std::cout<<"starting minimization with num singular values being "<<numSigFig<<std::endl;
   for (long i = 0; i < numSigFig; i++) {
-
     for (long j = 0; j < numSigFig; j++) {
-
-      if (j = indexCount) {
-
-        sMatrix[i * numSigFig + j] = s1[j];
-        indexCount++;
-
+      if (j == i) {
+        sMatrix[i * numSigFig + j] = s1[i];
       }
       else {
-
         sMatrix[i * numSigFig + j] = 0.0f;
-
       }
-
     }
-
   }
 
   std::cout<<"sMatrix minimized = "<<numSigFig<<"x"<<numSigFig<<std::endl;
 
   for(long i = 0; i < m; i++){
-
     for(int j = 0; j < numSigFig; j++) {
-
         uMatrix[i*n + j] = u[i*n + j];
-
     }
-
   }
 
   std::cout<<"uMatrix minimized = "<<m<<"x"<<numSigFig<<std::endl;
@@ -393,10 +357,8 @@ void performSVD(unsigned int numSigFig, unsigned long mValue, unsigned long nVal
 
   // values
   // Free memory
-  free(a); // free host memory
   free(vt); // free host memory
   free(s1); //free host memory
-  free(s2); // free host memory
   free(u); // free host memory
   magma_free_pinned( h_work ); // free host memory
   magma_free_pinned(r); // free host memory
@@ -426,11 +388,11 @@ void performNNMF(float* &W, float* &H, float* V, unsigned int k, unsigned long n
   // CudaSafeCall(cudaFree(dH));
   //
 
-  /*DO SVD*/
-  float* sMatrix = new float[numTimePoints];
-  float* uMatrix = new float[numPixels*numTimePoints];
-  float* vtMatrix = new float[numTimePoints*numTimePoints];
   unsigned int numSigFig = 50;
+  /*DO SVD*/
+  float* sMatrix = new float[numSigFig*numSigFig];
+  float* uMatrix = new float[numPixels*numSigFig];
+  float* vtMatrix = new float[numSigFig*numTimePoints];
   performSVD(numSigFig, numPixels, numTimePoints, V, sMatrix, uMatrix, vtMatrix);
   delete[] V;
   float* tempMatrix = new float[numPixels*numSigFig];

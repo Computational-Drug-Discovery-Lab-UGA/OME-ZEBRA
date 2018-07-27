@@ -20,7 +20,7 @@ float* executeNormalization(uint32* mtx, unsigned long size);
 bool* generateKey(unsigned long numPixels, unsigned int numTimePoints, float* mtx, unsigned long &numPixelsWithValues);
 float* minimizeVideo(unsigned long numPixels, unsigned long numPixelsWithValues, unsigned int numTimePoints, float* mtx, bool* key);
 
-void performSVD(unsigned int numSigFig, unsigned long mValue, unsigned long nValue, float* originalMatrix, float* sMatri, float* uMatrix, float* vtMatrix);
+void performSVD(unsigned int numSigFig, unsigned long mValue, unsigned long nValue, float* originalMatrix, float* &sMatrix, float* &uMatrix, float* &vtMatrix);
 
 void performNNMF(float* &W, float* &H, float* V, unsigned int k, unsigned long numPixels, unsigned int numTimePoints, std::string outDir);
 

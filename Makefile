@@ -17,7 +17,7 @@ CXXFLAGS += -Wall -g -std=c++11 -Iinclude
 CFLAGS += ${COMMONFLAGS}
 CFLAGS += ${CXXFLAGS}
 
-LIB_CUDA := -L/usr/local/cuda/lib64 -lcudart -lcublas -L/usr/local/nmfgpu/lib
+LIB_CUDA := -L/usr/local/cuda/lib64 -lcudart -lcublas #-L/usr/local/nmfgpu/lib
 LIB_TIFF := -L/usr/local/lib -ltiff
 
 SRCDIR = ./src

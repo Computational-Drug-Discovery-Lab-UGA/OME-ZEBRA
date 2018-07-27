@@ -108,7 +108,7 @@ int main(int argc, char *argv[]) {
       }
       bool allTifsAreGood = true;
       string currentTif;
-      uint32 numRows, numColumns;
+      // uint32 numRows, numColumns;
       // for(int i = 0; i < numTimePoints; ++i){
       //
       //   currentTif = "data/registeredOMEs/" + baseName + "/" +
@@ -1442,11 +1442,11 @@ float findA(float* uMatrix, float* sMatrix, float* vtMatrix,
 
     if (lowestValue > 0.0) {
 
-      lowestValue = lowestValue * -1.0f
+      lowestValue = lowestValue * -1.0f;
 
     }
 
-    float a = (lowestValue * -1.0f) + 0.01f;
+    a = (lowestValue * -1.0f) + 0.01f;
 
     return a;
 

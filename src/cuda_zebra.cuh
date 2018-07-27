@@ -11,6 +11,8 @@ __global__ void generateKey(unsigned long numPixels, unsigned int numTimePoints,
 __global__ void randInitMatrix(unsigned long size, float* mtx);
 __global__ void multiplyMatrices(float* matrixA, float* matrixB, float* matrixC, long diffDimA,
    long comDim, long diffDimB);
+void executeMultiplyMatrices(float *matrixA, float *matrixB, float* &matrixC,
+                                long diffDimA, long comDim, long diffDimB);
 
 void getFlatGridBlock(unsigned long size, dim3 &grid, dim3 &block);
 void getGrid(unsigned long size, dim3 &grid, int blockSize);

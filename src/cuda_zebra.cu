@@ -130,7 +130,7 @@ __global__ void multiplyMatrices(float *matrixA, float *matrixB, float *matrixC,
   }
 }
 
-void executeMultiplyMatrices(float *matrixA, float *matrixB, float *matrixC,
+void executeMultiplyMatrices(float *matrixA, float *matrixB, float* &matrixC,
                                  long diffDimA, long comDim, long diffDimB){
 
   float* matrixADevice, matrixBDevice, matrixCDevice;
@@ -150,7 +150,9 @@ void executeMultiplyMatrices(float *matrixA, float *matrixB, float *matrixC,
 
   CudaSafeCall(cudaMemcpy(matrixC, matrixCDevice, diffDimA*diffDimB*sizeof(float), cudaMemcpyDeviceToHost));
 
-  
+  CudaSafeCall(cudaFree(matrixADevice));
+  CudaSafeCall(cudaFree(matrixBDevice));
+  CudaSafeCall(cudaFree(matrixCDevice));
 
 }
 
@@ -359,10 +361,25 @@ void performNNMF(float* &W, float* &H, float* V, unsigned int k, unsigned long n
 
   delete vtMatrix;
 
-  float* tempMatrix =
+  float* tempMatrix = new float[numPixels*numSigFig];
 
-  multiplyMatrices<<<1024, ((numPixels*numSigFig)/1024 + 1)>>>()
+  executeMultiplyMatrices(newUMatrix, sMatrix, tempMatrix, numPixels, numSigFig, numSigFig);
 
+  delete newUMatrix;
+  delete sMatrix;
+
+  float* svdProduct = new float[numPixels*numTimePoints];
+
+  executeMultiplyMatrices(tempMatrix, newVTMatrix, svdProduct, numPixels, numSigFig, numTimePoints);
+
+  delete tempMatrix;
+  delete newVTMatrix;
+
+  float* sMatrix = new float[numTimePoints];
+  float* uMatrix = new float[numPixels*numTimePoints];
+  float* vtMatrix = new float[numTimePoints*numTimePoints];
+
+  performSVD(numPixels, numTimePoints, svdProduct, sMatrix, uMatrix, vtMatrix);
 
 
   clock_t nnmfTimer;

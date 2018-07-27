@@ -15,9 +15,9 @@ NVCCFLAGS += -std=c++11 -gencode=arch=compute_60,code=sm_60 -Iinclude
 CXXFLAGS += ${COMMONFLAGS}
 CXXFLAGS += -Wall -g -std=c++11 -Iinclude
 CFLAGS += ${COMMONFLAGS}
-CFLAGS += ${CXXFLAGS}
+CFLAGS += -Wall -g -Iinclude
 
-LIB_CUDA := -L/usr/local/cuda/lib64 -lcudart -lcublas -L/usr/local/nmfgpu/lib
+LIB_CUDA := -L/usr/local/cuda/lib64 -lcudart -lcublas -lcurand
 LIB_TIFF := -L/usr/local/lib -ltiff
 
 SRCDIR = ./src
@@ -25,7 +25,16 @@ OBJDIR = ./obj
 BINDIR = ./bin
 
 
-_OBJS = cuda_zebra.cu.o
+_OBJS = common.c.o
+_OBJS += matrix_io_routines.c.o
+_OBJS += matrix_io.c.o
+_OBJS += timing.c.o
+_OBJS += GPU_setup.c.o
+_OBJS += matrix_operations.c.o
+_OBJS += GPU_kernels.cu.o
+_OBJS += NMF_routines.c.o
+_OBJS += NMF_GPU.c.o
+_OBJS += cuda_zebra.cu.o
 _OBJS += io_util.cu.o
 _OBJS += OME_ZEBRA.cu.o
 OBJS = ${patsubst %, ${OBJDIR}/%, ${_OBJS}}

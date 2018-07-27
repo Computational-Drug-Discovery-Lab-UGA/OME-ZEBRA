@@ -14,6 +14,9 @@ int main(int argc, char *argv[]) {
   std::string baseName = "";
   uint32* tifVideo = readTiffVideo(baseDirectory, width, height, numTimePoints, baseName);
   float* normVideo = executeNormalization(tifVideo, width*height*numTimePoints);
+
+
+
   delete[] tifVideo;
   unsigned long numPixelsWithValues = 0;
   bool* key = generateKey(width*height, numTimePoints, normVideo, numPixelsWithValues);
@@ -26,10 +29,11 @@ int main(int argc, char *argv[]) {
     minimizedVideo = normVideo;
   }
 
-  unsigned int k = 2;
+  unsigned int k = 10;
   float* W = new float[k*width*height];
   float* H = new float[k*numTimePoints];
-  performNNMF(W, H, minimizedVideo, k, height*width, numTimePoints);
+  //W & H are not currently and neither are any c files
+  performNNMF(W, H, minimizedVideo, k, height*width, numTimePoints, baseDirectory);
   createVisualization(baseDirectory,k, width, height, numTimePoints, W, H, key, baseName);
 
   return 0;

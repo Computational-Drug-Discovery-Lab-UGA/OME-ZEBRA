@@ -288,8 +288,6 @@ void performNNMF(float* &W, float* &H, float* V, unsigned int k, unsigned long n
 
 
   /*DO NMF*/
-  //bionmfSingleGPU(W,H,V,numTimePoints,numPixels,k,10,40,20000);
-
 
   std::string executableLine = "./bin/NMF_GPU " + baseDir + "NNMF.txt -k " + std::to_string(k) + " -j 10 -t 40 -i 20000";
   std::system(executableLine.c_str());

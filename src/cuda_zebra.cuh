@@ -4,10 +4,6 @@
 
 
 #include "common_includes.h"
-// extern "C" {
-//   #include "NMF_GPU.h"
-// }
-
 
 __global__ void findMinMax(uint32* mtx, unsigned long size, uint32* min, uint32* max);
 __global__ void normalize(uint32 *mtx, float *normals, uint32* min, uint32* max, unsigned long size);

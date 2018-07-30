@@ -1,22 +1,21 @@
 CUDA_INSTALL_PATH := /usr/local/cuda
 
 CXX := /usr/bin/g++
-C := /usr/bin/gcc
-LINK := /usr/bin/g++
+LINK := nvcc
 NVCC := nvcc
+FORT := gfortran
+
 
 # Includes
-INCLUDES = -I/usr/local/cuda/include -I/usr/local/include
+INCLUDES = -I/usr/local/cuda/include -I/usr/local/magma/include -I/usr/local/include
 # Common flags
 COMMONFLAGS += ${INCLUDES}
 NVCCFLAGS += ${COMMONFLAGS}
-NVCCFLAGS += -std=c++11 -gencode=arch=compute_60,code=sm_60 -Iinclude
+NVCCFLAGS += -std=c++11 -gencode=arch=compute_60,code=sm_60 -Iinclude -lcublas
 CXXFLAGS += ${COMMONFLAGS}
-CXXFLAGS += -Wall -g -std=c++11 -Iinclude
-CFLAGS += ${COMMONFLAGS}
-CFLAGS += -Wall -g -Iinclude
+NVCCFLAGS += -O3 -Xcompiler -fopenmp -g -DHAVE_CUBLAS -DADD_ -Iinclude -lcublas
 
-LIB_CUDA := -L/usr/local/cuda/lib64 -lcudart -lcublas -lcurand
+LIB_CUDA := -L/usr/local/cuda/lib64 -lcudart -L/usr/local/magma/lib -lmagma -L/opt/openblas/lib -lopenblas -lcublas
 LIB_TIFF := -L/usr/local/lib -ltiff
 
 SRCDIR = ./src
@@ -32,7 +31,7 @@ TARGET = ZEBRA_NMF
 LINKLINE = ${LINK} -o ${BINDIR}/${TARGET} ${OBJS} ${LIB_CUDA} ${LIB_TIFF} ${INCLUDES}
 
 
-.SUFFIXES: .c .cpp .cu .o
+.SUFFIXES: .cpp .cu .o
 
 all: ${BINDIR}/${TARGET}
 
@@ -41,10 +40,6 @@ ${OBJDIR}/%.cu.o: ${SRCDIR}/%.cu
 
 ${OBJDIR}/%.cpp.o: ${SRCDIR}/%.cpp
 	${CXX} ${CXXFLAGS} ${INCLUDES} -c $< -o $@
-
-${OBJDIR}/%.c.o: ${SRCDIR}/%.c
-	${C} ${CFLAGS} ${INCLUDES} -c $< -o $@
-
 
 ${BINDIR}/${TARGET}: ${OBJS} Makefile
 	${LINKLINE}

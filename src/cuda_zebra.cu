@@ -129,6 +129,32 @@ __global__ void multiplyMatrices(float *matrixA, float *matrixB, float *matrixC,
   }
 }
 
+void executeMultiplyMatrices(float *matrixA, float *matrixB, float* &matrixC,
+                                 long diffDimA, long comDim, long diffDimB){
+
+  float* matrixADevice, *matrixBDevice, *matrixCDevice;
+
+  CudaSafeCall(cudaMalloc((void**)&matrixADevice, diffDimA*comDim*sizeof(float)));
+  CudaSafeCall(cudaMalloc((void**)&matrixBDevice, comDim*diffDimB*sizeof(float)));
+  CudaSafeCall(cudaMalloc((void**)&matrixCDevice, diffDimA*diffDimB*sizeof(float)));
+
+  CudaSafeCall(cudaMemcpy(matrixADevice, matrixA, diffDimA*comDim*sizeof(float), cudaMemcpyHostToDevice));
+  CudaSafeCall(cudaMemcpy(matrixBDevice, matrixB, comDim*diffDimB*sizeof(float), cudaMemcpyHostToDevice));
+
+  dim3 grid, block;
+
+  getFlatGridBlock(diffDimA*diffDimB, grid, block);
+
+  multiplyMatrices<<<grid, block>>>(matrixADevice, matrixBDevice, matrixCDevice, diffDimA, comDim, diffDimB);
+
+  CudaSafeCall(cudaMemcpy(matrixC, matrixCDevice, diffDimA*diffDimB*sizeof(float), cudaMemcpyDeviceToHost));
+
+  CudaSafeCall(cudaFree(matrixADevice));
+  CudaSafeCall(cudaFree(matrixBDevice));
+  CudaSafeCall(cudaFree(matrixCDevice));
+
+}
+
 void getFlatGridBlock(unsigned long size, dim3 &grid, dim3 &block) {
   if(2147483647 > size){
     grid.x = size;
@@ -242,39 +268,166 @@ float* minimizeVideo(unsigned long numPixels, unsigned long numPixelsWithValues,
   return minimizedVideo;
 }
 
-void performNNMF(float* &W, float* &H, float* V, unsigned int k, unsigned long numPixels, unsigned int numTimePoints, std::string baseDir){
-  // float* dW;
-  // float* dH;
-  //
-  // CudaSafeCall(cudaMalloc((void**)&dW, numPixels*k*sizeof(float)));
-  // CudaSafeCall(cudaMalloc((void**)&dH, k*numTimePoints*sizeof(float)));
-  // dim3 grid = {1,1,1};
-  // dim3 block = {1,1,1};
-  // getFlatGridBlock(numPixels*k, grid, block);
-  // randInitMatrix<<<grid,block>>>(numPixels*k, dW);
-  // CudaCheckError();
-  // grid = {1,1,1};
-  // block = {1,1,1};
-  // getFlatGridBlock(k*numTimePoints, grid, block);
-  // randInitMatrix<<<grid,block>>>(k*numTimePoints, dH);
-  // CudaCheckError();
-  // CudaSafeCall(cudaMemcpy(W, dW, numPixels*k*sizeof(float), cudaMemcpyDeviceToHost));
-  // CudaSafeCall(cudaMemcpy(H, dH, k*numTimePoints*sizeof(float), cudaMemcpyDeviceToHost));
-  // CudaSafeCall(cudaFree(dW));
-  // CudaSafeCall(cudaFree(dH));
-  //
+
+void performSVD(unsigned int numSigFig, unsigned long mValue, unsigned long nValue, float* originalMatrix, float* &sMatrix, float* &uMatrix, float* &vtMatrix) {
+  std::cout<<"starting SVD"<<std::endl;
+  magma_init(); // initialize Magma
+  real_Double_t gpu_time, cpu_time;
+
+  magma_int_t m=mValue, n=nValue, n2=m*n, min_mn = (((m)<(n))?(m):(n));
+  printf("m=%d,n=%d\n",m,n);
+  float *r; // a,r - mxn matrices
+  float *u, *vt;// u - mxm matrix , vt - nxn matrix on the host
+  float *s1; // vectors of singular values
+  magma_int_t info;
+  magma_int_t ione = 1;
+  float work[1], error = 1.; // used in difference computations
+  float mone = -1.0, * h_work ; // h_work - workspace
+  float dummy[1];
+  magma_int_t lwork ; // workspace size
+  magma_int_t ISEED[4] = {0 ,0 ,0 ,1}; // seed
+
+  // Allocate host memory
+  magma_smalloc_cpu(&vt, n*n); // host memory for vt
+  magma_smalloc_cpu(&u, m*n); // host memory for u
+  magma_smalloc_cpu(&s1 , min_mn ); // host memory for s1
+  magma_smalloc_pinned(&r,n2 ); // host memory for r
+  magma_int_t nb = magma_get_sgesvd_nb(m,n); // optim . block size
+
+  magma_sgesvd(MagmaSomeVec, MagmaSomeVec, m, n,
+                NULL, m, NULL, NULL, m, NULL, n, dummy, -1,
+                &info );
+
+  lwork = (magma_int_t) MAGMA_S_REAL( dummy[0] );
+  magma_smalloc_pinned(& h_work , lwork ); // host mem . for h_work
+
+
+
+  // lapackf77_slarnv(&ione, ISEED, &n2, a);
+  lapackf77_slacpy(MagmaFullStr, &m, &n, originalMatrix, &m, r, &m);
+
+  // MAGMA
+  gpu_time = magma_wtime();
+
+  // compute the singular value decomposition of r ( copy of a)
+  // and optionally the left and right singular vectors :
+  // r = u* sigma *vt; the diagonal elements of sigma (s1 array )
+  // are the singular values of a in descending order
+  // the first min (m,n) columns of u contain the left sing . vec .
+  // the first min (m,n) columns of vt contain the right sing .vec .
+  magma_sgesvd(MagmaSomeVec,MagmaSomeVec,m,n,r,m,s1,u,m,vt,n,h_work,
+  lwork,&info );
+
+  gpu_time = magma_wtime() - gpu_time ;
+  printf(" sgesvd gpu time: %7.5f\n", gpu_time); // Magma time
+  std::cout<<"starting minimization with num singular values being "<<numSigFig<<std::endl;
+  for (long i = 0; i < numSigFig; i++) {
+    for (long j = 0; j < numSigFig; j++) {
+      if (j == i) {
+        sMatrix[i * numSigFig + j] = s1[i];
+      }
+      else {
+        sMatrix[i * numSigFig + j] = 0.0f;
+      }
+    }
+  }
+
+  std::cout<<"sMatrix minimized = "<<numSigFig<<"x"<<numSigFig<<std::endl;
+
+  for(long i = 0; i < m; i++){
+    for(int j = 0; j < numSigFig; j++) {
+        uMatrix[i*n + j] = u[i*n + j];
+    }
+  }
+
+  std::cout<<"uMatrix minimized = "<<m<<"x"<<numSigFig<<std::endl;
+
+  for(long i = 0; i < numSigFig; i++) {
+
+    for(int j = 0; j < n; j++) {
+
+        vtMatrix[i*n + j] = vt[i*n + j];
+
+    }
+
+  }
+
+  std::cout<<"vtMatrix minimized = "<<numSigFig<<"x"<<n<<std::endl;
+
+
+  // values
+  // Free memory
+  free(vt); // free host memory
+  free(s1); //free host memory
+  free(u); // free host memory
+  magma_free_pinned( h_work ); // free host memory
+  magma_free_pinned(r); // free host memory
+  magma_finalize( ); // finalize Magma
+
+}
+
+void performNNMF(float* &W, float* &H, float* V, unsigned int k, unsigned long numPixels, unsigned int numTimePoints, std::string baseDir, bool svd){
+  float* svdProduct;
+  unsigned int numSigFig;
+  float* sMatrix;
+  float* uMatrix;
+  float* vtMatrix;
+  float* tempMatrix;
+  if(svd){
+    numSigFig = 200;
+    /*DO SVD*/
+    sMatrix = new float[numSigFig*numSigFig];
+    uMatrix = new float[numPixels*numSigFig];
+    vtMatrix = new float[numSigFig*numTimePoints];
+    performSVD(numSigFig, numPixels, numTimePoints, V, sMatrix, uMatrix, vtMatrix);
+    delete[] V;
+    tempMatrix = new float[numPixels*numSigFig];
+    executeMultiplyMatrices(uMatrix, sMatrix, tempMatrix, numPixels, numSigFig, numSigFig);
+    delete[] uMatrix;
+    delete[] sMatrix;
+    svdProduct = new float[numPixels*numTimePoints];
+    executeMultiplyMatrices(tempMatrix, vtMatrix, svdProduct, numPixels, numSigFig, numTimePoints);
+    delete[] vtMatrix;
+    delete[] tempMatrix;
+    numSigFig = 50;
+    sMatrix = new float[numSigFig*numSigFig];
+    uMatrix = new float[numPixels*numSigFig];
+    vtMatrix = new float[numSigFig*numTimePoints];
+    performSVD(numSigFig, numPixels, numTimePoints, svdProduct, sMatrix, uMatrix, vtMatrix);
+    delete[] svdProduct;
+    tempMatrix = new float[numPixels*numSigFig];
+    executeMultiplyMatrices(uMatrix, sMatrix, tempMatrix, numPixels, numSigFig, numSigFig);
+    delete[] uMatrix;
+    delete[] sMatrix;
+    svdProduct = new float[numPixels*numTimePoints];
+    executeMultiplyMatrices(tempMatrix, vtMatrix, svdProduct, numPixels, numSigFig, numTimePoints);
+    delete[] vtMatrix;
+    delete[] tempMatrix;
+  }
+  else{
+    svdProduct = V;
+  }
+
   clock_t nnmfTimer;
   nnmfTimer = clock();
   std::cout<<"starting nnmf"<<std::endl;
+  float min = std::numeric_limits<float>::max();
+  for(int i = 0; i < numPixels*numTimePoints; ++i){
+    if(svdProduct[i] < min) min = svdProduct[i];
+  }
+  for(int i = 0; i < numPixels*numTimePoints; ++i){
+    svdProduct[i] -= (min - .1);
+  }
+  /*WRITE NNMF.txt */
   std::string nmfFileName = baseDir + "NNMF.txt";
   std::ofstream NNMFile(nmfFileName);
   if(NNMFile.is_open()){
     for(int i = 0; i < numPixels*numTimePoints; ++i){
       if ((i + 1) % numTimePoints == 0) {
-        NNMFile << V[i] << "\n";
+        NNMFile << svdProduct[i] << "\n";
       }
       else {
-        NNMFile << V[i] << " ";
+        NNMFile << svdProduct[i] << " ";
       }
     }
     NNMFile.close();
@@ -285,9 +438,9 @@ void performNNMF(float* &W, float* &H, float* V, unsigned int k, unsigned long n
   }
   printf("writing NNMF.txt took %f seconds.\n\n", ((float) clock() - nnmfTimer)/CLOCKS_PER_SEC);
   nnmfTimer = clock();
-  delete[] V;
-  /*DO NMF*/
+  delete[] svdProduct;
 
+  /*DO NMF*/
   std::string executableLine = "./bin/NMF_GPU " + baseDir + "NNMF.txt -k " + std::to_string(k) + " -j 10 -t 40 -i 20000";
   std::system(executableLine.c_str());
 

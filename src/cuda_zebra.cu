@@ -366,48 +366,58 @@ void performSVD(unsigned int numSigFig, unsigned long mValue, unsigned long nVal
 
 }
 
-void performNNMF(float* &W, float* &H, float* V, unsigned int k, unsigned long numPixels, unsigned int numTimePoints, std::string baseDir){
-  // float* dW;
-  // float* dH;
-  //
-  // CudaSafeCall(cudaMalloc((void**)&dW, numPixels*k*sizeof(float)));
-  // CudaSafeCall(cudaMalloc((void**)&dH, k*numTimePoints*sizeof(float)));
-  // dim3 grid = {1,1,1};
-  // dim3 block = {1,1,1};
-  // getFlatGridBlock(numPixels*k, grid, block);
-  // randInitMatrix<<<grid,block>>>(numPixels*k, dW);
-  // CudaCheckError();
-  // grid = {1,1,1};
-  // block = {1,1,1};
-  // getFlatGridBlock(k*numTimePoints, grid, block);
-  // randInitMatrix<<<grid,block>>>(k*numTimePoints, dH);
-  // CudaCheckError();
-  // CudaSafeCall(cudaMemcpy(W, dW, numPixels*k*sizeof(float), cudaMemcpyDeviceToHost));
-  // CudaSafeCall(cudaMemcpy(H, dH, k*numTimePoints*sizeof(float), cudaMemcpyDeviceToHost));
-  // CudaSafeCall(cudaFree(dW));
-  // CudaSafeCall(cudaFree(dH));
-  //
-
-  unsigned int numSigFig = 50;
-  /*DO SVD*/
-  float* sMatrix = new float[numSigFig*numSigFig];
-  float* uMatrix = new float[numPixels*numSigFig];
-  float* vtMatrix = new float[numSigFig*numTimePoints];
-  performSVD(numSigFig, numPixels, numTimePoints, V, sMatrix, uMatrix, vtMatrix);
-  delete[] V;
-  float* tempMatrix = new float[numPixels*numSigFig];
-  executeMultiplyMatrices(uMatrix, sMatrix, tempMatrix, numPixels, numSigFig, numSigFig);
-  delete[] uMatrix;
-  delete[] sMatrix;
-  float* svdProduct = new float[numPixels*numTimePoints];
-  executeMultiplyMatrices(tempMatrix, vtMatrix, svdProduct, numPixels, numSigFig, numTimePoints);
-  delete[] vtMatrix;
-  delete[] tempMatrix;
+void performNNMF(float* &W, float* &H, float* V, unsigned int k, unsigned long numPixels, unsigned int numTimePoints, std::string baseDir, bool svd){
+  float* svdProduct;
+  unsigned int numSigFig;
+  float* sMatrix;
+  float* uMatrix;
+  float* vtMatrix;
+  float* tempMatrix;
+  if(svd){
+    numSigFig = 200;
+    /*DO SVD*/
+    sMatrix = new float[numSigFig*numSigFig];
+    uMatrix = new float[numPixels*numSigFig];
+    vtMatrix = new float[numSigFig*numTimePoints];
+    performSVD(numSigFig, numPixels, numTimePoints, V, sMatrix, uMatrix, vtMatrix);
+    delete[] V;
+    tempMatrix = new float[numPixels*numSigFig];
+    executeMultiplyMatrices(uMatrix, sMatrix, tempMatrix, numPixels, numSigFig, numSigFig);
+    delete[] uMatrix;
+    delete[] sMatrix;
+    svdProduct = new float[numPixels*numTimePoints];
+    executeMultiplyMatrices(tempMatrix, vtMatrix, svdProduct, numPixels, numSigFig, numTimePoints);
+    delete[] vtMatrix;
+    delete[] tempMatrix;
+    numSigFig = 50;
+    sMatrix = new float[numSigFig*numSigFig];
+    uMatrix = new float[numPixels*numSigFig];
+    vtMatrix = new float[numSigFig*numTimePoints];
+    performSVD(numSigFig, numPixels, numTimePoints, svdProduct, sMatrix, uMatrix, vtMatrix);
+    delete[] svdProduct;
+    tempMatrix = new float[numPixels*numSigFig];
+    executeMultiplyMatrices(uMatrix, sMatrix, tempMatrix, numPixels, numSigFig, numSigFig);
+    delete[] uMatrix;
+    delete[] sMatrix;
+    svdProduct = new float[numPixels*numTimePoints];
+    executeMultiplyMatrices(tempMatrix, vtMatrix, svdProduct, numPixels, numSigFig, numTimePoints);
+    delete[] vtMatrix;
+    delete[] tempMatrix;
+  }
+  else{
+    svdProduct = V;
+  }
 
   clock_t nnmfTimer;
   nnmfTimer = clock();
   std::cout<<"starting nnmf"<<std::endl;
-
+  float min = std::numeric_limits<float>::max();
+  for(int i = 0; i < numPixels*numTimePoints; ++i){
+    if(svdProduct[i] < min) min = svdProduct[i];
+  }
+  for(int i = 0; i < numPixels*numTimePoints; ++i){
+    svdProduct[i] -= (min - .1);
+  }
   /*WRITE NNMF.txt */
   std::string nmfFileName = baseDir + "NNMF.txt";
   std::ofstream NNMFile(nmfFileName);

@@ -7,15 +7,15 @@ FORT := gfortran
 
 
 # Includes
-INCLUDES = -I/usr/local/cuda/include -I/usr/local/magma/include -I/usr/local/include
+INCLUDES = -I/usr/local/cuda/include -I/usr/local/include
 # Common flags
 COMMONFLAGS += ${INCLUDES}
 NVCCFLAGS += ${COMMONFLAGS}
-NVCCFLAGS += -std=c++11 -gencode=arch=compute_60,code=sm_60 -Iinclude -lcublas
+NVCCFLAGS += -std=c++11 -gencode=arch=compute_60,code=sm_60 -Iinclude
 CXXFLAGS += ${COMMONFLAGS}
-NVCCFLAGS += -O3 -Xcompiler -fopenmp -g -DHAVE_CUBLAS -DADD_ -Iinclude -lcublas
+NVCCFLAGS += -Iinclude
 
-LIB_CUDA := -L/usr/local/cuda/lib64 -lcudart -L/usr/local/magma/lib -lmagma -L/opt/openblas/lib -lopenblas -lcublas
+LIB_CUDA := -L/usr/local/cuda/lib64 -lcudart
 LIB_TIFF := -L/usr/local/lib -ltiff
 
 SRCDIR = ./src

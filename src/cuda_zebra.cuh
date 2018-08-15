@@ -2,8 +2,6 @@
 #define CUDA_ZEBRA_CUH
 
 #include "common_includes.h"
-#include "magma_v2.h"
-#include "magma_lapack.h"
 
 __global__ void findMinMax(uint32* mtx, unsigned long size, uint32* min, uint32* max);
 __global__ void normalize(uint32 *mtx, float *normals, uint32* min, uint32* max, unsigned long size);
@@ -22,6 +20,6 @@ float* minimizeVideo(unsigned long numPixels, unsigned long numPixelsWithValues,
 
 void performSVD(unsigned int numSigFig, unsigned long mValue, unsigned long nValue, float* originalMatrix, float* &sMatrix, float* &uMatrix, float* &vtMatrix);
 
-void performNNMF(float* &W, float* &H, float* V, unsigned int k, unsigned long numPixels, unsigned int numTimePoints, std::string outDir, bool svd);
+void performNNMF(float* &W, float* &H, float* V, unsigned int k, unsigned long numPixels, unsigned int numTimePoints, std::string outDir);
 
 #endif /* CUDA_ZEBRA_CUH */

@@ -3,11 +3,9 @@ CUDA_INSTALL_PATH := /usr/local/cuda
 CXX := /usr/bin/g++
 LINK := nvcc
 NVCC := nvcc
-FORT := gfortran
-
 
 # Includes
-INCLUDES = -I/usr/local/cuda/include -I/usr/local/include
+INCLUDES = -I/usr/local/apps/cuda/9.0.176_384.81/include -I/usr/local/include
 # Common flags
 COMMONFLAGS += ${INCLUDES}
 NVCCFLAGS += ${COMMONFLAGS}
@@ -15,7 +13,7 @@ NVCCFLAGS += -std=c++11 -gencode=arch=compute_60,code=sm_60 -Iinclude
 CXXFLAGS += ${COMMONFLAGS}
 NVCCFLAGS += -Iinclude
 
-LIB_CUDA := -L/usr/local/cuda/lib64 -lcudart
+LIB_CUDA := -L/usr/local/apps/cuda/9.0.176_384.81/lib64 -lcudart
 LIB_TIFF := -L/usr/local/lib -ltiff
 
 SRCDIR = ./src

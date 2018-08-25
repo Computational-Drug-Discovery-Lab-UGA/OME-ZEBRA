@@ -268,91 +268,93 @@ float* minimizeVideo(unsigned long numPixels, unsigned long numPixelsWithValues,
   return minimizedVideo;
 }
 
-void performNNMF(float* &W, float* &H, float* V, unsigned int k, unsigned long numPixels, unsigned int numTimePoints, std::string baseDir){
+void performNNMF(float* &W, float* &H, float* V, unsigned int k, unsigned long numPixels, unsigned int numTimePoints, std::string baseDir, int config){
   clock_t nnmfTimer;
   nnmfTimer = clock();
-  std::cout<<"starting nnmf"<<std::endl;
-  float min = std::numeric_limits<float>::max();
-  for(int i = 0; i < numPixels*numTimePoints; ++i){
-    if(V[i] < min) min = V[i];
-  }
-  for(int i = 0; i < numPixels*numTimePoints; ++i){
-    V[i] -= (min - .1);
-  }
-  /*WRITE NNMF.txt */
   std::string nmfFileName = baseDir + "NNMF.txt";
-  std::ofstream NNMFile(nmfFileName);
-  if(NNMFile.is_open()){
+  if(config == 0 || config == -1){
+    std::cout<<"starting nnmf"<<std::endl;
+    float min = std::numeric_limits<float>::max();
     for(int i = 0; i < numPixels*numTimePoints; ++i){
-      if ((i + 1) % numTimePoints == 0) {
-        NNMFile << V[i] << "\n";
-      }
-      else {
-        NNMFile << V[i] << " ";
-      }
+      if(V[i] < min) min = V[i];
     }
-    NNMFile.close();
-    std::cout<< nmfFileName <<" has been created.\n"<<std::endl;
-  }
-  else{
-    std::cout<<"error cannot create"<< nmfFileName <<std::endl;
-  }
-  printf("writing NNMF.txt took %f seconds.\n\n", ((float) clock() - nnmfTimer)/CLOCKS_PER_SEC);
-  nnmfTimer = clock();
-  delete[] V;
-
-  /*DO NMF*/
-  std::string kS = std::to_string(2);
-  pid_t pid = fork();
-  int status;
-  if(pid == 0){
-    if(execl("bin/NMF_GPU","bin/NMF_GPU",nmfFileName.c_str(),"-k",kS.c_str(),"-j","10","-t","40","-i","20000", (char*)0) == -1){
-      std::cout<<"ERROR CALLING NMF_GPU -> "<<strerror(errno)<<std::endl;
-      exit(-1);
+    for(int i = 0; i < numPixels*numTimePoints; ++i){
+      V[i] -= (min - .1);
     }
-  }
-  else{
-    while(-1 == wait(&status));
-  }
-
-
-  printf("nnmf took %f seconds.\n\n", ((float) clock() - nnmfTimer)/CLOCKS_PER_SEC);
-  nnmfTimer = clock();
-  W = new float[k*numPixels];
-  H = new float[k*numTimePoints];
-  std::cout<<"reading in h and w file"<<std::endl;
-  std::string wFileName = nmfFileName + "_W.txt";
-  std::string hFileName = nmfFileName + "_H.txt";
-  std::cout<<"opening "<<wFileName<<" and"<<hFileName<<std::endl;
-  std::string wLine = "";
-  std::string hLine = "";
-  std::ifstream wFile(wFileName);
-  std::ifstream hFile(hFileName);
-  std::istringstream hh;
-  std::istringstream ww;
-  if(wFile.is_open() && hFile.is_open()){
-    for(int row = 0; row < numPixels; ++row){
-      wLine = "";
-      hLine = "";
-      if(row < k){
-        getline(hFile, hLine);
-        hh = std::istringstream(hLine);
+    /*WRITE NNMF.txt */
+    std::ofstream NNMFile(nmfFileName);
+    if(NNMFile.is_open()){
+      for(int i = 0; i < numPixels*numTimePoints; ++i){
+        if ((i + 1) % numTimePoints == 0) {
+          NNMFile << V[i] << "\n";
+        }
+        else {
+          NNMFile << V[i] << " ";
+        }
       }
-      getline(wFile, wLine);
-      ww = std::istringstream(wLine);
-      for(int col = 0; col < k; ++col){
-        ww >> W[row*k + col];
-      }
-      for(int col = 0; row < k && col < numTimePoints; ++col){
-        hh >> H[row*numTimePoints + col];
-      }
+      NNMFile.close();
+      std::cout<< nmfFileName <<" has been created.\n"<<std::endl;
     }
-    wFile.close();
-    hFile.close();
+    else{
+      std::cout<<"error cannot create"<< nmfFileName <<std::endl;
+    }
+    printf("writing NNMF.txt took %f seconds.\n\n", ((float) clock() - nnmfTimer)/CLOCKS_PER_SEC);
+    nnmfTimer = clock();
+    delete[] V;
+    if(config == -1){
+      /*DO NMF*/
+      std::string kS = std::to_string(2);
+      pid_t pid = fork();
+      int status;
+      if(pid == 0){
+        if(execl("bin/NMF_GPU","bin/NMF_GPU",nmfFileName.c_str(),"-k",kS.c_str(),"-j","10","-t","40","-i","20000", (char*)0) == -1){
+          std::cout<<"ERROR CALLING NMF_GPU -> "<<strerror(errno)<<std::endl;
+          exit(-1);
+        }
+      }
+      else{
+        while(-1 == wait(&status));
+      }
+      printf("nnmf took %f seconds.\n\n", ((float) clock() - nnmfTimer)/CLOCKS_PER_SEC);
+      nnmfTimer = clock();
+    }  
   }
-  else{
-    std::cout<<"error cannot open W or H file"<<std::endl;
+  if(config == 1 || config == -1){
+    W = new float[k*numPixels];
+    H = new float[k*numTimePoints];
+    std::cout<<"reading in h and w file"<<std::endl;
+    std::string wFileName = nmfFileName + "_W.txt";
+    std::string hFileName = nmfFileName + "_H.txt";
+    std::cout<<"opening "<<wFileName<<" and"<<hFileName<<std::endl;
+    std::string wLine = "";
+    std::string hLine = "";
+    std::ifstream wFile(wFileName);
+    std::ifstream hFile(hFileName);
+    std::istringstream hh;
+    std::istringstream ww;
+    if(wFile.is_open() && hFile.is_open()){
+      for(int row = 0; row < numPixels; ++row){
+        wLine = "";
+        hLine = "";
+        if(row < k){
+          getline(hFile, hLine);
+          hh = std::istringstream(hLine);
+        }
+        getline(wFile, wLine);
+        ww = std::istringstream(wLine);
+        for(int col = 0; col < k; ++col){
+          ww >> W[row*k + col];
+        }
+        for(int col = 0; row < k && col < numTimePoints; ++col){
+          hh >> H[row*numTimePoints + col];
+        }
+      }
+      wFile.close();
+      hFile.close();
+    }
+    else{
+      std::cout<<"error cannot open W or H file"<<std::endl;
+    }
+    printf("reading h and w took %f seconds.\n\n", ((float) clock() - nnmfTimer)/CLOCKS_PER_SEC);
   }
-  printf("reading h and w took %f seconds.\n\n", ((float) clock() - nnmfTimer)/CLOCKS_PER_SEC);
-
 }

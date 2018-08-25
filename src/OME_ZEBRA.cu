@@ -8,10 +8,12 @@ int main(int argc, char *argv[]) {
     exit(-1);
   }
   unsigned int k;
-  if(argc == 3) k = std::stoi(argv[2]);
+  if(argc > 2) k = std::stoi(argv[2]);
   else{
     k = 2;
   }
+  int config = -1;//-1 is whole program, 0 is preprocess, 1 is visualization
+  if(argc == 4) config = std::stoi(argv[3]);
   std::string baseDirectory = argv[1];
   unsigned int width = 0;
   unsigned int height = 0;
@@ -34,7 +36,7 @@ int main(int argc, char *argv[]) {
   float* H;
   //W & H are not currently used
   //NOTE minimized video is deleted in performNNMF
-  performNNMF(W, H, minimizedVideo, k, height*width, numTimePoints, baseDirectory);
+  performNNMF(W, H, minimizedVideo, k, height*width, numTimePoints, baseDirectory, config);
   createVisualization(baseDirectory,k, width, height, numTimePoints, W, H, key, baseName);
   cudaDeviceReset();
   return 0;

@@ -302,8 +302,18 @@ void performNNMF(float* &W, float* &H, float* V, unsigned int k, unsigned long n
   delete[] V;
 
   /*DO NMF*/
-  std::string executableLine = "./bin/NMF_GPU \"" + baseDir + "NNMF.txt\" -k " + std::to_string(k) + " -j 10 -t 40 -i 20000";
-  std::system(executableLine.c_str());
+  std::string kS = std::to_string(2);
+  pid_t pid = fork();
+  int status;
+  if(pid == 0){
+    if(execl("bin/NMF_GPU","bin/NMF_GPU",nmfFileName.c_str(),"-k",kS.c_str(),"-j","10","-t","40","-i","20000", (char*)0) == -1){
+      std::cout<<"ERROR CALLING NMF_GPU -> "<<strerror(errno)<<std::endl;
+      exit(-1);
+    }
+  }
+  else{
+    while(-1 == wait(&status));
+  }
 
 
   printf("nnmf took %f seconds.\n\n", ((float) clock() - nnmfTimer)/CLOCKS_PER_SEC);

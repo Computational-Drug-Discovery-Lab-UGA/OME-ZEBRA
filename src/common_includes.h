@@ -27,5 +27,7 @@
 #include <algorithm>
 #include <time.h>
 #include <algorithm>
+#include <unistd.h>
+#include <sys/wait.h>
 
 #endif /* COMMON_INCLUDES_H */

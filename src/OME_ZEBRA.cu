@@ -3,7 +3,7 @@
 #include "cuda_zebra.cuh"
 
 int main(int argc, char *argv[]) {
-  if(argc < 2 || argc > 3){
+  if(argc < 2 || argc > 4){
     std::cout << "Usage: ./exe <directory of timepoint tifs>";
     exit(-1);
   }

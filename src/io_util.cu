@@ -94,7 +94,6 @@ uint32* readTiffVideo(std::string videoDirectoryPath, unsigned int &width, unsig
   closedir(dir);
   std::sort(fileNames.begin(), fileNames.end());
   for(int i = 0; i < numTimePoints; ++i){
-    std::cout<<"reading "<<fileNames[i]<<std::endl;
     TIFF *tif = TIFFOpen(fileNames[i].c_str(), "r");
     if (tif) {
       if (i == 0) {

@@ -302,7 +302,7 @@ void performNNMF(float* &W, float* &H, float* V, unsigned int k, unsigned long n
   delete[] V;
 
   /*DO NMF*/
-  std::string kS = std::to_string(2);
+  std::string kS = std::to_string(k);
   pid_t pid = fork();
   int status;
   if(pid == 0){

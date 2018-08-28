@@ -106,8 +106,7 @@ __global__ void randInitMatrix(unsigned long size, float* mtx){
     mtx[globalID] = ((float)(clock64()%1000))/1000.0f;
   }
 }
-__global__ void multiplyMatrices(float *matrixA, float *matrixB, float *matrixC,
-                                 long diffDimA, long comDim, long diffDimB){
+__global__ void multiplyMatrices(float *matrixA, float *matrixB, float *matrixC, long diffDimA, long comDim, long diffDimB){
 
   long blockID = blockIdx.y * gridDim.x + blockIdx.x;
   long globalID = blockID * blockDim.x + threadIdx.x;
@@ -129,8 +128,7 @@ __global__ void multiplyMatrices(float *matrixA, float *matrixB, float *matrixC,
   }
 }
 
-void executeMultiplyMatrices(float *matrixA, float *matrixB, float* &matrixC,
-                                 long diffDimA, long comDim, long diffDimB){
+void executeMultiplyMatrices(float *matrixA, float *matrixB, float* &matrixC, long diffDimA, long comDim, long diffDimB){
 
   float* matrixADevice, *matrixBDevice, *matrixCDevice;
 

@@ -106,8 +106,7 @@ __global__ void randInitMatrix(unsigned long size, float* mtx){
     mtx[globalID] = ((float)(clock64()%1000))/1000.0f;
   }
 }
-__global__ void multiplyMatrices(float *matrixA, float *matrixB, float *matrixC,
-                                 long diffDimA, long comDim, long diffDimB){
+__global__ void multiplyMatrices(float *matrixA, float *matrixB, float *matrixC, long diffDimA, long comDim, long diffDimB){
 
   long blockID = blockIdx.y * gridDim.x + blockIdx.x;
   long globalID = blockID * blockDim.x + threadIdx.x;
@@ -128,9 +127,28 @@ __global__ void multiplyMatrices(float *matrixA, float *matrixB, float *matrixC,
     matrixC[iIndex * diffDimB + jIndex] = sum;
   }
 }
+__global__ void multiplyMatrices(double *matrixA, double *matrixB, double *matrixC, long diffDimA, long comDim, long diffDimB){
 
-void executeMultiplyMatrices(float *matrixA, float *matrixB, float* &matrixC,
-                                 long diffDimA, long comDim, long diffDimB){
+  long blockID = blockIdx.y * gridDim.x + blockIdx.x;
+  long globalID = blockID * blockDim.x + threadIdx.x;
+  long currentIndex = globalID;
+
+  if(currentIndex < (diffDimA * diffDimB)){
+
+    long iIndex = currentIndex / diffDimB;
+    long jIndex = currentIndex % diffDimB;
+
+    double sum = 0;
+
+    for(int k = 0; k < comDim; k++){
+
+      sum += (matrixA[iIndex * comDim + k] * matrixB[k * diffDimB + jIndex]);
+    }
+
+    matrixC[iIndex * diffDimB + jIndex] = sum;
+  }
+}
+void executeMultiplyMatrices(float *matrixA, float *matrixB, float* &matrixC, long diffDimA, long comDim, long diffDimB){
 
   float* matrixADevice, *matrixBDevice, *matrixCDevice;
 

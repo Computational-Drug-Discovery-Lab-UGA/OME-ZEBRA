@@ -35,6 +35,7 @@ int main(int argc, char *argv[]) {
   //W & H are not currently used
   //NOTE minimized video is deleted in performNNMF
   performNNMF(W, H, minimizedVideo, k, height*width, numTimePoints, baseDirectory);
+  //NOTE create visualization deletes W & H
   createVisualization(baseDirectory,k, width, height, numTimePoints, W, H, key, baseName);
   cudaDeviceReset();
   return 0;

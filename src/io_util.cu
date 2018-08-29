@@ -273,7 +273,10 @@ void createKVideos(std::string outDir, std::string baseName, std::string firstTi
   dim3 block = {1,1,1};
   int a = height*width;
   int b = numTimePoints;
-
+  float greatestTPK = 0.0f;
+  int signatureTimePoint;
+  std::string toCopy;
+  std::string destination;
   if(65535 > a*b){
     grid.x = a*b;
   }
@@ -307,8 +310,16 @@ void createKVideos(std::string outDir, std::string baseName, std::string firstTi
     multiplyMatrices<<<grid,block>>>(wColDevice, hRowDevice, resultTransposeDevice, height*width, 1, numTimePoints);
     CudaCheckError();
     CudaSafeCall(cudaMemcpy(resultTranspose, resultTransposeDevice, width*height*numTimePoints*sizeof(uint32), cudaMemcpyDeviceToHost));
+    greatestTPK = 0.0f;
+    toCopy = "";
+    destination = "";
     for(int tp = 0; tp < numTimePoints; ++tp){
       std::string newTif = newDirectoryName + baseName + "_" + createFourCharInt(tp);
+      if(H[kFocus*numTimePoints + tp] > greatestTPK){
+        greatestTPK = H[kFocus*numTimePoints + tp];
+        signatureTimePoint = tp;
+        toCopy = newTif;
+      }
       TIFF *tpfTif = TIFFOpen(newTif.c_str(), "w");
       if(tpfTif){
         TIFFSetField(tpfTif, TIFFTAG_IMAGEWIDTH, width);
@@ -330,8 +341,13 @@ void createKVideos(std::string outDir, std::string baseName, std::string firstTi
         exit(-1);
       }
     }
-    std::cout<<numTimePoints<<" images in "<<newDirectoryName<<" have been created"<<std::endl;
+    std::cout<<numTimePoints<<" images in "<<newDirectoryName<<" have been created with signature timepoint = "<<signatureTimePoint<<std::endl;
+    destination = outDir + baseName + "_" + std::to_string(kFocus) + "_" + createFourCharInt(signatureTimePoint);
+    std::ifstream f1(toCopy, std::fstream::binary);
+    std::ofstream f2(destination, std::fstream::trunc|std::fstream::binary);
+    f2 << f1.rdbuf();
   }
+
   CudaSafeCall(cudaFree(wColDevice));
   CudaSafeCall(cudaFree(hRowDevice));
   CudaSafeCall(cudaFree(resultTransposeDevice));

@@ -78,6 +78,23 @@ __global__ void normalize(uint32 *mtx, float *normals, uint32* min, uint32* max,
     globalID += stride;
   }
 }
+__global__ void floatToUINT32(float *mtx, float min, float max, unsigned long size) {
+  int blockID = blockIdx.y * gridDim.x + blockIdx.x;
+  long globalID = blockID * blockDim.x + threadIdx.x;
+  int stride = gridDim.x * gridDim.y * blockDim.x;
+  float currentValue = 0;
+  float regMin = min;
+  float regMax = max;
+  float maxUINT32 = UINT32_MAX;
+  while(globalID < size){
+    if (mtx[globalID] != 0) {
+      currentValue = mtx[globalID] - regMin;
+      currentValue /= (regMax - regMin);
+    }
+    mtx[globalID] = (currentValue*maxUINT32);
+    globalID += stride;
+  }
+}
 __global__ void generateKey(unsigned long numPixels, unsigned int numTimePoints, float* mtx, bool* key){
   long blockID = blockIdx.y * gridDim.x + blockIdx.x;
   if(blockID < numPixels){
@@ -106,8 +123,7 @@ __global__ void randInitMatrix(unsigned long size, float* mtx){
     mtx[globalID] = ((float)(clock64()%1000))/1000.0f;
   }
 }
-__global__ void multiplyMatrices(float *matrixA, float *matrixB, float *matrixC,
-                                 long diffDimA, long comDim, long diffDimB){
+__global__ void multiplyMatrices(float *matrixA, float *matrixB, float *matrixC, long diffDimA, long comDim, long diffDimB){
 
   long blockID = blockIdx.y * gridDim.x + blockIdx.x;
   long globalID = blockID * blockDim.x + threadIdx.x;
@@ -128,9 +144,30 @@ __global__ void multiplyMatrices(float *matrixA, float *matrixB, float *matrixC,
     matrixC[iIndex * diffDimB + jIndex] = sum;
   }
 }
+__global__ void multiplyMatrices(float *matrixA, float *matrixB, uint32 *resultTranspose, long diffDimA, long comDim, long diffDimB){
 
-void executeMultiplyMatrices(float *matrixA, float *matrixB, float* &matrixC,
-                                 long diffDimA, long comDim, long diffDimB){
+  long blockID = blockIdx.y * gridDim.x + blockIdx.x;
+  long globalID = blockID * blockDim.x + threadIdx.x;
+  long currentIndex = globalID;
+
+  if(currentIndex < (diffDimA * diffDimB)){
+
+    long iIndex = currentIndex / diffDimB;
+    long jIndex = currentIndex % diffDimB;
+
+    float sum = 0;
+
+    for(int k = 0; k < comDim; k++){
+
+      sum += (matrixA[iIndex * comDim + k] * matrixB[k * diffDimB + jIndex]);
+    }
+
+    //result[iIndex * diffDimB + jIndex] = __float_as_uint(sum);
+    resultTranspose[jIndex * diffDimA + iIndex] = __float_as_uint(sum);
+
+  }
+}
+void executeMultiplyMatrices(float *matrixA, float *matrixB, float* &matrixC, long diffDimA, long comDim, long diffDimB){
 
   float* matrixADevice, *matrixBDevice, *matrixCDevice;
 
@@ -317,7 +354,7 @@ void performNNMF(float* &W, float* &H, float* V, unsigned int k, unsigned long n
       }
       printf("nnmf took %f seconds.\n\n", ((float) clock() - nnmfTimer)/CLOCKS_PER_SEC);
       nnmfTimer = clock();
-    }  
+    }
   }
   if(config == 1 || config == -1){
     W = new float[k*numPixels];
@@ -325,7 +362,7 @@ void performNNMF(float* &W, float* &H, float* V, unsigned int k, unsigned long n
     std::cout<<"reading in h and w file"<<std::endl;
     std::string wFileName = nmfFileName + "_W.txt";
     std::string hFileName = nmfFileName + "_H.txt";
-    std::cout<<"opening "<<wFileName<<" and"<<hFileName<<std::endl;
+    std::cout<<"opening "<<wFileName<<" and "<<hFileName<<std::endl;
     std::string wLine = "";
     std::string hLine = "";
     std::ifstream wFile(wFileName);

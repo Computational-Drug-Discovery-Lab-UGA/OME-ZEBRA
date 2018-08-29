@@ -261,25 +261,16 @@ void createKVideos(std::string outDir, std::string baseName, std::string firstTi
     std::cout<<"cannot open "<<firstTimePointLocation<<std::endl;
     exit(-1);
   }
-  double* dW = new double[height*width*k];
-  double* dH = new double[k*numTimePoints];
-  for(int p = 0; p < height*width*k; ++p){
-    dW[p] = (double) W[p];
-  }
-  for(int p = 0; p < k*numTimePoints; ++p){
-    dH[p] = (double) H[p];
-  }
-  delete[] W;
-  delete[] H;
-  double* wColDevice;
-  double* hRowDevice;
-  double* resultDevice;
-  double* result = new double[height*width*numTimePoints];
-  double* wCol = new double[height*width];
-  double* hRow = new double[numTimePoints];
-  CudaSafeCall(cudaMalloc((void**)&wColDevice, height*width*sizeof(double)));
-  CudaSafeCall(cudaMalloc((void**)&hRowDevice, numTimePoints*sizeof(double)));
-  CudaSafeCall(cudaMalloc((void**)&resultDevice, width*height*numTimePoints*sizeof(double)));
+
+  float* wColDevice;
+  float* hRowDevice;
+  float* resultDevice;
+  float* result = new float[height*width*numTimePoints];
+  float* wCol = new float[height*width];
+  float* hRow = new float[numTimePoints];
+  CudaSafeCall(cudaMalloc((void**)&wColDevice, height*width*sizeof(float)));
+  CudaSafeCall(cudaMalloc((void**)&hRowDevice, numTimePoints*sizeof(float)));
+  CudaSafeCall(cudaMalloc((void**)&resultDevice, width*height*numTimePoints*sizeof(float)));
   dim3 grid = {1,1,1};
   dim3 block = {1,1,1};
   int a = height*width;
@@ -315,22 +306,23 @@ void createKVideos(std::string outDir, std::string baseName, std::string firstTi
     }
     std::cout<<newDirectoryName<<" created"<<std::endl;
     for(int w = 0; w < height*width; ++w){
-      wCol[w] = dW[w*k + kFocus];
+      wCol[w] = W[w*k + kFocus];
     }
     for(int h = 0; h < numTimePoints; ++h){
-      hRow[h] = dH[kFocus*numTimePoints + h];
+      hRow[h] = H[kFocus*numTimePoints + h];
     }
-    CudaSafeCall(cudaMemcpy(wColDevice, wCol, height*width*sizeof(double), cudaMemcpyHostToDevice));
-    CudaSafeCall(cudaMemcpy(hRowDevice, hRow, numTimePoints*sizeof(double), cudaMemcpyHostToDevice));
+    CudaSafeCall(cudaMemcpy(wColDevice, wCol, height*width*sizeof(float), cudaMemcpyHostToDevice));
+    CudaSafeCall(cudaMemcpy(hRowDevice, hRow, numTimePoints*sizeof(float), cudaMemcpyHostToDevice));
     multiplyMatrices<<<grid,block>>>(wColDevice, hRowDevice, resultDevice, height*width, 1, numTimePoints);
     CudaCheckError();
-    CudaSafeCall(cudaMemcpy(result, resultDevice, width*height*numTimePoints*sizeof(double), cudaMemcpyDeviceToHost));
-    double minF = std::numeric_limits<double>::max();
-    double maxF = std::numeric_limits<double>::min();
+    CudaSafeCall(cudaMemcpy(result, resultDevice, width*height*numTimePoints*sizeof(float), cudaMemcpyDeviceToHost));
+    float minF = std::numeric_limits<float>::max();
+    float maxF = std::numeric_limits<float>::min();
     for(int i = 0; i < height*width*numTimePoints; ++i){
       if(result[i] < minF) minF = result[i];
       if(result[i] > maxF) maxF = result[i];
     }
+    printf("%f,%f\n",minF,maxF);
     for(int i = 0; i < height*width*numTimePoints; ++i){
       result[i] = UINT32_MAX*(result[i] - minF)/(maxF-minF);
     }
@@ -373,8 +365,6 @@ void createKVideos(std::string outDir, std::string baseName, std::string firstTi
     delete[] data[i];
   }
   delete[] data;
-  delete[] dW;
-  delete[] dH;
 }
 void createVisualization(std::string videoDirectoryPath, int k, unsigned int width, unsigned int height,
   unsigned int numTimePoints, float* W, float* H, bool* key, std::string baseName){
@@ -401,6 +391,5 @@ void createVisualization(std::string videoDirectoryPath, int k, unsigned int wid
   }
   closedir(dir);
   createSpatialImages(outDir, firstTimePointLocation, baseName, k, width, height, W, key);
-  //NOTE the following method deletes W and H
   createKVideos(outDir, baseName, firstTimePointLocation, k, width, height, numTimePoints, W, H, key);
 }

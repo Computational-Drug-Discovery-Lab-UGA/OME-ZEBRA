@@ -78,6 +78,23 @@ __global__ void normalize(uint32 *mtx, float *normals, uint32* min, uint32* max,
     globalID += stride;
   }
 }
+__global__ void floatToUINT32(float *mtx, float min, float max, unsigned long size) {
+  int blockID = blockIdx.y * gridDim.x + blockIdx.x;
+  long globalID = blockID * blockDim.x + threadIdx.x;
+  int stride = gridDim.x * gridDim.y * blockDim.x;
+  float currentValue = 0;
+  float regMin = min;
+  float regMax = max;
+  float maxUINT32 = UINT32_MAX;
+  while(globalID < size){
+    if (mtx[globalID] != 0) {
+      currentValue = mtx[globalID] - regMin;
+      currentValue /= (regMax - regMin);
+    }
+    mtx[globalID] = (currentValue*maxUINT32);
+    globalID += stride;
+  }
+}
 __global__ void generateKey(unsigned long numPixels, unsigned int numTimePoints, float* mtx, bool* key){
   long blockID = blockIdx.y * gridDim.x + blockIdx.x;
   if(blockID < numPixels){
@@ -127,7 +144,7 @@ __global__ void multiplyMatrices(float *matrixA, float *matrixB, float *matrixC,
     matrixC[iIndex * diffDimB + jIndex] = sum;
   }
 }
-__global__ void multiplyMatrices(double *matrixA, double *matrixB, double *matrixC, long diffDimA, long comDim, long diffDimB){
+__global__ void multiplyMatrices(float *matrixA, float *matrixB, uint32 *resultTranspose, long diffDimA, long comDim, long diffDimB){
 
   long blockID = blockIdx.y * gridDim.x + blockIdx.x;
   long globalID = blockID * blockDim.x + threadIdx.x;
@@ -138,14 +155,16 @@ __global__ void multiplyMatrices(double *matrixA, double *matrixB, double *matri
     long iIndex = currentIndex / diffDimB;
     long jIndex = currentIndex % diffDimB;
 
-    double sum = 0;
+    float sum = 0;
 
     for(int k = 0; k < comDim; k++){
 
       sum += (matrixA[iIndex * comDim + k] * matrixB[k * diffDimB + jIndex]);
     }
 
-    matrixC[iIndex * diffDimB + jIndex] = sum;
+    //result[iIndex * diffDimB + jIndex] = __float_as_uint(sum);
+    resultTranspose[jIndex * diffDimA + iIndex] = __float_as_uint(sum);
+
   }
 }
 void executeMultiplyMatrices(float *matrixA, float *matrixB, float* &matrixC, long diffDimA, long comDim, long diffDimB){

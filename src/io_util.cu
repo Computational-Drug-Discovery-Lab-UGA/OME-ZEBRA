@@ -342,7 +342,7 @@ void createKVideos(std::string outDir, std::string baseName, std::string firstTi
       }
     }
     std::cout<<numTimePoints<<" images in "<<newDirectoryName<<" have been created with signature timepoint = "<<signatureTimePoint<<std::endl;
-    destination = outDir + baseName + "_" + std::to_string(kFocus) + "_" + createFourCharInt(signatureTimePoint);
+    destination = outDir + baseName + "_" + std::to_string(kFocus) + "_" + createFourCharInt(signatureTimePoint) + ".tif";
     std::ifstream f1(toCopy, std::fstream::binary);
     std::ofstream f2(destination, std::fstream::trunc|std::fstream::binary);
     f2 << f1.rdbuf();

@@ -7,6 +7,6 @@ bin/NNMF_VISUALIZE\.exe
 
 tiff-4\.0\.9/
 
-bin/
-
 *.DS_Store
+
+bin/ZEBRA_NMF

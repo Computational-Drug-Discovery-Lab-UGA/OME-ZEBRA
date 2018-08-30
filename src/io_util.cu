@@ -94,7 +94,6 @@ uint32* readTiffVideo(std::string videoDirectoryPath, unsigned int &width, unsig
   closedir(dir);
   std::sort(fileNames.begin(), fileNames.end());
   for(int i = 0; i < numTimePoints; ++i){
-    std::cout<<"reading "<<fileNames[i]<<std::endl;
     TIFF *tif = TIFFOpen(fileNames[i].c_str(), "r");
     if (tif) {
       if (i == 0) {
@@ -264,18 +263,20 @@ void createKVideos(std::string outDir, std::string baseName, std::string firstTi
 
   float* wColDevice;
   float* hRowDevice;
-  float* resultDevice;
-  float* result = new float[height*width*numTimePoints];
+  uint32* resultTransposeDevice;
+  uint32* resultTranspose = new uint32[height*width*numTimePoints];
   float* wCol = new float[height*width];
-  float* hRow = new float[numTimePoints];
   CudaSafeCall(cudaMalloc((void**)&wColDevice, height*width*sizeof(float)));
   CudaSafeCall(cudaMalloc((void**)&hRowDevice, numTimePoints*sizeof(float)));
-  CudaSafeCall(cudaMalloc((void**)&resultDevice, width*height*numTimePoints*sizeof(float)));
+  CudaSafeCall(cudaMalloc((void**)&resultTransposeDevice, width*height*numTimePoints*sizeof(uint32)));
   dim3 grid = {1,1,1};
   dim3 block = {1,1,1};
   int a = height*width;
   int b = numTimePoints;
-
+  float greatestTPK = 0.0f;
+  int signatureTimePoint;
+  std::string toCopy;
+  std::string destination;
   if(65535 > a*b){
     grid.x = a*b;
   }
@@ -294,10 +295,6 @@ void createKVideos(std::string outDir, std::string baseName, std::string firstTi
       grid.y++;
     }
   }
-  uint32 **data = new uint32*[height];
-  for(int i = 0; i < height; ++i){
-    data[i] = new uint32[width];
-  }
   std::cout<<"starting k video generation"<<std::endl;
   for(int kFocus = 0; kFocus < k; ++kFocus){
     std::string newDirectoryName = outDir +  baseName + "_k" + std::to_string(k) + "_" + std::to_string(kFocus) + "/";
@@ -308,39 +305,31 @@ void createKVideos(std::string outDir, std::string baseName, std::string firstTi
     for(int w = 0; w < height*width; ++w){
       wCol[w] = W[w*k + kFocus];
     }
-    for(int h = 0; h < numTimePoints; ++h){
-      hRow[h] = H[kFocus*numTimePoints + h];
-    }
     CudaSafeCall(cudaMemcpy(wColDevice, wCol, height*width*sizeof(float), cudaMemcpyHostToDevice));
-    CudaSafeCall(cudaMemcpy(hRowDevice, hRow, numTimePoints*sizeof(float), cudaMemcpyHostToDevice));
-    multiplyMatrices<<<grid,block>>>(wColDevice, hRowDevice, resultDevice, height*width, 1, numTimePoints);
+    CudaSafeCall(cudaMemcpy(hRowDevice, H + (kFocus*numTimePoints), numTimePoints*sizeof(float), cudaMemcpyHostToDevice));
+    multiplyMatrices<<<grid,block>>>(wColDevice, hRowDevice, resultTransposeDevice, height*width, 1, numTimePoints);
     CudaCheckError();
-    CudaSafeCall(cudaMemcpy(result, resultDevice, width*height*numTimePoints*sizeof(float), cudaMemcpyDeviceToHost));
-    float minF = std::numeric_limits<float>::max();
-    float maxF = std::numeric_limits<float>::min();
-    for(int i = 0; i < height*width*numTimePoints; ++i){
-      if(result[i] < minF) minF = result[i];
-      if(result[i] > maxF) maxF = result[i];
-    }
-    for(int i = 0; i < height*width*numTimePoints; ++i){
-      result[i] = UINT32_MAX*(result[i] - minF)/(maxF-minF);
-    }
+    CudaSafeCall(cudaMemcpy(resultTranspose, resultTransposeDevice, width*height*numTimePoints*sizeof(uint32), cudaMemcpyDeviceToHost));
+    greatestTPK = 0.0f;
+    toCopy = "";
+    destination = "";
     for(int tp = 0; tp < numTimePoints; ++tp){
       std::string newTif = newDirectoryName + baseName + "_" + createFourCharInt(tp);
+      if(H[kFocus*numTimePoints + tp] > greatestTPK){
+        greatestTPK = H[kFocus*numTimePoints + tp];
+        signatureTimePoint = tp;
+        toCopy = newTif;
+      }
       TIFF *tpfTif = TIFFOpen(newTif.c_str(), "w");
-
       if(tpfTif){
         TIFFSetField(tpfTif, TIFFTAG_IMAGEWIDTH, width);
         TIFFSetField(tpfTif, TIFFTAG_IMAGELENGTH, height);
         TIFFSetField(tpfTif, TIFFTAG_SAMPLESPERPIXEL, samplesPerPixel);
         TIFFSetField(tpfTif, TIFFTAG_BITSPERSAMPLE, bitsPerSample);
         TIFFSetField(tpfTif, TIFFTAG_PHOTOMETRIC, photo);
-        for(int row = 0; row < height; ++row){
-          for(int col = 0; col < width; ++col){
-            data[row][col] = (uint32) result[(row*width + col)*numTimePoints + tp];
-          }
 
-          if (TIFFWriteScanline(tpfTif, data[row], row, 0) != 1) {
+        for(int row = 0; row < height; ++row){
+          if(TIFFWriteScanline(tpfTif, resultTranspose + ((tp*width*height) + (row*width)), row, 0) != 1) {
             std::cout << "ERROR WRITING FIRST TIMEPOINT" << std::endl;
             exit(-1);
           }
@@ -352,19 +341,18 @@ void createKVideos(std::string outDir, std::string baseName, std::string firstTi
         exit(-1);
       }
     }
-    std::cout<<numTimePoints<<" images in "<<newDirectoryName<<" have been created"<<std::endl;
+    std::cout<<numTimePoints<<" images in "<<newDirectoryName<<" have been created with signature timepoint = "<<signatureTimePoint<<std::endl;
+    destination = outDir + baseName + "_" + std::to_string(kFocus) + "_" + createFourCharInt(signatureTimePoint) + ".tif";
+    std::ifstream f1(toCopy, std::fstream::binary);
+    std::ofstream f2(destination, std::fstream::trunc|std::fstream::binary);
+    f2 << f1.rdbuf();
   }
+
   CudaSafeCall(cudaFree(wColDevice));
   CudaSafeCall(cudaFree(hRowDevice));
-  CudaSafeCall(cudaFree(resultDevice));
+  CudaSafeCall(cudaFree(resultTransposeDevice));
   delete[] wCol;
-  delete[] hRow;
-  delete[] result;
-  for(int i = 0; i < height; ++i){
-    delete[] data[i];
-  }
-  delete[] data;
-
+  delete[] resultTranspose;
 }
 void createVisualization(std::string videoDirectoryPath, int k, unsigned int width, unsigned int height,
   unsigned int numTimePoints, float* W, float* H, bool* key, std::string baseName){

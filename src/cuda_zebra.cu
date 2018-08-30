@@ -50,8 +50,6 @@ __device__ __forceinline__ float orderedIntToFloat(int intVal){
 __global__ void ensurePositivity(float* mtx, unsigned long size, int* globalPlaceHolder){
   int blockID = blockIdx.y * gridDim.x + blockIdx.x;
   long globalID = blockID * blockDim.x + threadIdx.x;
-  *globalPlaceHolder = INT_MAX;
-  cudaDeviceSynchronize();
   if(globalID < size){
     atomicMin(globalPlaceHolder, floatToOrderedInt(mtx[globalID]));
     cudaDeviceSynchronize();
@@ -331,7 +329,9 @@ void performNNMF(float* &W, float* &H, float* V, unsigned int k, unsigned long n
   std::cout<<"ensuring positivity"<<std::endl;
   float* dV;
   int* globalMin;
+  int maxInt = INT_MAX;
   CudaSafeCall(cudaMalloc((void**)&globalMin, sizeof(int)));
+  CudaSafeCall(cudaMemcpy(globalMin, &maxInt, sizeof(int), cudaMemcpyHostToDevice));
   CudaSafeCall(cudaMalloc((void**)&dV, numPixels*numTimePoints*sizeof(float)));
   CudaSafeCall(cudaMemcpy(dV, V, numPixels*numTimePoints*sizeof(float), cudaMemcpyHostToDevice));
   dim3 grid = {1,1,1};
@@ -345,9 +345,9 @@ void performNNMF(float* &W, float* &H, float* V, unsigned int k, unsigned long n
 
   /*WRITE NNMF.txt */
   std::string nmfFileName = baseDir + "NNMF.txt";
-  if(config == 0 || config == -1){
-    std::cout<<"starting nnmf"<<std::endl;
-    float min = std::numeric_limits<float>::max();
+  std::cout<<"writing "<<nmfFileName<<std::endl;
+  std::ofstream NNMFile(nmfFileName);
+  if(NNMFile.is_open()){
     for(int i = 0; i < numPixels*numTimePoints; ++i){
       if(V[i] < min) min = V[i];
     }

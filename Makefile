@@ -1,11 +1,11 @@
-CUDA_INSTALL_PATH := /usr/local/cuda
-
+CUDA_INSTALL_PATH := /usr/local/apps/cuda/9.0.176_384.81
 CXX := /usr/bin/g++
 LINK := nvcc
 NVCC := nvcc
 
 # Includes
 INCLUDES = -I/usr/local/apps/cuda/9.0.176_384.81/include -I/usr/local/include
+INCLUDES += -I/usr/include/python3.5/
 # Common flags
 COMMONFLAGS += ${INCLUDES}
 NVCCFLAGS += ${COMMONFLAGS}
@@ -26,7 +26,8 @@ _OBJS += OME_ZEBRA.cu.o
 OBJS = ${patsubst %, ${OBJDIR}/%, ${_OBJS}}
 
 TARGET = ZEBRA_NMF
-LINKLINE = ${LINK} -o ${BINDIR}/${TARGET} ${OBJS} ${LIB_CUDA} ${LIB_TIFF} ${INCLUDES}
+LINKLINE = ${LINK} -gencode=arch=compute_60,code=sm_60 ${OBJS} \
+${LIB_CUDA} ${LIB_TIFF} ${INCLUDES} -o ${BINDIR}/${TARGET}
 
 
 .SUFFIXES: .cpp .cu .o
@@ -34,7 +35,7 @@ LINKLINE = ${LINK} -o ${BINDIR}/${TARGET} ${OBJS} ${LIB_CUDA} ${LIB_TIFF} ${INCL
 all: ${BINDIR}/${TARGET}
 
 ${OBJDIR}/%.cu.o: ${SRCDIR}/%.cu
-	${NVCC} ${NVCCFLAGS} ${INCLUDES} -c $< -o $@
+	${NVCC} ${NVCCFLAGS} ${INCLUDES} -dc $< -o $@
 
 ${OBJDIR}/%.cpp.o: ${SRCDIR}/%.cpp
 	${CXX} ${CXXFLAGS} ${INCLUDES} -c $< -o $@

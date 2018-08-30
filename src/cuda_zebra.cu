@@ -39,6 +39,25 @@ inline void __cudaCheckError(const char *file, const int line) {
   return;
 }
 
+__device__ __forceinline__ int floatToOrderedInt(float floatVal){
+ int intVal = __float_as_int( floatVal );
+ return (intVal >= 0 ) ? intVal : intVal ^ 0x7FFFFFFF;
+}
+__device__ __forceinline__ float orderedIntToFloat(int intVal){
+ return __int_as_float( (intVal >= 0) ? intVal : intVal ^ 0x7FFFFFFF);
+}
+
+__global__ void ensurePositivity(float* mtx, unsigned long size, int* globalPlaceHolder){
+  int blockID = blockIdx.y * gridDim.x + blockIdx.x;
+  long globalID = blockID * blockDim.x + threadIdx.x;
+  *globalPlaceHolder = INT_MAX;
+  cudaDeviceSynchronize();
+  if(globalID < size){
+    atomicMin(globalPlaceHolder, floatToOrderedInt(mtx[globalID]));
+    cudaDeviceSynchronize();
+    mtx[globalID] -= (orderedIntToFloat(*globalPlaceHolder) - 0.1);
+  }
+}
 __global__ void findMinMax(uint32* mtx, unsigned long size, uint32* min, uint32* max){
   int blockID = blockIdx.y * gridDim.x + blockIdx.x;
   long globalID = blockID * blockDim.x + threadIdx.x;
@@ -309,13 +328,21 @@ void performNNMF(float* &W, float* &H, float* V, unsigned int k, unsigned long n
   clock_t nnmfTimer;
   nnmfTimer = clock();
   std::cout<<"starting nnmf"<<std::endl;
-  float min = std::numeric_limits<float>::max();
-  for(int i = 0; i < numPixels*numTimePoints; ++i){
-    if(V[i] < min) min = V[i];
-  }
-  for(int i = 0; i < numPixels*numTimePoints; ++i){
-    V[i] -= (min - .1);
-  }
+  std::cout<<"ensuring positivity"<<std::endl;
+  float* dV;
+  int* globalMin;
+  CudaSafeCall(cudaMalloc((void**)&globalMin, sizeof(int)));
+  CudaSafeCall(cudaMalloc((void**)&dV, numPixels*numTimePoints*sizeof(float)));
+  CudaSafeCall(cudaMemcpy(dV, V, numPixels*numTimePoints*sizeof(float), cudaMemcpyHostToDevice));
+  dim3 grid = {1,1,1};
+  dim3 block = {1,1,1};
+  getFlatGridBlock(numPixels*numTimePoints, grid, block);
+  ensurePositivity<<<grid,block>>>(dV, numPixels*numTimePoints, globalMin);
+  CudaCheckError();
+  CudaSafeCall(cudaMemcpy(V, dV, numPixels*numTimePoints*sizeof(float), cudaMemcpyDeviceToHost));
+  CudaSafeCall(cudaFree(dV));
+  CudaSafeCall(cudaFree(globalMin));
+
   /*WRITE NNMF.txt */
   std::string nmfFileName = baseDir + "NNMF.txt";
   std::ofstream NNMFile(nmfFileName);

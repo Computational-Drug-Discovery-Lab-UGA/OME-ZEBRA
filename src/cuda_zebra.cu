@@ -343,81 +343,21 @@ void performNNMF(float* &W, float* &H, float* V, unsigned int k, unsigned long n
   CudaSafeCall(cudaFree(dV));
   CudaSafeCall(cudaFree(globalMin));
 
-  /*WRITE NNMF.txt */
-  std::string nmfFileName = baseDir + "NNMF.txt";
-  std::cout<<"writing "<<nmfFileName<<std::endl;
-  std::ofstream NNMFile(nmfFileName);
-  if(NNMFile.is_open()){
-    for(int i = 0; i < numPixels*numTimePoints; ++i){
-      if ((i + 1) % numTimePoints == 0) {
-        NNMFile << V[i] << "\n";
-      }
-      else {
-        NNMFile << V[i] << " ";
-      }
-    }
-    NNMFile.close();
-    std::cout<< nmfFileName <<" has been created.\n"<<std::endl;
+  /*
+    NOW USE PYTHON TO EXECUTE NNMF WITH TENSORFLOW
+  */
+  Py_Initialize();
+  if(!Py_IsInitialized()){
+    std::cout<<"Error initializing embedded python handler"<<std::endl;
+    exit(-1);
   }
   else{
-    std::cout<<"error cannot create"<< nmfFileName <<std::endl;
+    std::cout<<"Embedded python handler initialized"<<std::endl;
   }
-  printf("writing NNMF.txt took %f seconds.\n\n", ((float) clock() - nnmfTimer)/CLOCKS_PER_SEC);
-  nnmfTimer = clock();
-  delete[] V;
-
-  /*DO NMF*/
-  std::string kS = std::to_string(k);
-  pid_t pid = fork();
-  int status;
-  if(pid == 0){
-    if(execl("bin/NMF_GPU","bin/NMF_GPU",nmfFileName.c_str(),"-k",kS.c_str(),"-j","10","-t","40","-i","20000", (char*)0) == -1){
-      std::cout<<"ERROR CALLING NMF_GPU -> "<<strerror(errno)<<std::endl;
-      exit(-1);
-    }
-  }
-  else{
-    while(-1 == wait(&status));
-  }
+  PyRun_SimpleString("import tensorflow as tf");
+  PyRun_SimpleString("import numpy as np");
+  PyRun_SimpleString("import pandas as pd");
 
 
-  printf("nnmf took %f seconds.\n\n", ((float) clock() - nnmfTimer)/CLOCKS_PER_SEC);
-  nnmfTimer = clock();
-  W = new float[k*numPixels];
-  H = new float[k*numTimePoints];
-  std::cout<<"reading in h and w file"<<std::endl;
-  std::string wFileName = nmfFileName + "_W.txt";
-  std::string hFileName = nmfFileName + "_H.txt";
-  std::cout<<"opening "<<wFileName<<" and"<<hFileName<<std::endl;
-  std::string wLine = "";
-  std::string hLine = "";
-  std::ifstream wFile(wFileName);
-  std::ifstream hFile(hFileName);
-  std::istringstream hh;
-  std::istringstream ww;
-  if(wFile.is_open() && hFile.is_open()){
-    for(int row = 0; row < numPixels; ++row){
-      wLine = "";
-      hLine = "";
-      if(row < k){
-        getline(hFile, hLine);
-        hh = std::istringstream(hLine);
-      }
-      getline(wFile, wLine);
-      ww = std::istringstream(wLine);
-      for(int col = 0; col < k; ++col){
-        ww >> W[row*k + col];
-      }
-      for(int col = 0; row < k && col < numTimePoints; ++col){
-        hh >> H[row*numTimePoints + col];
-      }
-    }
-    wFile.close();
-    hFile.close();
-  }
-  else{
-    std::cout<<"error cannot open W or H file"<<std::endl;
-  }
-  printf("reading h and w took %f seconds.\n\n", ((float) clock() - nnmfTimer)/CLOCKS_PER_SEC);
 
 }

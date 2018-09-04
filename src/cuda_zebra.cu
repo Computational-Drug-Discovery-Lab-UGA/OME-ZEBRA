@@ -345,33 +345,9 @@ void performNNMF(float* &W, float* &H, float* V, unsigned int k, unsigned long n
 
   std::cout<<"Preparing data for python"<<std::endl;
 
-  float** matV = new float*[numPixels];
   npy_intp vdim[] = {numPixels, numTimePoints};
-  for(int i = 0; i < numPixels; ++i){
-    matV[i] = new float[numTimePoints];
-    for(int ii = 0; ii < numTimePoints; ++ii){
-      matV[i][ii] = V[i*numTimePoints + ii];
-    }
-  }
-  delete[] V;
-
-  // float** matW = new float*[numPixels];
-  // long wdim[] = {numPixels, k};
-  // for(int i = 0; i < numPixels; ++i){
-  //   matW[i] = new float[k];
-  //   for(int ii = 0; ii < k; ++ii){
-  //     matW[i][ii] = (float) rand()/RAND_MAX;
-  //   }
-  // }
-  //
-  // float** matH = new float*[k];
-  // long hdim[] = {k, numTimePoints};
-  // for(int i = 0; i < k; ++i){
-  //   matH[i] = new float[numTimePoints];
-  //   for(int ii = 0; ii < numTimePoints; ++i){
-  //     matH[i][ii] = (float) rand()/RAND_MAX;
-  //   }
-  // }
+  npy_intp wdim[] = {numPixels, k};
+  npy_intp hdim[] = {k, numTimePoints};
 
   /*
     NOW USE PYTHON TO EXECUTE NNMF WITH TENSORFLOW
@@ -413,9 +389,10 @@ void performNNMF(float* &W, float* &H, float* V, unsigned int k, unsigned long n
   pyV = PyArray_SimpleNew(2, vdim, NPY_FLOAT);
   float *npy = (float *) PyArray_DATA(reinterpret_cast<PyArrayObject*>(pyV));
   for(int i = 0; i < numPixels; ++i){
-    memcpy(npy, matV[i], sizeof(float)*numTimePoints);
+    memcpy(npy, V + (i*numTimePoints), sizeof(float)*numTimePoints);
     npy += numTimePoints;
   }
+  delete[] V;
 
   args = PyTuple_New(4);
   PyTuple_SetItem(args, 0, pyV);
@@ -429,7 +406,20 @@ void performNNMF(float* &W, float* &H, float* V, unsigned int k, unsigned long n
     PyErr_Print();
   }
 
-  //get w and h out of whReturn
+  //pyW = PyArray_SimpleNew(2, wdim, NPY_FLOAT);
+  //pyH = PyArray_SimpleNew(2, hdim, NPY_FLOAT);
+  pyW = PyTuple_GetItem(whReturn, 0);
+  pyH = PyTuple_GetItem(whReturn, 1);
+
+  W = new float[numPixels*k];
+  H = new float[k*numTimePoints];
+
+  W = (float *) PyArray_GETPTR1(reinterpret_cast<PyArrayObject*>(pyW), 0);
+  H = (float *) PyArray_GETPTR1(reinterpret_cast<PyArrayObject*>(pyH), 0);
+
+  for(int i = 0; i < numPixels*k; ++i){
+    printf("%f\n",W[i]);
+  }
 
   Py_Finalize();
 

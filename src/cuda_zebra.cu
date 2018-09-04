@@ -399,7 +399,7 @@ void performNNMF(float* &W, float* &H, float* V, unsigned int k, unsigned long n
 
   std::cout<<"loading python module"<<std::endl;
   PyObject* myModule = PyImport_ImportModule("tfNNMF");
-  if(myModule == NULL){
+  if(!myModule){
     std::cout<<"tfNNMF cannot be imported"<<std::endl;
     exit(-1);
   }
@@ -410,10 +410,10 @@ void performNNMF(float* &W, float* &H, float* V, unsigned int k, unsigned long n
   scalarTP = PyLong_FromUnsignedLong(numTimePoints);
 
   std::cout<<"loading V matrix into numpy array"<<std::endl;
-  pyV = PyArray_SimpleNew(2, vdim, NPY_DOUBLE);
-  double *npy = (double *) PyArray_DATA(reinterpret_cast<PyArrayObject*>(pyV));
+  pyV = PyArray_SimpleNew(2, vdim, NPY_FLOAT);
+  float *npy = (float *) PyArray_DATA(reinterpret_cast<PyArrayObject*>(pyV));
   for(int i = 0; i < numPixels; ++i){
-    memcpy(npy, matV[i], sizeof(double)*numTimePoints);
+    memcpy(npy, matV[i], sizeof(float)*numTimePoints);
     npy += numTimePoints;
   }
 
@@ -424,6 +424,10 @@ void performNNMF(float* &W, float* &H, float* V, unsigned int k, unsigned long n
   PyTuple_SetItem(args, 3, scalarTP);
 
   whReturn = PyObject_CallObject(myFunction, args);
+  if(!whReturn){
+    std::cout<<"Error in execution of tfnnmf.py"<<std::endl;
+    PyErr_Print();
+  }
 
   //get w and h out of whReturn
 

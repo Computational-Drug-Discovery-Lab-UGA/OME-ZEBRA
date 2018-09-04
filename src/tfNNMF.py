@@ -11,6 +11,7 @@ def tensorNNMF(A_orig, rank, numPixels, numTimePoints):
 
     shape = A_orig_df.values.shape
     print(shape)
+    print(rank)
 
     temp_H = np.random.randn(rank, shape[1]).astype(np.float32)
     temp_H = np.divide(temp_H, temp_H.max())
@@ -42,8 +43,6 @@ def tensorNNMF(A_orig, rank, numPixels, numTimePoints):
     clip_H = H.assign(tf.maximum(tf.zeros_like(H), H))
     clip = tf.group(clip_W, clip_H)
     print("clipping operation defined")
-
-
 
     print("Starting")
 

@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 print("from tfnnmf.py - all modules loaded")
 
-def tensorNNMF(A_orig, rank, numPixels, numTimePoints):
+def tensorNNMF(A_orig, rank, numPixels, numTimePoints, iterations):
     print("starting tensorflow nnmf")
 
     A_orig_df = pd.DataFrame(A_orig)
@@ -46,10 +46,9 @@ def tensorNNMF(A_orig, rank, numPixels, numTimePoints):
 
     print("Starting")
 
-    steps = 1000
     with tf.Session() as sess:
         sess.run(init)
-        for i in range(steps):
+        for i in range(iterations):
             sess.run(train_step)
             sess.run(clip)
             if i%10==0:
@@ -57,6 +56,7 @@ def tensorNNMF(A_orig, rank, numPixels, numTimePoints):
                 print("*"*40)
         learnt_W = sess.run(W)
         learnt_H = sess.run(H)
+        sess.close()
 
     print("tensorflow nnmf has completed and is returning W and H")
     return learnt_W, learnt_H

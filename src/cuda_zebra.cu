@@ -355,7 +355,7 @@ void performNNMF(float* &W, float* &H, float* V, unsigned int k, unsigned long n
 
   //define python objects
   PyObject *pyV, *pyW, *pyH;
-  PyObject *scalarK, *scalarTP, *scalarPix;
+  PyObject *scalarK, *scalarTP, *scalarPix,*scalarIterations;
   PyObject *args;
   PyObject *whReturn;
 
@@ -384,6 +384,7 @@ void performNNMF(float* &W, float* &H, float* V, unsigned int k, unsigned long n
   scalarK = PyLong_FromUnsignedLong(k);
   scalarPix = PyLong_FromUnsignedLong(numPixels);
   scalarTP = PyLong_FromUnsignedLong(numTimePoints);
+  scalarIterations = PyLong_FromUnsignedLong(1000);
 
   std::cout<<"loading V matrix into numpy array"<<std::endl;
   pyV = PyArray_SimpleNew(2, vdim, NPY_FLOAT);
@@ -394,11 +395,13 @@ void performNNMF(float* &W, float* &H, float* V, unsigned int k, unsigned long n
   }
   delete[] V;
 
-  args = PyTuple_New(4);
+
+  args = PyTuple_New(5);
   PyTuple_SetItem(args, 0, pyV);
   PyTuple_SetItem(args, 1, scalarK);
   PyTuple_SetItem(args, 2, scalarPix);
   PyTuple_SetItem(args, 3, scalarTP);
+  PyTuple_SetItem(args, 4, scalarIterations);
 
   whReturn = PyObject_CallObject(myFunction, args);
   if(!whReturn){
@@ -406,8 +409,6 @@ void performNNMF(float* &W, float* &H, float* V, unsigned int k, unsigned long n
     PyErr_Print();
   }
 
-  //pyW = PyArray_SimpleNew(2, wdim, NPY_FLOAT);
-  //pyH = PyArray_SimpleNew(2, hdim, NPY_FLOAT);
   pyW = PyTuple_GetItem(whReturn, 0);
   pyH = PyTuple_GetItem(whReturn, 1);
 
@@ -416,10 +417,6 @@ void performNNMF(float* &W, float* &H, float* V, unsigned int k, unsigned long n
 
   W = (float *) PyArray_GETPTR1(reinterpret_cast<PyArrayObject*>(pyW), 0);
   H = (float *) PyArray_GETPTR1(reinterpret_cast<PyArrayObject*>(pyH), 0);
-
-  for(int i = 0; i < numPixels*k; ++i){
-    printf("%f\n",W[i]);
-  }
 
   Py_Finalize();
 

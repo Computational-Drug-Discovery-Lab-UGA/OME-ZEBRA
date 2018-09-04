@@ -376,10 +376,14 @@ void performNNMF(float* &W, float* &H, float* V, unsigned int k, unsigned long n
   */
 
   //define python objects
-  PyObject *pyV, *pyW, *pyH, *scalarK, *scalarTP, *scalarPix, *pyScript;
+  PyObject *pyV, *pyW, *pyH;
+  PyObject *scalarK;
+  PyObject *args;
+  PyObject *whReturn;
 
   //launch python interpreter
   Py_Initialize();
+  import_array1();
   if(!Py_IsInitialized()){
     std::cout<<"Error initializing embedded python handler"<<std::endl;
     exit(-1);
@@ -387,17 +391,22 @@ void performNNMF(float* &W, float* &H, float* V, unsigned int k, unsigned long n
   else{
     std::cout<<"Embedded python handler initialized"<<std::endl;
   }
-  PyRun_SimpleString("import tensorflow as tf");
-  PyRun_SimpleString("import numpy as np");
-  PyRun_SimpleString("import pandas as pd");
 
   scalarK = PyLong_FromUnsignedLong(k);
-  scalarTP = PyLong_FromUnsignedLong(numTimePoints);
-  scalarPix = PyLong_FromUnsignedLong(numPixels);
 
-  pyV = PyArray_SimpleNewFromData(2, vdim, PyArray_DOUBLE, matV[0]);
-  pyW = PyArray_SimpleNewFromData(2, wdim, PyArray_DOUBLE, matW[0]);
-  pyH = PyArray_SimpleNewFromData(2, hdim, PyArray_DOUBLE, matH[0]);
+  pyV = PyArray_SimpleNewFromData(2, vdim, NPY_DOUBLE, matV[0]);
+  pyW = PyArray_SimpleNewFromData(2, wdim, NPY_DOUBLE, matW[0]);
+  pyH = PyArray_SimpleNewFromData(2, hdim, NPY_DOUBLE, matH[0]);
+
+  PyObject* myModule = PyImport_ImportModule("tfNNMF");
+  PyObject* myFunction = PyObject_GetAttrString(myModule, "tensorNNMF");
+  args = PyTuple_New(2);
+  PyTuple_SetItem(args, 0, pyV);
+  PyTuple_SetItem(args, 1, scalarK);
+
+  whReturn = PyObject_CallObject(myFunction, args);
+
+  //get w and h out of whReturn
 
   Py_Finalize();
 

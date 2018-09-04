@@ -1,6 +1,6 @@
 #ifndef CUDA_ZEBRA_CUH
 #define CUDA_ZEBRA_CUH
-
+#define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
 #include "common_includes.h"
 #include "Python.h"
 #include "/usr/lib/python3/dist-packages/numpy/core/include/numpy/arrayobject.h"

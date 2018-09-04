@@ -343,9 +343,42 @@ void performNNMF(float* &W, float* &H, float* V, unsigned int k, unsigned long n
   CudaSafeCall(cudaFree(dV));
   CudaSafeCall(cudaFree(globalMin));
 
+  float** matV = new float*[numPixels];
+  long vdim[] = {numPixels, numTimePoints};
+  for(int i = 0; i < numPixels; ++i){
+    matV[i] = new float[numTimePoints];
+    for(int ii = 0; ii < numTimePoints; ++ii){
+      matV[i][ii] = V[i*numTimePoints + ii];
+    }
+  }
+  delete[] V;
+
+  float** matW = new float*[numPixels];
+  long wdim[] = {numPixels, k};
+  for(int i = 0; i < numPixels; ++i){
+    matW[i] = new float[k];
+    for(int ii = 0; ii < k; ++ii){
+      matW[i][ii] = (float) rand()/RAND_MAX;
+    }
+  }
+
+  float** matH = new float*[k];
+  long hdim[] = {k, numTimePoints};
+  for(int i = 0; i < k; ++i){
+    matH[i] = new float[numTimePoints];
+    for(int ii = 0; ii < numTimePoints; ++i){
+      matH[i][ii] = (float) rand()/RAND_MAX;
+    }
+  }
+
   /*
     NOW USE PYTHON TO EXECUTE NNMF WITH TENSORFLOW
   */
+
+  //define python objects
+  PyObject *pyV, *pyW, *pyH, *scalarK, *scalarTP, *scalarPix, *pyScript;
+
+  //launch python interpreter
   Py_Initialize();
   if(!Py_IsInitialized()){
     std::cout<<"Error initializing embedded python handler"<<std::endl;
@@ -358,6 +391,14 @@ void performNNMF(float* &W, float* &H, float* V, unsigned int k, unsigned long n
   PyRun_SimpleString("import numpy as np");
   PyRun_SimpleString("import pandas as pd");
 
+  scalarK = PyLong_FromUnsignedLong(k);
+  scalarTP = PyLong_FromUnsignedLong(numTimePoints);
+  scalarPix = PyLong_FromUnsignedLong(numPixels);
 
+  pyV = PyArray_SimpleNewFromData(2, vdim, PyArray_DOUBLE, matV[0]);
+  pyW = PyArray_SimpleNewFromData(2, wdim, PyArray_DOUBLE, matW[0]);
+  pyH = PyArray_SimpleNewFromData(2, hdim, PyArray_DOUBLE, matH[0]);
+
+  Py_Finalize();
 
 }

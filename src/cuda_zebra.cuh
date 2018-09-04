@@ -2,7 +2,8 @@
 #define CUDA_ZEBRA_CUH
 
 #include "common_includes.h"
-#include <Python.h>
+#include "Python.h"
+#include "/usr/lib/python3/dist-packages/numpy/core/include/numpy/arrayobject.h"
 
 __device__ __forceinline__ int floatToOrderedInt(float floatVal);
 __device__ __forceinline__ float orderedIntToFloat(int intVal);

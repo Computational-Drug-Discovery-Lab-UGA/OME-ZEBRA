@@ -27,6 +27,10 @@ def tensorNNMF(A_orig, rank, numPixels, numTimePoints):
     A = tf.constant(A_orig_df.values)
     print("matrix is ready for tensorflow")
 
+    #cost of Frobenius norm
+    cost = tf.reduce_mean(tf.pow(A - WH, 2))
+    print("cost function defined")
+
     # Learning rate
     lr = 0.1
     train_step = tf.train.AdamOptimizer(lr).minimize(cost)
@@ -39,9 +43,7 @@ def tensorNNMF(A_orig, rank, numPixels, numTimePoints):
     clip = tf.group(clip_W, clip_H)
     print("clipping operation defined")
 
-    #cost of Frobenius norm
-    cost = tf.reduce_mean(tf.pow(A - WH, 2))
-    print("cost function defined")
+
 
     print("Starting")
 

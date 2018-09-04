@@ -343,6 +343,8 @@ void performNNMF(float* &W, float* &H, float* V, unsigned int k, unsigned long n
   CudaSafeCall(cudaFree(dV));
   CudaSafeCall(cudaFree(globalMin));
 
+  std::cout<<"Preparing data for python"<<std::endl;
+
   float** matV = new float*[numPixels];
   long vdim[] = {numPixels, numTimePoints};
   for(int i = 0; i < numPixels; ++i){
@@ -353,31 +355,31 @@ void performNNMF(float* &W, float* &H, float* V, unsigned int k, unsigned long n
   }
   delete[] V;
 
-  float** matW = new float*[numPixels];
-  long wdim[] = {numPixels, k};
-  for(int i = 0; i < numPixels; ++i){
-    matW[i] = new float[k];
-    for(int ii = 0; ii < k; ++ii){
-      matW[i][ii] = (float) rand()/RAND_MAX;
-    }
-  }
-
-  float** matH = new float*[k];
-  long hdim[] = {k, numTimePoints};
-  for(int i = 0; i < k; ++i){
-    matH[i] = new float[numTimePoints];
-    for(int ii = 0; ii < numTimePoints; ++i){
-      matH[i][ii] = (float) rand()/RAND_MAX;
-    }
-  }
+  // float** matW = new float*[numPixels];
+  // long wdim[] = {numPixels, k};
+  // for(int i = 0; i < numPixels; ++i){
+  //   matW[i] = new float[k];
+  //   for(int ii = 0; ii < k; ++ii){
+  //     matW[i][ii] = (float) rand()/RAND_MAX;
+  //   }
+  // }
+  //
+  // float** matH = new float*[k];
+  // long hdim[] = {k, numTimePoints};
+  // for(int i = 0; i < k; ++i){
+  //   matH[i] = new float[numTimePoints];
+  //   for(int ii = 0; ii < numTimePoints; ++i){
+  //     matH[i][ii] = (float) rand()/RAND_MAX;
+  //   }
+  // }
 
   /*
     NOW USE PYTHON TO EXECUTE NNMF WITH TENSORFLOW
   */
 
   //define python objects
-  PyObject *pyV, *pyW, *pyH;
-  PyObject *scalarK;
+  PyArrayObject *pyV, *pyW, *pyH;
+  PyObject *scalarK, *scalarTP, *scalarPix;
   PyObject *args;
   PyObject *whReturn;
 
@@ -392,17 +394,29 @@ void performNNMF(float* &W, float* &H, float* V, unsigned int k, unsigned long n
     std::cout<<"Embedded python handler initialized"<<std::endl;
   }
 
-  scalarK = PyLong_FromUnsignedLong(k);
+  PyObject* syspath = PySys_GetObject("path");
+  PyList_Append(syspath, PyUnicode_FromString("/home/jackson/Development/cddl/OME-ZEBRA/src"));
 
-  pyV = PyArray_SimpleNewFromData(2, vdim, NPY_DOUBLE, matV[0]);
-  pyW = PyArray_SimpleNewFromData(2, wdim, NPY_DOUBLE, matW[0]);
-  pyH = PyArray_SimpleNewFromData(2, hdim, NPY_DOUBLE, matH[0]);
-
+  std::cout<<"loading python module"<<std::endl;
   PyObject* myModule = PyImport_ImportModule("tfNNMF");
+  if(myModule == NULL){
+    std::cout<<"tfNNMF cannot be imported"<<std::endl;
+    exit(-1);
+  }
   PyObject* myFunction = PyObject_GetAttrString(myModule, "tensorNNMF");
-  args = PyTuple_New(2);
-  PyTuple_SetItem(args, 0, pyV);
+
+  scalarK = PyLong_FromUnsignedLong(k);
+  scalarPix = PyLong_FromUnsignedLong(numPixels);
+  scalarTP = PyLong_FromUnsignedLong(numTimePoints);
+
+  std::cout<<"loading V matrix into numpy array"<<std::endl;
+  pyV = reinterpret_cast<PyArrayObject*>(PyArray_SimpleNewFromData(2, vdim, NPY_DOUBLE, reinterpret_cast<void*>(matV)));
+
+  args = PyTuple_New(4);
+  PyTuple_SetItem(args, 0, reinterpret_cast<PyObject*>(pyV));
   PyTuple_SetItem(args, 1, scalarK);
+  PyTuple_SetItem(args, 2, scalarPix);
+  PyTuple_SetItem(args, 3, scalarTP);
 
   whReturn = PyObject_CallObject(myFunction, args);
 

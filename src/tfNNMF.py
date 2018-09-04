@@ -27,18 +27,21 @@ def tensorNNMF(A_orig, rank, numPixels, numTimePoints):
     A = tf.constant(A_orig_df.values)
     print("matrix is ready for tensorflow")
 
-    #cost of Frobenius norm
-    cost = tf.reduce_mean(tf.pow(A - WH, 2))
-
     # Learning rate
     lr = 0.1
     train_step = tf.train.AdamOptimizer(lr).minimize(cost)
     init = tf.global_variables_initializer()
+    print("global variables initialized")
 
     # Clipping operation. This ensure that W and H learnt are non-negative
     clip_W = W.assign(tf.maximum(tf.zeros_like(W), W))
     clip_H = H.assign(tf.maximum(tf.zeros_like(H), H))
     clip = tf.group(clip_W, clip_H)
+    print("clipping operation defined")
+
+    #cost of Frobenius norm
+    cost = tf.reduce_mean(tf.pow(A - WH, 2))
+    print("cost function defined")
 
     print("Starting")
 

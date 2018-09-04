@@ -346,7 +346,7 @@ void performNNMF(float* &W, float* &H, float* V, unsigned int k, unsigned long n
   std::cout<<"Preparing data for python"<<std::endl;
 
   float** matV = new float*[numPixels];
-  long vdim[] = {numPixels, numTimePoints};
+  npy_intp vdim[] = {numPixels, numTimePoints};
   for(int i = 0; i < numPixels; ++i){
     matV[i] = new float[numTimePoints];
     for(int ii = 0; ii < numTimePoints; ++ii){
@@ -378,7 +378,7 @@ void performNNMF(float* &W, float* &H, float* V, unsigned int k, unsigned long n
   */
 
   //define python objects
-  PyArrayObject *pyV, *pyW, *pyH;
+  PyObject *pyV, *pyW, *pyH;
   PyObject *scalarK, *scalarTP, *scalarPix;
   PyObject *args;
   PyObject *whReturn;
@@ -410,10 +410,15 @@ void performNNMF(float* &W, float* &H, float* V, unsigned int k, unsigned long n
   scalarTP = PyLong_FromUnsignedLong(numTimePoints);
 
   std::cout<<"loading V matrix into numpy array"<<std::endl;
-  pyV = reinterpret_cast<PyArrayObject*>(PyArray_SimpleNewFromData(2, vdim, NPY_DOUBLE, reinterpret_cast<void*>(matV)));
+  pyV = PyArray_SimpleNew(2, vdim, NPY_DOUBLE);
+  double *npy = (double *) PyArray_DATA(reinterpret_cast<PyArrayObject*>(pyV));
+  for(int i = 0; i < numPixels; ++i){
+    memcpy(npy, matV[i], sizeof(double)*numTimePoints);
+    npy += numTimePoints;
+  }
 
   args = PyTuple_New(4);
-  PyTuple_SetItem(args, 0, reinterpret_cast<PyObject*>(pyV));
+  PyTuple_SetItem(args, 0, pyV);
   PyTuple_SetItem(args, 1, scalarK);
   PyTuple_SetItem(args, 2, scalarPix);
   PyTuple_SetItem(args, 3, scalarTP);

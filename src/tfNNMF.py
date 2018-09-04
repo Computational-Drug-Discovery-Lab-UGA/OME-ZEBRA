@@ -11,24 +11,21 @@ def tensorNNMF(A_orig, rank, numPixels, numTimePoints):
 
     shape = A_orig_df.values.shape
     print(shape)
-    
-    #causing a seg fault when trying to access values from data frame
-    A = tf.constant(A_orig_df.values, shape=shape)
-    print("matrix is ready for tensorflow")
 
     temp_H = np.random.randn(rank, shape[1]).astype(np.float32)
     temp_H = np.divide(temp_H, temp_H.max())
-
-    print("H matrix made")
-
     temp_W = np.random.randn(shape[0], rank).astype(np.float32)
     temp_W = np.divide(temp_W, temp_W.max())
-
-    print("W matrix made")
+    print("H&W matrix intitialized randomly")
 
     H =  tf.Variable(temp_H)
     W = tf.Variable(temp_W)
     WH = tf.matmul(W, H)
+    print("modifiable tensor structures created (H,W,WH)")
+
+    #causing a seg fault when trying to access values from data frame
+    A = tf.constant(A_orig_df.values)
+    print("matrix is ready for tensorflow")
 
     #cost of Frobenius norm
     cost = tf.reduce_mean(tf.pow(A - WH, 2))

@@ -379,29 +379,26 @@ void performNNMF(float* &W, float* &H, float* V, unsigned int k, unsigned long n
     std::cout<<"tfNNMF cannot be imported"<<std::endl;
     exit(-1);
   }
-  PyObject* myFunction = PyObject_GetAttrString(myModule, "tensorNNMF");
+  PyObject* myFunction = PyObject_GetAttrString(myModule, "tensorflowNNMF");
 
   scalarK = PyLong_FromUnsignedLong(k);
   scalarPix = PyLong_FromUnsignedLong(numPixels);
   scalarTP = PyLong_FromUnsignedLong(numTimePoints);
-  scalarIterations = PyLong_FromUnsignedLong(1000);
+  scalarIterations = PyLong_FromUnsignedLong(10);
 
   std::cout<<"loading V matrix into numpy array"<<std::endl;
   pyV = PyArray_SimpleNew(2, vdim, NPY_FLOAT);
-  float *npy = (float *) PyArray_DATA(reinterpret_cast<PyArrayObject*>(pyV));
+  float* npy = (float *) PyArray_DATA(reinterpret_cast<PyArrayObject*>(pyV));
   for(int i = 0; i < numPixels; ++i){
     memcpy(npy, V + (i*numTimePoints), sizeof(float)*numTimePoints);
     npy += numTimePoints;
   }
   delete[] V;
 
-
-  args = PyTuple_New(5);
+  args = PyTuple_New(3);
   PyTuple_SetItem(args, 0, pyV);
   PyTuple_SetItem(args, 1, scalarK);
-  PyTuple_SetItem(args, 2, scalarPix);
-  PyTuple_SetItem(args, 3, scalarTP);
-  PyTuple_SetItem(args, 4, scalarIterations);
+  PyTuple_SetItem(args, 2, scalarIterations);
 
   whReturn = PyObject_CallObject(myFunction, args);
   if(!whReturn){
@@ -417,7 +414,14 @@ void performNNMF(float* &W, float* &H, float* V, unsigned int k, unsigned long n
 
   W = (float *) PyArray_GETPTR1(reinterpret_cast<PyArrayObject*>(pyW), 0);
   H = (float *) PyArray_GETPTR1(reinterpret_cast<PyArrayObject*>(pyH), 0);
-
+  Py_DECREF(syspath);
+  Py_DECREF(myFunction);
+  Py_DECREF(myModule);
+  Py_DECREF(pyV);
+  Py_DECREF(scalarK);
+  Py_DECREF(scalarPix);
+  Py_DECREF(scalarTP);
+  Py_DECREF(scalarIterations);
   Py_Finalize();
-
+  cudaDeviceSynchronize();
 }

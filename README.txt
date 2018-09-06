@@ -7,6 +7,8 @@ libtiff,cuda-9
   $ /path/to/bin/python3.n-config --cflags
   $ /path/to/bin/python3.n-config --ldflags
 
+numpy/arrayObjects
+
 python dependencies
 python-3.5,tensorflow-1.10,numpy,scikit-images,pandas
 

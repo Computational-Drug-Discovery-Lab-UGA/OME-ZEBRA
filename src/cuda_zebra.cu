@@ -377,6 +377,7 @@ void performNNMF(float* &W, float* &H, float* V, unsigned int k, unsigned long n
   PyObject* myModule = PyImport_ImportModule("tfNNMF");
   if(!myModule){
     std::cout<<"tfNNMF cannot be imported"<<std::endl;
+    PyErr_Print();
     exit(-1);
   }
   PyObject* myFunction = PyObject_GetAttrString(myModule, "tensorflowNNMF");
@@ -404,6 +405,7 @@ void performNNMF(float* &W, float* &H, float* V, unsigned int k, unsigned long n
   if(!whReturn){
     std::cout<<"Error in execution of tfnnmf.py"<<std::endl;
     PyErr_Print();
+    exit(-1);
   }
 
   pyW = PyTuple_GetItem(whReturn, 0);

@@ -1,7 +1,6 @@
 import tensorflow as tf
 import numpy as np
 import pandas as pd
-import multiprocessing
 print("from tfnnmf.py - all modules loaded")
 
 def tensorflowNNMF(A_orig, rank, iterations):
@@ -52,13 +51,3 @@ def tensorflowNNMF(A_orig, rank, iterations):
 
     print("tensorflow nnmf has completed")
     return learnt_W, learnt_H
-
-def executeTensorflowNNMF(A_orig, rank, iterations):
-    pool = multiprocessing.Pool(1)
-    results = []
-    p = pool.apply_async(tensorflowNNMF, args=(A_orig, rank, iterations))
-
-    pool.close()
-    pool.join()
-
-    return p.get()

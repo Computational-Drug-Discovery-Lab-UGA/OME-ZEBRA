@@ -1,5 +1,5 @@
 #for nodes
-#CUDA_INSTALL_PATH := /usr/local/apps/cuda/9.0.176_384.81
+#CUDA_INSTALL_PATH := /usr/local/cuda/
 #for personal laptop
 CUDA_INSTALL_PATH := /usr/local/cuda
 
@@ -9,18 +9,18 @@ NVCC := nvcc
 
 # Includes
 #for nodes
-#INCLUDES = -I/usr/local/apps/cuda/9.0.176_384.81/include -I/usr/local/include
+#INCLUDES = -I/usr/local/apps/cuda/include -I/usr/local/include
 #for personal laptop
 INCLUDES = -I/usr/local/cuda/include -I/usr/local/include
-INCLUDES += -I/usr/include/python3.5/
+INCLUDES += -I/usr/include/python3.6/
 # Common flags
 COMMONFLAGS = ${INCLUDES}
 NVCCFLAGS = ${COMMONFLAGS}
 NVCCFLAGS += -std=c++11 -gencode=arch=compute_60,code=sm_60 -Iinclude
 CXXFLAGS = ${COMMONFLAGS}
 NVCCFLAGS += -Iinclude
-PYCFLAGS = -I/usr/include/python3.5m -O3
-PYLDFLAGS = -L/usr/lib/python3.5/config-3.5m-x86_64-linux-gnu -L/usr/lib -lpython3.5m \
+PYCFLAGS = -I/usr/include/python3.6m -O3
+PYLDFLAGS = -L/usr/lib/python3.6/config-3.6m-x86_64-linux-gnu -L/usr/lib -lpython3.6m \
 -lpthread -ldl  -lutil -lm  -Xlinker -export-dynamic
 
 #for nodes

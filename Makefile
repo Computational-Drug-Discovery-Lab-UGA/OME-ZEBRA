@@ -26,7 +26,7 @@ PYLDFLAGS = -L/usr/lib/python3.6/config-3.6m-x86_64-linux-gnu -L/usr/lib -lpytho
 #for nodes
 #LIB_CUDA := -L/usr/local/apps/cuda/9.0.176_384.81/lib64 -lcudart
 #for personal laptop
-LIB_CUDA := -L/usr/local/cuda/lib64 -lcudart -lcublas
+LIB_CUDA := -L/usr/local/cuda/lib64 -lcuda -lcudart -lcublas
 LIB_TIFF := -L/usr/local/lib -ltiff
 
 SRCDIR = ./src

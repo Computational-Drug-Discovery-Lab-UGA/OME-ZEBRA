@@ -28,7 +28,7 @@ def tensorflowNNMF(A_orig, rank, iterations):
     cost = tf.reduce_mean(tf.pow(A - WH, 2))
 
     # Learning rate
-    lr = 0.1
+    lr = 1.0
     train_step = tf.train.AdamOptimizer(lr).minimize(cost)
 
     # Clipping operation. This ensure that W and H learnt are non-negative
@@ -37,6 +37,9 @@ def tensorflowNNMF(A_orig, rank, iterations):
     clip = tf.group(clip_W, clip_H)
 
     print("Starting tensorflowNNMF")
+    
+    previousLoss = 99999.999
+    lossThresh = 1.0
 
     with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as sess:
         sess.run(tf.global_variables_initializer())
@@ -46,6 +49,14 @@ def tensorflowNNMF(A_orig, rank, iterations):
             if i%10==0:
                 print("\nCost: %f" % sess.run(cost))
                 print("*"*40)
+            if i == 0:
+                previousLoss = sess.run(cost)
+            else:
+                if (previousLoss - sess.run(cost)) < lossThresh:
+                    lr = lr * 0.1
+                    train_step = tf.train.AdamOptimizer(lr).minimize(cost)
+                    lossThresh = lossThresh * 0.5
+                
         learnt_W = sess.run(W)
         learnt_H = sess.run(H)
 

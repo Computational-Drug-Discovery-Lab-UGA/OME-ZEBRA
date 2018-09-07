@@ -10,3 +10,4 @@ tiff-4\.0\.9/
 *.DS_Store
 
 bin/ZEBRA_NMF
+crop_test/*

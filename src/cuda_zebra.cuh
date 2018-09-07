@@ -1,8 +1,9 @@
 #ifndef CUDA_ZEBRA_CUH
 #define CUDA_ZEBRA_CUH
-
+#define NPY_NO_DEPRECATED_API NPY_1_7_API_VERSION
 #include "common_includes.h"
-#include <Python.h>
+#include "Python.h"
+#include "/usr/local/lib/python3.5/dist-packages/numpy/core/include/numpy/arrayobject.h"
 
 __device__ __forceinline__ int floatToOrderedInt(float floatVal);
 __device__ __forceinline__ float orderedIntToFloat(int intVal);

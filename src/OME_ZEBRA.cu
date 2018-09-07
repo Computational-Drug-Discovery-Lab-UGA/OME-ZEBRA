@@ -3,6 +3,7 @@
 #include "cuda_zebra.cuh"
 
 int main(int argc, char *argv[]) {
+  cuInit(0);
   if(argc < 2 || argc > 3){
     std::cout << "Usage: ./exe <directory of timepoint tifs>";
     exit(-1);
@@ -13,6 +14,7 @@ int main(int argc, char *argv[]) {
     k = 2;
   }
   std::string baseDirectory = argv[1];
+  if(baseDirectory.substr(baseDirectory.length() - 1,1) != "/") baseDirectory += "/";
   unsigned int width = 0;
   unsigned int height = 0;
   unsigned int numTimePoints = 0;
@@ -30,11 +32,13 @@ int main(int argc, char *argv[]) {
   else{
     minimizedVideo = normVideo;
   }
-  float* W;
-  float* H;
-  //W & H are not currently used
+  float* W = new float[height*width*k];
+  float* H = new float[k*numTimePoints];
   //NOTE minimized video is deleted in performNNMF
   performNNMF(W, H, minimizedVideo, k, height*width, numTimePoints, baseDirectory);
+  cudaDeviceSynchronize();
+  cudaDeviceReset();
+  cuInit(0);
   createVisualization(baseDirectory,k, width, height, numTimePoints, W, H, key, baseName);
   cudaDeviceReset();
   return 0;

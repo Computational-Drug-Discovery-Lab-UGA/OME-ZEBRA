@@ -343,81 +343,95 @@ void performNNMF(float* &W, float* &H, float* V, unsigned int k, unsigned long n
   CudaSafeCall(cudaFree(dV));
   CudaSafeCall(cudaFree(globalMin));
 
-  /*WRITE NNMF.txt */
-  std::string nmfFileName = baseDir + "NNMF.txt";
-  std::cout<<"writing "<<nmfFileName<<std::endl;
-  std::ofstream NNMFile(nmfFileName);
-  if(NNMFile.is_open()){
-    for(int i = 0; i < numPixels*numTimePoints; ++i){
-      if ((i + 1) % numTimePoints == 0) {
-        NNMFile << V[i] << "\n";
-      }
-      else {
-        NNMFile << V[i] << " ";
-      }
-    }
-    NNMFile.close();
-    std::cout<< nmfFileName <<" has been created.\n"<<std::endl;
+  std::cout<<"Preparing data for python"<<std::endl;
+
+  npy_intp vdim[] = {numPixels, numTimePoints};
+  npy_intp wdim[] = {numPixels, k};
+  npy_intp hdim[] = {k, numTimePoints};
+
+  /*
+    NOW USE PYTHON TO EXECUTE NNMF WITH TENSORFLOW
+  */
+
+  //define python objects
+  PyObject *pyV, *pyW, *pyH;
+  PyObject *scalarK, *scalarTP, *scalarPix,*scalarIterations;
+  PyObject *args;
+  PyObject *whReturn;
+
+  //launch python interpreter
+  Py_Initialize();
+  import_array1();
+  if(!Py_IsInitialized()){
+    std::cout<<"Error initializing embedded python handler"<<std::endl;
+    exit(-1);
   }
   else{
-    std::cout<<"error cannot create"<< nmfFileName <<std::endl;
+    std::cout<<"Embedded python handler initialized"<<std::endl;
   }
-  printf("writing NNMF.txt took %f seconds.\n\n", ((float) clock() - nnmfTimer)/CLOCKS_PER_SEC);
-  nnmfTimer = clock();
+
+  PyObject* syspath = PySys_GetObject("path");
+  PyList_Append(syspath, PyUnicode_FromString("./src"));
+
+  std::cout<<"loading python module"<<std::endl;
+  PyObject* myModule = PyImport_ImportModule("tfNNMF");
+  if(!myModule){
+    std::cout<<"tfNNMF cannot be imported"<<std::endl;
+    PyErr_Print();
+    exit(-1);
+  }
+  PyObject* myFunction = PyObject_GetAttrString(myModule, "tensorflowNNMF");
+
+  scalarK = PyLong_FromUnsignedLong(k);
+  scalarPix = PyLong_FromUnsignedLong(numPixels);
+  scalarTP = PyLong_FromUnsignedLong(numTimePoints);
+  scalarIterations = PyLong_FromUnsignedLong(300);
+
+  std::cout<<"loading V matrix into numpy array"<<std::endl;
+  pyV = PyArray_SimpleNew(2, vdim, NPY_FLOAT);
+  float* npy = (float *) PyArray_DATA(reinterpret_cast<PyArrayObject*>(pyV));
+  for(int i = 0; i < numPixels; ++i){
+    memcpy(npy, V + (i*numTimePoints), sizeof(float)*numTimePoints);
+    npy += numTimePoints;
+  }
   delete[] V;
 
-  /*DO NMF*/
-  std::string kS = std::to_string(k);
-  pid_t pid = fork();
-  int status;
-  if(pid == 0){
-    if(execl("bin/NMF_GPU","bin/NMF_GPU",nmfFileName.c_str(),"-k",kS.c_str(),"-j","10","-t","40","-i","20000", (char*)0) == -1){
-      std::cout<<"ERROR CALLING NMF_GPU -> "<<strerror(errno)<<std::endl;
-      exit(-1);
-    }
-  }
-  else{
-    while(-1 == wait(&status));
+  args = PyTuple_New(3);
+  PyTuple_SetItem(args, 0, pyV);
+  PyTuple_SetItem(args, 1, scalarK);
+  PyTuple_SetItem(args, 2, scalarIterations);
+
+  whReturn = PyObject_CallObject(myFunction, args);
+  if(!whReturn){
+    std::cout<<"Error in execution of tfnnmf.py"<<std::endl;
+    PyErr_Print();
+    exit(-1);
   }
 
+  pyW = PyTuple_GetItem(whReturn, 0);
+  pyH = PyTuple_GetItem(whReturn, 1);
 
-  printf("nnmf took %f seconds.\n\n", ((float) clock() - nnmfTimer)/CLOCKS_PER_SEC);
-  nnmfTimer = clock();
-  W = new float[k*numPixels];
-  H = new float[k*numTimePoints];
-  std::cout<<"reading in h and w file"<<std::endl;
-  std::string wFileName = nmfFileName + "_W.txt";
-  std::string hFileName = nmfFileName + "_H.txt";
-  std::cout<<"opening "<<wFileName<<" and"<<hFileName<<std::endl;
-  std::string wLine = "";
-  std::string hLine = "";
-  std::ifstream wFile(wFileName);
-  std::ifstream hFile(hFileName);
-  std::istringstream hh;
-  std::istringstream ww;
-  if(wFile.is_open() && hFile.is_open()){
-    for(int row = 0; row < numPixels; ++row){
-      wLine = "";
-      hLine = "";
-      if(row < k){
-        getline(hFile, hLine);
-        hh = std::istringstream(hLine);
-      }
-      getline(wFile, wLine);
-      ww = std::istringstream(wLine);
-      for(int col = 0; col < k; ++col){
-        ww >> W[row*k + col];
-      }
-      for(int col = 0; row < k && col < numTimePoints; ++col){
-        hh >> H[row*numTimePoints + col];
-      }
-    }
-    wFile.close();
-    hFile.close();
-  }
-  else{
-    std::cout<<"error cannot open W or H file"<<std::endl;
-  }
-  printf("reading h and w took %f seconds.\n\n", ((float) clock() - nnmfTimer)/CLOCKS_PER_SEC);
+  float* tempW;
+  float* tempH;
 
+  tempW = (float *) PyArray_GETPTR1(reinterpret_cast<PyArrayObject*>(pyW), 0);
+  tempH = (float *) PyArray_GETPTR1(reinterpret_cast<PyArrayObject*>(pyH), 0);
+  for(int i = 0; i < numPixels*k; ++i){
+    W[i] = tempW[i];
+  }
+  for(int i = 0;i < k*numTimePoints; ++i){
+    H[i] = tempH[i];
+  }
+
+  Py_DECREF(syspath);
+  Py_DECREF(myFunction);
+  Py_DECREF(myModule);
+  Py_DECREF(pyV);
+  Py_DECREF(pyW);
+  Py_DECREF(pyH);
+  Py_DECREF(scalarK);
+  Py_DECREF(scalarPix);
+  Py_DECREF(scalarTP);
+  Py_DECREF(scalarIterations);
+  Py_Finalize();
 }

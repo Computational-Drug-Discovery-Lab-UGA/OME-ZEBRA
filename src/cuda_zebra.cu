@@ -371,7 +371,7 @@ void performNNMF(float* &W, float* &H, float* V, unsigned int k, unsigned long n
   }
 
   PyObject* syspath = PySys_GetObject("path");
-  PyList_Append(syspath, PyUnicode_FromString("/home/jackson/Development/cddl/OME-ZEBRA/src"));
+  PyList_Append(syspath, PyUnicode_FromString("./src"));
 
   std::cout<<"loading python module"<<std::endl;
   PyObject* myModule = PyImport_ImportModule("tfNNMF");
@@ -385,7 +385,7 @@ void performNNMF(float* &W, float* &H, float* V, unsigned int k, unsigned long n
   scalarK = PyLong_FromUnsignedLong(k);
   scalarPix = PyLong_FromUnsignedLong(numPixels);
   scalarTP = PyLong_FromUnsignedLong(numTimePoints);
-  scalarIterations = PyLong_FromUnsignedLong(10);
+  scalarIterations = PyLong_FromUnsignedLong(1000);
 
   std::cout<<"loading V matrix into numpy array"<<std::endl;
   pyV = PyArray_SimpleNew(2, vdim, NPY_FLOAT);
@@ -411,19 +411,27 @@ void performNNMF(float* &W, float* &H, float* V, unsigned int k, unsigned long n
   pyW = PyTuple_GetItem(whReturn, 0);
   pyH = PyTuple_GetItem(whReturn, 1);
 
-  W = new float[numPixels*k];
-  H = new float[k*numTimePoints];
+  float* tempW;
+  float* tempH;
 
-  W = (float *) PyArray_GETPTR1(reinterpret_cast<PyArrayObject*>(pyW), 0);
-  H = (float *) PyArray_GETPTR1(reinterpret_cast<PyArrayObject*>(pyH), 0);
+  tempW = (float *) PyArray_GETPTR1(reinterpret_cast<PyArrayObject*>(pyW), 0);
+  tempH = (float *) PyArray_GETPTR1(reinterpret_cast<PyArrayObject*>(pyH), 0);
+  for(int i = 0; i < numPixels*k; ++i){
+    W[i] = tempW[i];
+  }
+  for(int i = 0;i < k*numTimePoints; ++i){
+    H[i] = tempH[i];
+  }
+
   Py_DECREF(syspath);
   Py_DECREF(myFunction);
   Py_DECREF(myModule);
   Py_DECREF(pyV);
+  Py_DECREF(pyW);
+  Py_DECREF(pyH);
   Py_DECREF(scalarK);
   Py_DECREF(scalarPix);
   Py_DECREF(scalarTP);
   Py_DECREF(scalarIterations);
   Py_Finalize();
-  cudaDeviceSynchronize();
 }

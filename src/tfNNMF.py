@@ -37,7 +37,7 @@ def tensorflowNNMF(A_orig, rank, iterations):
     clip = tf.group(clip_W, clip_H)
 
     print("Starting tensorflowNNMF")
-    
+
     previousLoss = 99999.999
     lossThresh = 1.0
 
@@ -46,17 +46,20 @@ def tensorflowNNMF(A_orig, rank, iterations):
         for i in range(iterations):
             sess.run(train_step)
             sess.run(clip)
-            if i%10==0:
-                print("\nCost: %f" % sess.run(cost))
+            loss = sess.run(cost)
+            if (i == 0):
+                previousLoss = loss
+            elif (i+1)%10==0:
+                print("\nCost: %f" % loss)
                 print("*"*40)
-            if i == 0:
-                previousLoss = sess.run(cost)
-            else:
-                if (previousLoss - sess.run(cost)) < lossThresh:
-                    lr = lr * 0.1
-                    train_step = tf.train.AdamOptimizer(lr).minimize(cost)
-                    lossThresh = lossThresh * 0.5
-                
+                diff = previousLoss - loss
+                if ((diff < 0.00001) and (0.00 < diff)):
+                    print(previousLoss)
+                    print(loss)
+                    print(previousLoss - loss)
+                    break
+                previousLoss = loss
+
         learnt_W = sess.run(W)
         learnt_H = sess.run(H)
 

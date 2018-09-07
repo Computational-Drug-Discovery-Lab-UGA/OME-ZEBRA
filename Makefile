@@ -12,15 +12,15 @@ NVCC := nvcc
 #INCLUDES = -I/usr/local/apps/cuda/include -I/usr/local/include
 #for personal laptop
 INCLUDES = -I/usr/local/cuda/include -I/usr/local/include
-INCLUDES += -I/usr/include/python3.6/
+INCLUDES += -I/usr/include/python3.5/
 # Common flags
 COMMONFLAGS = ${INCLUDES}
 NVCCFLAGS = ${COMMONFLAGS}
 NVCCFLAGS += -std=c++11 -gencode=arch=compute_60,code=sm_60 -Iinclude
 CXXFLAGS = ${COMMONFLAGS}
 NVCCFLAGS += -Iinclude
-PYCFLAGS = -I/usr/include/python3.6m -O3
-PYLDFLAGS = -L/usr/lib/python3.6/config-3.6m-x86_64-linux-gnu -L/usr/lib -lpython3.6m \
+PYCFLAGS = -I/usr/include/python3.5m -O3
+PYLDFLAGS = -L/usr/lib/python3.5/config-3.5m-x86_64-linux-gnu -L/usr/lib -lpython3.5m \
 -lpthread -ldl  -lutil -lm  -Xlinker -export-dynamic
 
 #for nodes

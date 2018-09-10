@@ -28,7 +28,7 @@ def tensorflowNNMF(A_orig, rank, iterations):
     cost = tf.reduce_mean(tf.pow(A - WH, 2))
 
     # Learning rate
-    lr = 1.0
+    lr = 0.5
     train_step = tf.train.AdamOptimizer(lr).minimize(cost)
 
     # Clipping operation. This ensure that W and H learnt are non-negative

@@ -385,7 +385,7 @@ void performNNMF(float* &W, float* &H, float* V, unsigned int k, unsigned long n
   scalarK = PyLong_FromUnsignedLong(k);
   scalarPix = PyLong_FromUnsignedLong(numPixels);
   scalarTP = PyLong_FromUnsignedLong(numTimePoints);
-  scalarIterations = PyLong_FromUnsignedLong(300);
+  scalarIterations = PyLong_FromUnsignedLong(1000);
 
   std::cout<<"loading V matrix into numpy array"<<std::endl;
   pyV = PyArray_SimpleNew(2, vdim, NPY_FLOAT);

@@ -180,7 +180,8 @@ __global__ void multiplyMatrices(float *matrixA, float *matrixB, uint32 *resultT
     }
 
     //result[iIndex * diffDimB + jIndex] = __float_as_uint(sum);
-    resultTranspose[jIndex * diffDimA + iIndex] = __float_as_uint(sum);
+    if(sum == 0.0f) printf("YO\n");
+    resultTranspose[jIndex * diffDimA + iIndex] = floatToOrderedInt(sum);
 
   }
 }

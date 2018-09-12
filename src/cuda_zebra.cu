@@ -90,25 +90,46 @@ __global__ void normalize(uint32 *mtx, float *normals, uint32* min, uint32* max,
       currentValue /= (dmax - dmin);
     }
     normals[globalID] = currentValue;
-    normals[globalID] = 1.0f / (1.0f + expf((-10.0f * currentValue) + 7.5));
-    //printf("%f\n",normals[globalID]);
+    normals[globalID] = 1.0f / (1.0f + expf((-10.0f * currentValue) + 9.0f));
     globalID += stride;
   }
 }
-__global__ void floatToUINT32(float *mtx, float min, float max, unsigned long size) {
+__global__ void normalize(float *mtx, float min, float max, unsigned long size) {
   int blockID = blockIdx.y * gridDim.x + blockIdx.x;
   long globalID = blockID * blockDim.x + threadIdx.x;
   int stride = gridDim.x * gridDim.y * blockDim.x;
-  float currentValue = 0;
+  float currentValue = 0.0f;
   float regMin = min;
   float regMax = max;
-  float maxUINT32 = UINT32_MAX;
   while(globalID < size){
+    currentValue = 0.0f;
     if (mtx[globalID] != 0) {
       currentValue = mtx[globalID] - regMin;
       currentValue /= (regMax - regMin);
     }
-    mtx[globalID] = (currentValue*maxUINT32);
+    mtx[globalID] = currentValue;
+    globalID += stride;
+  }
+}
+__global__ void floatToUINT32(float* mtx, uint32* newMTX, float min, float max, unsigned long size){
+  int blockID = blockIdx.y * gridDim.x + blockIdx.x;
+  long globalID = blockID * blockDim.x + threadIdx.x;
+  int stride = gridDim.x * gridDim.y * blockDim.x;
+  float currentValue = 0.0f;
+  float regMin = min;
+  float regMax = max;
+  while(globalID < size){
+    if(mtx[globalID] != 0){
+      currentValue = mtx[globalID] - regMin;
+      currentValue /= (regMax - regMin);
+      newMTX[globalID] = __float2uint_rd(currentValue*4294967295.999);
+      if(currentValue > 1.0f){
+        printf("ERROR %f -> %u\n",currentValue, newMTX[globalID]);
+      }
+    }
+    else{
+      newMTX[globalID] = 0.0f;
+    }
     globalID += stride;
   }
 }
@@ -161,7 +182,7 @@ __global__ void multiplyMatrices(float *matrixA, float *matrixB, float *matrixC,
     matrixC[iIndex * diffDimB + jIndex] = sum;
   }
 }
-__global__ void multiplyMatrices(float *matrixA, float *matrixB, uint32 *resultTranspose, long diffDimA, long comDim, long diffDimB){
+__global__ void multiplyRowColumn(float *matrixA, float *matrixB, float* resultTranspose, long diffDimA, long diffDimB){
 
   long blockID = blockIdx.y * gridDim.x + blockIdx.x;
   long globalID = blockID * blockDim.x + threadIdx.x;
@@ -172,42 +193,10 @@ __global__ void multiplyMatrices(float *matrixA, float *matrixB, uint32 *resultT
     long iIndex = currentIndex / diffDimB;
     long jIndex = currentIndex % diffDimB;
 
-    float sum = 0;
+    resultTranspose[jIndex * diffDimA + iIndex] = (matrixA[iIndex]*matrixB[jIndex]) + 1.0f;
 
-    for(int k = 0; k < comDim; k++){
-
-      sum += (matrixA[iIndex * comDim + k] * matrixB[k * diffDimB + jIndex]);
-    }
-
-    //result[iIndex * diffDimB + jIndex] = __float_as_uint(sum);
-    uint temp = __float_as_uint(sum);
-    resultTranspose[jIndex * diffDimA + iIndex] = (uint32) temp;
 
   }
-}
-void executeMultiplyMatrices(float *matrixA, float *matrixB, float* &matrixC, long diffDimA, long comDim, long diffDimB){
-
-  float* matrixADevice, *matrixBDevice, *matrixCDevice;
-
-  CudaSafeCall(cudaMalloc((void**)&matrixADevice, diffDimA*comDim*sizeof(float)));
-  CudaSafeCall(cudaMalloc((void**)&matrixBDevice, comDim*diffDimB*sizeof(float)));
-  CudaSafeCall(cudaMalloc((void**)&matrixCDevice, diffDimA*diffDimB*sizeof(float)));
-
-  CudaSafeCall(cudaMemcpy(matrixADevice, matrixA, diffDimA*comDim*sizeof(float), cudaMemcpyHostToDevice));
-  CudaSafeCall(cudaMemcpy(matrixBDevice, matrixB, comDim*diffDimB*sizeof(float), cudaMemcpyHostToDevice));
-
-  dim3 grid, block;
-
-  getFlatGridBlock(diffDimA*diffDimB, grid, block);
-
-  multiplyMatrices<<<grid, block>>>(matrixADevice, matrixBDevice, matrixCDevice, diffDimA, comDim, diffDimB);
-
-  CudaSafeCall(cudaMemcpy(matrixC, matrixCDevice, diffDimA*diffDimB*sizeof(float), cudaMemcpyDeviceToHost));
-
-  CudaSafeCall(cudaFree(matrixADevice));
-  CudaSafeCall(cudaFree(matrixBDevice));
-  CudaSafeCall(cudaFree(matrixCDevice));
-
 }
 
 void getFlatGridBlock(unsigned long size, dim3 &grid, dim3 &block) {
@@ -242,6 +231,30 @@ void getGrid(unsigned long size, dim3 &grid, int blockSize) {
       grid.y++;
     }
   }
+}
+void executeMultiplyMatrices(float *matrixA, float *matrixB, float* &matrixC, long diffDimA, long comDim, long diffDimB){
+
+  float* matrixADevice, *matrixBDevice, *matrixCDevice;
+
+  CudaSafeCall(cudaMalloc((void**)&matrixADevice, diffDimA*comDim*sizeof(float)));
+  CudaSafeCall(cudaMalloc((void**)&matrixBDevice, comDim*diffDimB*sizeof(float)));
+  CudaSafeCall(cudaMalloc((void**)&matrixCDevice, diffDimA*diffDimB*sizeof(float)));
+
+  CudaSafeCall(cudaMemcpy(matrixADevice, matrixA, diffDimA*comDim*sizeof(float), cudaMemcpyHostToDevice));
+  CudaSafeCall(cudaMemcpy(matrixBDevice, matrixB, comDim*diffDimB*sizeof(float), cudaMemcpyHostToDevice));
+
+  dim3 grid, block;
+
+  getFlatGridBlock(diffDimA*diffDimB, grid, block);
+
+  multiplyMatrices<<<grid, block>>>(matrixADevice, matrixBDevice, matrixCDevice, diffDimA, comDim, diffDimB);
+
+  CudaSafeCall(cudaMemcpy(matrixC, matrixCDevice, diffDimA*diffDimB*sizeof(float), cudaMemcpyDeviceToHost));
+
+  CudaSafeCall(cudaFree(matrixADevice));
+  CudaSafeCall(cudaFree(matrixBDevice));
+  CudaSafeCall(cudaFree(matrixCDevice));
+
 }
 float* executeNormalization(uint32* mtx, unsigned long size){
   uint32 max = 0;
@@ -346,9 +359,7 @@ void performNNMF(float* &W, float* &H, float* V, unsigned int k, unsigned long n
 
   std::cout<<"Preparing data for python"<<std::endl;
 
-  npy_intp vdim[] = {numPixels, numTimePoints};
-  npy_intp wdim[] = {numPixels, k};
-  npy_intp hdim[] = {k, numTimePoints};
+  npy_intp vdim[] = {(long) numPixels,(long) numTimePoints};
 
   /*
     NOW USE PYTHON TO EXECUTE NNMF WITH TENSORFLOW
@@ -417,6 +428,7 @@ void performNNMF(float* &W, float* &H, float* V, unsigned int k, unsigned long n
 
   tempW = (float *) PyArray_GETPTR1(reinterpret_cast<PyArrayObject*>(pyW), 0);
   tempH = (float *) PyArray_GETPTR1(reinterpret_cast<PyArrayObject*>(pyH), 0);
+
   for(int i = 0; i < numPixels*k; ++i){
     W[i] = tempW[i];
   }
@@ -435,4 +447,6 @@ void performNNMF(float* &W, float* &H, float* V, unsigned int k, unsigned long n
   Py_DECREF(scalarTP);
   Py_DECREF(scalarIterations);
   Py_Finalize();
+
+  printf("tensorflowNNMF completed in %f seconds.\n", ((float) clock() - nnmfTimer)/CLOCKS_PER_SEC);
 }

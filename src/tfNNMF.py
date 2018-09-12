@@ -39,7 +39,7 @@ def tensorflowNNMF(A_orig, rank, iterations):
     print("Starting tensorflowNNMF")
 
     previousLoss = 99999.999
-    lossThresh = 1e-9
+    lossThresh = 1e-7
 
     with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as sess:
         sess.run(tf.global_variables_initializer())
@@ -61,5 +61,4 @@ def tensorflowNNMF(A_orig, rank, iterations):
         learnt_W = sess.run(W)
         learnt_H = sess.run(H)
 
-    print("tensorflow nnmf has completed")
     return learnt_W, learnt_H

@@ -4,16 +4,64 @@
 
 int main(int argc, char *argv[]) {
   cuInit(0);
-  if(argc < 2 || argc > 3){
+
+  unsigned int k;
+  unsigned int iterations;
+  double learningRate;
+  double threshHold;
+  std::string baseDirectory;
+
+  if(argc < 2){
     std::cout << "Usage: ./exe <directory of timepoint tifs>";
     exit(-1);
   }
-  unsigned int k;
-  if(argc == 3) k = std::stoi(argv[2]);
-  else{
-    k = 2;
+
+  else if (argc == 11){
+
+    for(int i = 1; i < argc; ++i) {
+
+        if(std::string(argv[i]) == "-d") {
+
+          i++;
+          baseDirectory = argv[i];
+
+        }
+
+        else if(std::string(argv[i]) == "-k") {
+
+          i++;
+          k = std::stoi(argv[i]);
+
+        }
+
+        else if(std::string(argv[i]) == "-i") {
+
+          i++;
+          iterations = std::stoi(argv[i]);
+
+        }
+        else if(std::string(argv[i]) == "-l") {
+
+          i++;
+          learningRate = std::stod(argv[i]);
+
+        }
+        else if(std::string(argv[i]) == "-t") {
+
+          i++;
+          threshHold = std::stod(argv[i]);
+
+        }
+
+    }
+
   }
-  std::string baseDirectory = argv[1];
+  else{
+
+    std::cout << "Please use all arguments listed in documentation" << '\n';
+
+  }
+
   if(baseDirectory.substr(baseDirectory.length() - 1,1) != "/") baseDirectory += "/";
   unsigned int width = 0;
   unsigned int height = 0;
@@ -35,11 +83,11 @@ int main(int argc, char *argv[]) {
   float* W = new float[height*width*k];
   float* H = new float[k*numTimePoints];
   //NOTE minimized video is deleted in performNNMF
-  performNNMF(W, H, minimizedVideo, k, height*width, numTimePoints, baseDirectory);
+  performNNMF(W, H, minimizedVideo, k, iterations, learningRate, threshHold, height*width, numTimePoints, baseDirectory);
   cudaDeviceSynchronize();
   cudaDeviceReset();
   cuInit(0);
-  createVisualization(baseDirectory,k, width, height, numTimePoints, W, H, key, baseName);
+  createVisualization(baseDirectory, k, width, height, numTimePoints, W, H, key, baseName);
   cudaDeviceReset();
   return 0;
 }

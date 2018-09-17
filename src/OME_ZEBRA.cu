@@ -5,62 +5,13 @@
 int main(int argc, char *argv[]) {
   cuInit(0);
 
-  unsigned int k;
-  unsigned int iterations;
-  double learningRate;
-  double threshHold;
-  std::string baseDirectory;
+  unsigned int k = 2;
+  unsigned int iterations = 1000;
+  double learningRate = .1;
+  double threshHold = 1e-8;
+  std::string baseDirectory = "";
 
-  if(argc < 2){
-    std::cout << "Usage: ./exe <directory of timepoint tifs>";
-    exit(-1);
-  }
-
-  else if (argc == 11){
-
-    for(int i = 1; i < argc; ++i) {
-
-        if(std::string(argv[i]) == "-d") {
-
-          i++;
-          baseDirectory = argv[i];
-
-        }
-
-        else if(std::string(argv[i]) == "-k") {
-
-          i++;
-          k = std::stoi(argv[i]);
-
-        }
-
-        else if(std::string(argv[i]) == "-i") {
-
-          i++;
-          iterations = std::stoi(argv[i]);
-
-        }
-        else if(std::string(argv[i]) == "-l") {
-
-          i++;
-          learningRate = std::stod(argv[i]);
-
-        }
-        else if(std::string(argv[i]) == "-t") {
-
-          i++;
-          threshHold = std::stod(argv[i]);
-
-        }
-
-    }
-
-  }
-  else{
-
-    std::cout << "Please use all arguments listed in documentation" << '\n';
-
-  }
+  parseArgs(argc, argv, k, iterations, learningRate, threshHold, baseDirectory);
 
   if(baseDirectory.substr(baseDirectory.length() - 1,1) != "/") baseDirectory += "/";
   unsigned int width = 0;

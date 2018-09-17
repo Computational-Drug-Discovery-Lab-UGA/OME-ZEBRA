@@ -39,11 +39,8 @@ def tensorflowNNMF(A_orig, rank, iterations, learningRate, threshHold):
     print("Starting tensorflowNNMF")
 
     previousLoss = 99999.999
-<<<<<<< Updated upstream
-    lossThresh = 1e-7
-=======
     lossThresh = threshHold
->>>>>>> Stashed changes
+
 
     with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as sess:
         sess.run(tf.global_variables_initializer())

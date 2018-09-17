@@ -29,5 +29,6 @@
 #include <algorithm>
 #include <unistd.h>
 #include <sys/wait.h>
+#include <map>
 
 #endif /* COMMON_INCLUDES_H */

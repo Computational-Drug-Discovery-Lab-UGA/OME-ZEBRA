@@ -10,7 +10,14 @@ libtiff,cuda-9
 numpy/arrayObjects
 
 python dependencies
-python-3.5,tensorflow-1.10,numpy,scikit-images,pandas
+python-3.5,tensorflow-1.10,numpy,pandas
 
+USAGE:
+  ./bin/ZEBRA_NMF /path/to/image/sequence/folder <args>
 
-NOTE change location of libraries in Makefile
+  Arguments:
+    <specifier> <value> - description
+    -k 10 (# of factors)
+    -i 1000 (max iterations)
+    -l .1 (learning rate)
+    -t 1e-7 (prev cost - cost < threshold = convergence)

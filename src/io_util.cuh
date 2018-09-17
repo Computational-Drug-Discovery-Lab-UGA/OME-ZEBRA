@@ -10,9 +10,9 @@ uint32* readTiffVideo(std::string videoDirectoryPath, unsigned int &width, unsig
 int createKey(float* &mtx, bool* &key, unsigned int numTimePoints, unsigned long numPixels);
 
 void createSpatialImages(std::string outDir, std::string firstTimePointLocation, std::string baseName, int k,
-  unsigned int width, unsigned int height, float* W, bool* key);
-void createKVideos(std::string outDir, std::string baseName, std::string firstTimePointLocation, int k, unsigned int width, unsigned int height,
-  unsigned int numTimePoints, float* W, float* H, bool* key);
+  unsigned int width, unsigned int height, float* W, bool* key, uint32 &samplesPerPixel, uint32 &bitsPerSample, uint32 &photo);
+void createKVideos(std::string outDir, std::string baseName, int k, unsigned int width, unsigned int height,
+  unsigned int numTimePoints, float* W, float* H, bool* key, uint32 samplesPerPixel, uint32 bitsPerSample, uint32 photo);
 void createVisualization(std::string videoDirectoryPath, int k, unsigned int width, unsigned int height,
   unsigned int numTimePoints, float* W, float* H, bool* key, std::string baseName);
 #endif /* IO_UTIL_CUH */

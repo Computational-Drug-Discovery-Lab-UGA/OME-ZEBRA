@@ -141,8 +141,8 @@ int createKey(float* &mtx, bool* &key, unsigned int numTimePoints, unsigned long
 }
 
 void createSpatialImages(std::string outDir, std::string firstTimePointLocation, std::string baseName, int k,
-  unsigned int width, unsigned int height, float* W, bool* key){
-  TIFF *tif = TIFFOpen(firstTimePointLocation.c_str(), "r");
+  unsigned int width, unsigned int height, float* W, bool* key, uint32 &samplesPerPixel, uint32 &bitsPerSample, uint32 &photo){
+
   uint32 max = 0;
   uint32 min = UINT32_MAX;
   uint32 ***kMatrix = new uint32**[k];
@@ -152,8 +152,7 @@ void createSpatialImages(std::string outDir, std::string firstTimePointLocation,
       kMatrix[i][ii] = new uint32[width];
     }
   }
-  uint32 samplesPerPixel, bitsPerSample, photo;
-
+  TIFF *tif = TIFFOpen(firstTimePointLocation.c_str(), "r");
   if(tif){
     tdata_t buf;
     tsize_t scanLineSize;
@@ -191,6 +190,7 @@ void createSpatialImages(std::string outDir, std::string firstTimePointLocation,
     std::cout<<"cannot open "<<firstTimePointLocation<<std::endl;
     exit(-1);
   }
+
   int largest = 0;
   float largestValue = 0.0f;
   float currentValue = 0.0f;
@@ -215,7 +215,7 @@ void createSpatialImages(std::string outDir, std::string firstTimePointLocation,
     }
   }
   for (int kFocus = 0; kFocus < k; ++kFocus) {
-    std::string fileName = outDir + baseName + "_" + std::to_string(k) + "_" + std::to_string(kFocus) + ".tif";
+    std::string fileName = outDir + baseName + "_spacial_K" + std::to_string(k) + "_k" + std::to_string(kFocus) + ".tif";
     TIFF *resultTif = TIFFOpen(fileName.c_str(), "w");
     if (resultTif) {
       TIFFSetField(resultTif, TIFFTAG_IMAGEWIDTH, width);
@@ -245,21 +245,8 @@ void createSpatialImages(std::string outDir, std::string firstTimePointLocation,
   }
   delete[] kMatrix;
 }
-void createKVideos(std::string outDir, std::string baseName, std::string firstTimePointLocation, int k, unsigned int width, unsigned int height,
-  unsigned int numTimePoints, float* W, float* H, bool* key){
-
-  TIFF *tif = TIFFOpen(firstTimePointLocation.c_str(), "r");
-  uint32 samplesPerPixel, bitsPerSample, photo;
-  if(tif){
-    TIFFGetField(tif, TIFFTAG_SAMPLESPERPIXEL, &samplesPerPixel);
-    TIFFGetField(tif, TIFFTAG_BITSPERSAMPLE, &bitsPerSample);
-    TIFFGetField(tif, TIFFTAG_PHOTOMETRIC, &photo);
-    TIFFClose(tif);
-  }
-  else{
-    std::cout<<"cannot open "<<firstTimePointLocation<<std::endl;
-    exit(-1);
-  }
+void createKVideos(std::string outDir, std::string baseName, int k, unsigned int width, unsigned int height,
+  unsigned int numTimePoints, float* W, float* H, bool* key, uint32 samplesPerPixel, uint32 bitsPerSample, uint32 photo){
 
   float* wColDevice;
   float* hRowDevice;
@@ -274,16 +261,9 @@ void createKVideos(std::string outDir, std::string baseName, std::string firstTi
   dim3 block = {1,1,1};
   float greatestTPK = 0.0f;
   int signatureTimePoint;
-  std::string toCopy;
-  std::string destination;
   getFlatGridBlock(height*width*numTimePoints, grid, block);
-  std::cout<<"starting k video generation"<<std::endl;
   for(int kFocus = 0; kFocus < k; ++kFocus){
-    std::string newDirectoryName = outDir +  baseName + "_k" + std::to_string(k) + "_" + std::to_string(kFocus) + "/";
-    if(mkdir(newDirectoryName.c_str(), 0777) == -1){
-      std::cout<<"CANNOT CREATE "<<newDirectoryName<<std::endl;
-    }
-    std::cout<<newDirectoryName<<" created"<<std::endl;
+
     for(int w = 0; w < height*width; ++w){
       wCol[w] = W[w*k + kFocus];
     }
@@ -294,41 +274,36 @@ void createKVideos(std::string outDir, std::string baseName, std::string firstTi
     CudaSafeCall(cudaMemcpy(resultTranspose, resultTransposeDevice, width*height*numTimePoints*sizeof(float), cudaMemcpyDeviceToHost));
 
     greatestTPK = 0.0f;
-    toCopy = "";
-    destination = "";
     for(int tp = 0; tp < numTimePoints; ++tp){
-      std::string newTif = newDirectoryName + baseName + "_" + createFourCharInt(tp);
       if(H[kFocus*numTimePoints + tp] > greatestTPK){
         greatestTPK = H[kFocus*numTimePoints + tp];
         signatureTimePoint = tp;
-        toCopy = newTif;
-      }
-      TIFF *tpfTif = TIFFOpen(newTif.c_str(), "w");
-      if(tpfTif){
-        TIFFSetField(tpfTif, TIFFTAG_IMAGEWIDTH, width);
-        TIFFSetField(tpfTif, TIFFTAG_IMAGELENGTH, height);
-        TIFFSetField(tpfTif, TIFFTAG_SAMPLESPERPIXEL, samplesPerPixel);
-        TIFFSetField(tpfTif, TIFFTAG_BITSPERSAMPLE, bitsPerSample);
-        TIFFSetField(tpfTif, TIFFTAG_PHOTOMETRIC, photo);
-
-        for(uint32 row = 0; row < height; ++row){
-          if(TIFFWriteScanline(tpfTif, resultTranspose + ((tp*width*height) + (row*width)), row, 0) != 1) {
-            std::cout << "ERROR WRITING FIRST TIMEPOINT" << std::endl;
-            exit(-1);
-          }
-        }
-        TIFFClose(tpfTif);
-      }
-      else{
-        std::cout<<"COULD NOT CREATE "<<newTif<<std::endl;
-        exit(-1);
       }
     }
-    std::cout<<numTimePoints<<" images in "<<newDirectoryName<<" have been created with signature timepoint = "<<signatureTimePoint<<std::endl;
-    destination = outDir + baseName + "_" + std::to_string(kFocus) + "_" + createFourCharInt(signatureTimePoint) + ".tif";
-    std::ifstream f1(toCopy, std::fstream::binary);
-    std::ofstream f2(destination, std::fstream::trunc|std::fstream::binary);
-    f2 << f1.rdbuf();
+    std::string newTif = outDir + baseName + "_temporal_K" + std::to_string(k) +  "_k" + std::to_string(kFocus) +
+      "_tp" + createFourCharInt(signatureTimePoint) + ".tif";
+
+    TIFF *tpfTif = TIFFOpen(newTif.c_str(), "w");
+    if(tpfTif){
+      TIFFSetField(tpfTif, TIFFTAG_IMAGEWIDTH, width);
+      TIFFSetField(tpfTif, TIFFTAG_IMAGELENGTH, height);
+      TIFFSetField(tpfTif, TIFFTAG_SAMPLESPERPIXEL, samplesPerPixel);
+      TIFFSetField(tpfTif, TIFFTAG_BITSPERSAMPLE, bitsPerSample);
+      TIFFSetField(tpfTif, TIFFTAG_PHOTOMETRIC, photo);
+
+      for(uint32 row = 0; row < height; ++row){
+        if(TIFFWriteScanline(tpfTif, resultTranspose + ((signatureTimePoint*width*height) + (row*width)), row, 0) != 1) {
+          std::cout << "ERROR WRITING FIRST TIMEPOINT" << std::endl;
+          exit(-1);
+        }
+      }
+      TIFFClose(tpfTif);
+    }
+    else{
+      std::cout<<"COULD NOT CREATE "<<newTif<<std::endl;
+      exit(-1);
+    }
+    std::cout<<newTif<<" has been created"<<std::endl;
   }
 
   CudaSafeCall(cudaFree(wColDevice));
@@ -362,6 +337,8 @@ void createVisualization(std::string videoDirectoryPath, int k, unsigned int wid
   }
   closedir(dir);
 
-  createSpatialImages(outDir, firstTimePointLocation, baseName, k, width, height, W, key);
-  createKVideos(outDir, baseName, firstTimePointLocation, k, width, height, numTimePoints, W, H, key);
+  uint32 samplesPerPixel = 0, bitsPerSample = 0, photo = 0;
+
+  createSpatialImages(outDir, firstTimePointLocation, baseName, k, width, height, W, key, samplesPerPixel, bitsPerSample, photo);
+  createKVideos(outDir, baseName, k, width, height, numTimePoints, W, H, key, samplesPerPixel, bitsPerSample, photo);
 }

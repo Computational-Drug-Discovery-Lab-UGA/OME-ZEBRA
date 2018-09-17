@@ -4,6 +4,9 @@
 #include "common_includes.h"
 #include "cuda_zebra.cuh"
 
+void parseArgs(const int &numArgs, char** args, unsigned int &k, unsigned int &iterations,
+  double &learningRate, double &threshold, std::string &baseDirectory);
+
 std::string createFourCharInt(int i);
 void extractMartrices(TIFF *tif, uint32* &imageMatrix, unsigned int width, unsigned int height, unsigned int scanLineSize);
 uint32* readTiffVideo(std::string videoDirectoryPath, unsigned int &width, unsigned int &height, unsigned int &numTimePoints, std::string &baseName);

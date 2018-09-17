@@ -25,6 +25,6 @@ float* executeNormalization(uint32* mtx, unsigned long size);
 bool* generateKey(unsigned long numPixels, unsigned int numTimePoints, float* mtx, unsigned long &numPixelsWithValues);
 float* minimizeVideo(unsigned long numPixels, unsigned long numPixelsWithValues, unsigned int numTimePoints, float* mtx, bool* key);
 
-void performNNMF(float* &W, float* &H, float* V, unsigned int k, unsigned long numPixels, unsigned int numTimePoints, std::string outDir);
+void performNNMF(float* &W, float* &H, float* V, unsigned int k, unsigned int iter, double learnR, double threshH, unsigned long numPixels, unsigned int numTimePoints, std::string baseDir);
 
 #endif /* CUDA_ZEBRA_CUH */

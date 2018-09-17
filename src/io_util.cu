@@ -41,6 +41,48 @@ inline void __cudaCheckError(const char *file, const int line) {
 /*
 IO HELPERS
 */
+
+void parseArgs(const int &numArgs, char** args, unsigned int &k, unsigned int &iterations,
+  double &learningRate, double &threshold, std::string &baseDirectory){
+    
+  std::map<std::string, int> parameters;
+  parameters["-k"] = 0;
+  parameters["-i"] = 1;
+  parameters["-l"] = 2;
+  parameters["-t"] = 3;
+  if(numArgs < 2){
+    std::cout << "Usage: ./exe <directory of timepoint tifs>";
+    exit(-1);
+  }
+  else if (numArgs > 6){
+    baseDirectory = args[1];
+    for(int i = 2; i < numArgs; ++i) {
+      switch(parameters[args[i]]){
+        case 0:
+          k = std::stoi(args[++i]);
+          break;
+        case 1:
+          iterations = std::stoi(args[++i]);
+          break;
+        case 2:
+          learningRate = std::stod(args[++i]);
+          break;
+        case 3:
+          threshold = std::stod(args[++i]);
+          break;
+        default:
+          std::cout<<"Please use all arguments listed in documentation"<<std::endl;
+          exit(-1);
+      }
+    }
+  }
+  else{
+    std::cout << "Please use all arguments listed in documentation" << '\n';
+    exit(-1);
+  }
+
+}
+
 std::string createFourCharInt(int i) {
   std::string strInt;
   if (i < 10) {

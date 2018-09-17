@@ -4,16 +4,15 @@
 
 int main(int argc, char *argv[]) {
   cuInit(0);
-  if(argc < 2 || argc > 3){
-    std::cout << "Usage: ./exe <directory of timepoint tifs>";
-    exit(-1);
-  }
-  unsigned int k;
-  if(argc == 3) k = std::stoi(argv[2]);
-  else{
-    k = 2;
-  }
-  std::string baseDirectory = argv[1];
+
+  unsigned int k = 2;
+  unsigned int iterations = 1000;
+  double learningRate = .1;
+  double threshHold = 1e-8;
+  std::string baseDirectory = "";
+
+  parseArgs(argc, argv, k, iterations, learningRate, threshHold, baseDirectory);
+
   if(baseDirectory.substr(baseDirectory.length() - 1,1) != "/") baseDirectory += "/";
   unsigned int width = 0;
   unsigned int height = 0;
@@ -35,11 +34,11 @@ int main(int argc, char *argv[]) {
   float* W = new float[height*width*k];
   float* H = new float[k*numTimePoints];
   //NOTE minimized video is deleted in performNNMF
-  performNNMF(W, H, minimizedVideo, k, height*width, numTimePoints, baseDirectory);
+  performNNMF(W, H, minimizedVideo, k, iterations, learningRate, threshHold, height*width, numTimePoints, baseDirectory);
   cudaDeviceSynchronize();
   cudaDeviceReset();
   cuInit(0);
-  createVisualization(baseDirectory,k, width, height, numTimePoints, W, H, key, baseName);
+  createVisualization(baseDirectory, k, width, height, numTimePoints, W, H, key, baseName);
   cudaDeviceReset();
   return 0;
 }

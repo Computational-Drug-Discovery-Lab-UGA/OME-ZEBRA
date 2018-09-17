@@ -336,7 +336,7 @@ float* minimizeVideo(unsigned long numPixels, unsigned long numPixelsWithValues,
   return minimizedVideo;
 }
 
-void performNNMF(float* &W, float* &H, float* V, unsigned int k, unsigned long numPixels, unsigned int numTimePoints, std::string baseDir){
+void performNNMF(float* &W, float* &H, float* V, unsigned int k, unsigned int iter, double learnR, double threshH, unsigned long numPixels, unsigned int numTimePoints, std::string baseDir){
   clock_t nnmfTimer;
   nnmfTimer = clock();
   std::cout<<"starting nnmf"<<std::endl;
@@ -367,7 +367,7 @@ void performNNMF(float* &W, float* &H, float* V, unsigned int k, unsigned long n
 
   //define python objects
   PyObject *pyV, *pyW, *pyH;
-  PyObject *scalarK, *scalarTP, *scalarPix,*scalarIterations;
+  PyObject *scalarK, *scalarTP, *scalarPix,*scalarIterations, *scalarLR, *scalarThresh;
   PyObject *args;
   PyObject *whReturn;
 
@@ -397,7 +397,9 @@ void performNNMF(float* &W, float* &H, float* V, unsigned int k, unsigned long n
   scalarK = PyLong_FromUnsignedLong(k);
   scalarPix = PyLong_FromUnsignedLong(numPixels);
   scalarTP = PyLong_FromUnsignedLong(numTimePoints);
-  scalarIterations = PyLong_FromUnsignedLong(1000);
+  scalarIterations = PyLong_FromUnsignedLong(iter);
+  scalarLR = PyFloat_FromDouble(learnR);
+  scalarThresh = PyFloat_FromDouble(threshH);
 
   std::cout<<"loading V matrix into numpy array"<<std::endl;
   pyV = PyArray_SimpleNew(2, vdim, NPY_FLOAT);
@@ -408,10 +410,12 @@ void performNNMF(float* &W, float* &H, float* V, unsigned int k, unsigned long n
   }
   delete[] V;
 
-  args = PyTuple_New(3);
+  args = PyTuple_New(5);
   PyTuple_SetItem(args, 0, pyV);
   PyTuple_SetItem(args, 1, scalarK);
   PyTuple_SetItem(args, 2, scalarIterations);
+  PyTuple_SetItem(args, 3, scalarLR);
+  PyTuple_SetItem(args, 4, scalarThresh);
 
   whReturn = PyObject_CallObject(myFunction, args);
   if(!whReturn){

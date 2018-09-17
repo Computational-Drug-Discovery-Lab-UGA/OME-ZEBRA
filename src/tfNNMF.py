@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 print("from tfnnmf.py - all modules loaded")
 
-def tensorflowNNMF(A_orig, rank, iterations):
+def tensorflowNNMF(A_orig, rank, iterations, learningRate, threshHold):
     print("Starting tensorflowNNMF nnmf prep")
 
     A_orig_df = pd.DataFrame(A_orig)
@@ -28,7 +28,7 @@ def tensorflowNNMF(A_orig, rank, iterations):
     cost = tf.reduce_mean(tf.pow(A - WH, 2))
 
     # Learning rate
-    lr = 0.1
+    lr = learningRate
     train_step = tf.train.AdamOptimizer(lr).minimize(cost)
 
     # Clipping operation. This ensure that W and H learnt are non-negative
@@ -39,7 +39,8 @@ def tensorflowNNMF(A_orig, rank, iterations):
     print("Starting tensorflowNNMF")
 
     previousLoss = 99999.999
-    lossThresh = 1e-7
+    lossThresh = threshHold
+
 
     with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as sess:
         sess.run(tf.global_variables_initializer())

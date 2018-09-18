@@ -5,7 +5,7 @@
 #include "cuda_zebra.cuh"
 
 void parseArgs(const int &numArgs, char** args, unsigned int &k, unsigned int &iterations,
-  double &learningRate, double &threshold, std::string &baseDirectory);
+  double &learningRate, double &threshold, float &sigmoidTuner, std::string &baseDirectory);
 
 std::string createFourCharInt(int i);
 void extractMartrices(TIFF *tif, uint32* &imageMatrix, unsigned int width, unsigned int height, unsigned int scanLineSize);

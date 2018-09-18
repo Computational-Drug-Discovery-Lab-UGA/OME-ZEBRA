@@ -9,9 +9,10 @@ int main(int argc, char *argv[]) {
   unsigned int iterations = 1000;
   double learningRate = .1;
   double threshHold = 1e-8;
+  float sigmoidTuner = 9.0;
   std::string baseDirectory = "";
 
-  parseArgs(argc, argv, k, iterations, learningRate, threshHold, baseDirectory);
+  parseArgs(argc, argv, k, iterations, learningRate, threshHold, sigmoidTuner, baseDirectory);
 
   if(baseDirectory.substr(baseDirectory.length() - 1,1) != "/") baseDirectory += "/";
   unsigned int width = 0;
@@ -19,7 +20,7 @@ int main(int argc, char *argv[]) {
   unsigned int numTimePoints = 0;
   std::string baseName = "";
   uint32* tifVideo = readTiffVideo(baseDirectory, width, height, numTimePoints, baseName);
-  float* normVideo = executeNormalization(tifVideo, width*height*numTimePoints);
+  float* normVideo = executeNormalization(tifVideo, width*height*numTimePoints, sigmoidTuner);
   delete[] tifVideo;
   unsigned long numPixelsWithValues = 0;
   bool* key = generateKey(width*height, numTimePoints, normVideo, numPixelsWithValues);

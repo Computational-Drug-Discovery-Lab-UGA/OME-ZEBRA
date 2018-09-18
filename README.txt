@@ -21,3 +21,4 @@ USAGE:
     -i 1000 (max iterations)
     -l .1 (learning rate)
     -t 1e-7 (prev cost - cost < threshold = convergence)
+    -s 9.0 (sigmoid tuning, 9.0 -> 1/(1 + e^(-10t + 9.0)))

@@ -77,20 +77,21 @@ __global__ void findMinMax(uint32* mtx, unsigned long size, uint32* min, uint32*
     atomicMin(min, bmin);
   }
 }
-__global__ void normalize(uint32 *mtx, float *normals, uint32* min, uint32* max, unsigned long size) {
+__global__ void normalize(uint32 *mtx, float *normals, uint32* min, uint32* max, float sigmoidTuner, unsigned long size) {
   int blockID = blockIdx.y * gridDim.x + blockIdx.x;
   long globalID = blockID * blockDim.x + threadIdx.x;
   int stride = gridDim.x * gridDim.y * blockDim.x;
   float currentValue = 0;
   float dmin = static_cast<float>(*min);
   float dmax = static_cast<float>(*max);
+  float registerSigmoidTuner = sigmoidTuner;
   while(globalID < size){
     if (mtx[globalID] != 0) {
       currentValue = static_cast<float>(mtx[globalID]) - dmin;
       currentValue /= (dmax - dmin);
     }
     normals[globalID] = currentValue;
-    normals[globalID] = 1.0f / (1.0f + expf((-10.0f * currentValue) + 9.0f));
+    normals[globalID] = 1.0f / (1.0f + expf((-10.0f * currentValue) + registerSigmoidTuner));
     globalID += stride;
   }
 }
@@ -256,7 +257,7 @@ void executeMultiplyMatrices(float *matrixA, float *matrixB, float* &matrixC, lo
   CudaSafeCall(cudaFree(matrixCDevice));
 
 }
-float* executeNormalization(uint32* mtx, unsigned long size){
+float* executeNormalization(uint32* mtx, unsigned long size, const float &sigmoidTuner){
   uint32 max = 0;
   uint32 min = UINT32_MAX;
   dim3 grid = {1,1,1};
@@ -281,7 +282,7 @@ float* executeNormalization(uint32* mtx, unsigned long size){
   cudaDeviceSynchronize();
   CudaCheckError();
   std::cout<<"executing normalization"<<std::endl;
-  normalize<<<grid,block>>>(matrixDevice, normDevice, mind, maxd, size);
+  normalize<<<grid,block>>>(matrixDevice, normDevice, mind, maxd, sigmoidTuner, size);
   CudaCheckError();
   CudaSafeCall(cudaMemcpy(&max, maxd, sizeof(uint32), cudaMemcpyDeviceToHost));
   CudaSafeCall(cudaMemcpy(&min, mind, sizeof(uint32), cudaMemcpyDeviceToHost));

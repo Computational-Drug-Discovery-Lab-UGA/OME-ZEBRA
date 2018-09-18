@@ -43,13 +43,14 @@ IO HELPERS
 */
 
 void parseArgs(const int &numArgs, char** args, unsigned int &k, unsigned int &iterations,
-  double &learningRate, double &threshold, std::string &baseDirectory){
-    
+  double &learningRate, double &threshold, float &sigmoidTuner, std::string &baseDirectory){
+
   std::map<std::string, int> parameters;
   parameters["-k"] = 0;
   parameters["-i"] = 1;
   parameters["-l"] = 2;
   parameters["-t"] = 3;
+  parameters["-s"] = 4;
   if(numArgs < 2){
     std::cout << "Usage: ./exe <directory of timepoint tifs>";
     exit(-1);
@@ -69,6 +70,9 @@ void parseArgs(const int &numArgs, char** args, unsigned int &k, unsigned int &i
           break;
         case 3:
           threshold = std::stod(args[++i]);
+          break;
+        case 4:
+          sigmoidTuner = std::stof(args[++i]);
           break;
         default:
           std::cout<<"Please use all arguments listed in documentation"<<std::endl;

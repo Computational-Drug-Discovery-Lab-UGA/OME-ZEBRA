@@ -13,7 +13,6 @@ int main(int argc, char *argv[]) {
   std::string baseDirectory = "";
 
   parseArgs(argc, argv, k, iterations, learningRate, threshHold, sigmoidTuner, baseDirectory);
-
   if(baseDirectory.substr(baseDirectory.length() - 1,1) != "/") baseDirectory += "/";
   unsigned int width = 0;
   unsigned int height = 0;

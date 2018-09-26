@@ -277,11 +277,9 @@ float* executeNormalization(uint32* mtx, unsigned long size, const float &sigmoi
   CudaSafeCall(cudaMemcpy(mind, &min, sizeof(uint32), cudaMemcpyHostToDevice));
   CudaSafeCall(cudaMemcpy(matrixDevice, mtx, size*sizeof(uint32), cudaMemcpyHostToDevice));
 
-  std::cout<<"searching for max and min"<<std::endl;
   findMinMax<<<grid,block>>>(matrixDevice, size, mind, maxd);
   cudaDeviceSynchronize();
   CudaCheckError();
-  std::cout<<"executing normalization"<<std::endl;
   normalize<<<grid,block>>>(matrixDevice, normDevice, mind, maxd, sigmoidTuner, size);
   CudaCheckError();
   CudaSafeCall(cudaMemcpy(&max, maxd, sizeof(uint32), cudaMemcpyDeviceToHost));
@@ -291,7 +289,7 @@ float* executeNormalization(uint32* mtx, unsigned long size, const float &sigmoi
   CudaSafeCall(cudaFree(mind));
   CudaSafeCall(cudaFree(matrixDevice));
   CudaSafeCall(cudaFree(normDevice));
-  printf("whole video - (uint32) min = %d, max = %d\n",min,max);
+  printf("whole video - normalized with (uint32) min = %d, max = %d, sigmoidTuner = %f\n",min,max,sigmoidTuner);
   return norm;
 
 }
@@ -319,7 +317,7 @@ bool* generateKey(unsigned long numPixels, unsigned int numTimePoints, float* mt
   for(int p = 0; p < numPixels; ++p){
     if(key[p]) ++numPixelsWithValues;
   }
-  std::cout<<numPixels - numPixelsWithValues<<std::endl;
+  std::cout<<numPixels - numPixelsWithValues<<" pixels"<<std::endl;
 
   return key;
 
@@ -340,8 +338,6 @@ float* minimizeVideo(unsigned long numPixels, unsigned long numPixelsWithValues,
 void performNNMF(float* &W, float* &H, float* V, unsigned int k, unsigned int iter, double learnR, double threshH, unsigned long numPixels, unsigned int numTimePoints, std::string baseDir){
   clock_t nnmfTimer;
   nnmfTimer = clock();
-  std::cout<<"starting nnmf"<<std::endl;
-  std::cout<<"ensuring positivity"<<std::endl;
   float* dV;
   int* globalMin;
   int maxInt = INT_MAX;
@@ -357,8 +353,6 @@ void performNNMF(float* &W, float* &H, float* V, unsigned int k, unsigned int it
   CudaSafeCall(cudaMemcpy(V, dV, numPixels*numTimePoints*sizeof(float), cudaMemcpyDeviceToHost));
   CudaSafeCall(cudaFree(dV));
   CudaSafeCall(cudaFree(globalMin));
-
-  std::cout<<"Preparing data for python"<<std::endl;
 
   npy_intp vdim[] = {(long) numPixels,(long) numTimePoints};
 
@@ -402,7 +396,7 @@ void performNNMF(float* &W, float* &H, float* V, unsigned int k, unsigned int it
   scalarLR = PyFloat_FromDouble(learnR);
   scalarThresh = PyFloat_FromDouble(threshH);
 
-  std::cout<<"loading V matrix into numpy array"<<std::endl;
+  std::cout<<"loading PIXxTP matrix into python"<<std::endl;
   pyV = PyArray_SimpleNew(2, vdim, NPY_FLOAT);
   float* npy = (float *) PyArray_DATA(reinterpret_cast<PyArrayObject*>(pyV));
   for(int i = 0; i < numPixels; ++i){

@@ -51,12 +51,28 @@ void parseArgs(const int &numArgs, char** args, unsigned int &k, unsigned int &i
   parameters["-l"] = 2;
   parameters["-t"] = 3;
   parameters["-s"] = 4;
+  parameters["-h"] = 5;
+  parameters["-help"] = 6;
   if(numArgs < 2){
-    std::cout << "Usage: ./exe <directory of timepoint tifs>";
+    std::cout << "Usage: ./exe <directory of timepoint tifs>\nfor help ./exe -h"<<std::endl;
     exit(-1);
   }
-  else if (numArgs > 6){
-    baseDirectory = args[1];
+  else if (numArgs >= 2){
+    if(parameters[args[1]] < 5){
+      baseDirectory = args[1];
+    }
+    else{
+      std::ifstream readme;
+      std::string line = "";
+      readme.open("README.txt");
+      if(readme.is_open()){
+        while(getline(readme, line)){
+          std::cout << line << std::endl;
+        }
+        readme.close();
+      }
+      exit(0);
+    }
     for(int i = 2; i < numArgs; ++i) {
       switch(parameters[args[i]]){
         case 0:
@@ -80,11 +96,6 @@ void parseArgs(const int &numArgs, char** args, unsigned int &k, unsigned int &i
       }
     }
   }
-  else{
-    std::cout << "Please use all arguments listed in documentation" << '\n';
-    exit(-1);
-  }
-
 }
 
 std::string createFourCharInt(int i) {
@@ -131,7 +142,7 @@ uint32* readTiffVideo(std::string videoDirectoryPath, unsigned int &width, unsig
       currentFileName.substr(currentFileName.length() - 3) != "tif") continue;
     //TODO check if it is a tif
     if (numTimePoints == 0) {
-      baseName = currentFileName.substr(0, currentFileName.find_first_of("."));
+      baseName = currentFileName.substr(currentFileName.find_last_of("/") + 1, currentFileName.length() - 8);
     }
     currentFileName = videoDirectoryPath + currentFileName;
     fileNames.push_back(currentFileName);
@@ -163,7 +174,7 @@ uint32* readTiffVideo(std::string videoDirectoryPath, unsigned int &width, unsig
       videoMatrix[r*numTimePoints + c] = videoVector[c][r];
     }
   }
-  printf("width = %d\nheight = %d\nnumTimePoints = %d\nbaseName = %s\n", width, height, numTimePoints, baseName.c_str());
+  printf("width = %d::height = %d::numTimePoints = %d\nbaseName = %s\n", width, height, numTimePoints, baseName.c_str());
   return videoMatrix;
 }
 

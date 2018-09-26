@@ -1,13 +1,15 @@
 necessary directories
 bin,obj,src
 
+FILE NAMING CONVENTION
+  basename0000.tif
+  (0000 is where timepoint is noted)
+
 Cuda/c++/c dependencies
 libtiff,cuda-9
 -get Python.h flags for linking and compiling by doing This
   $ /path/to/bin/python3.n-config --cflags
   $ /path/to/bin/python3.n-config --ldflags
-
-numpy/arrayObjects
 
 python dependencies
 python-3.5,tensorflow-1.10,numpy,pandas

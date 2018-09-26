@@ -14,13 +14,13 @@ libtiff,cuda-9
 python dependencies
 python-3.5,tensorflow-1.10,numpy,pandas
 
-USAGE:
+USAGE: (from */OME-ZEBRA/ directory)
   ./bin/ZEBRA_NMF /path/to/image/sequence/folder <args>
 
   Arguments:
     <specifier> <value> - description
-    -k 10 (# of factors)
+    -k 2 (# of factors)
     -i 1000 (max iterations)
     -l .1 (learning rate)
-    -t 1e-7 (prev cost - cost < threshold = convergence)
+    -t 1e-8 (prev cost - cost < threshold = convergence)
     -s 9.0 (sigmoid tuning, 9.0 -> 1/(1 + e^(-10t + 9.0)))

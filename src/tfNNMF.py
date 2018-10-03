@@ -6,6 +6,8 @@ print("from tfnnmf.py - all modules loaded")
 def tensorflowNNMF(A_orig, rank, iterations, learningRate, threshHold):
     print("Starting tensorflowNNMF nnmf prep")
 
+    gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=0.9)
+
     A_orig_df = pd.DataFrame(A_orig)
 
     shape = A_orig_df.values.shape
@@ -20,12 +22,19 @@ def tensorflowNNMF(A_orig, rank, iterations, learningRate, threshHold):
     H =  tf.Variable(temp_H)
     W = tf.Variable(temp_W)
     WH = tf.matmul(W, H)
+    WHSplit = tf.split(WH, 2)
 
     #causing a seg fault when trying to access values from data frame
-    A = tf.constant(A_orig_df.values)
+
+
+    A = np.split(A_orig_df.values, 2)
+    Asub1 = tf.constant(A[0])
+    Asub2 = tf.constant(A[1])
+
+
 
     #cost of Frobenius norm
-    cost = tf.reduce_mean(tf.pow(A - WH, 2))
+    cost = tf.reduce_mean(tf.pow(Asub1 - WHSplit[0], 2)) + tf.reduce_mean(tf.pow(Asub2 - WHSplit[1], 2))
 
     # Learning rate
     lr = learningRate
@@ -42,7 +51,7 @@ def tensorflowNNMF(A_orig, rank, iterations, learningRate, threshHold):
     lossThresh = threshHold
 
 
-    with tf.Session(config=tf.ConfigProto(allow_soft_placement=True)) as sess:
+    with tf.Session(config=tf.ConfigProto(allow_soft_placement=True, gpu_options=gpu_options, device_count = {'GPU': 1})) as sess:
         sess.run(tf.global_variables_initializer())
         for i in range(iterations):
             sess.run(train_step)

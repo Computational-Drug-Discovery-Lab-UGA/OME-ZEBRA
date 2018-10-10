@@ -16,7 +16,7 @@ INCLUDES += -I/usr/include/python3.5/
 # Common flags
 COMMONFLAGS = ${INCLUDES}
 NVCCFLAGS = ${COMMONFLAGS}
-NVCCFLAGS += -std=c++11 -gencode=arch=compute_60,code=sm_60 -Iinclude
+NVCCFLAGS += -std=c++11 -gencode=arch=compute_37,code=sm_37 -Iinclude
 CXXFLAGS = ${COMMONFLAGS}
 NVCCFLAGS += -Iinclude
 PYCFLAGS = -I/usr/include/python3.5m -O3
@@ -39,7 +39,7 @@ _OBJS += OME_ZEBRA.cu.o
 OBJS = ${patsubst %, ${OBJDIR}/%, ${_OBJS}}
 
 TARGET = ZEBRA_NMF
-LINKLINE = ${LINK} ${PYLDFLAGS} -gencode=arch=compute_60,code=sm_60 ${OBJS} \
+LINKLINE = ${LINK} ${PYLDFLAGS} -gencode=arch=compute_37,code=sm_37 ${OBJS} \
 ${LIB_CUDA} ${LIB_TIFF} ${INCLUDES} -o ${BINDIR}/${TARGET}
 
 
